@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "stop": [
+      {
+        "command": "echo 'Development session complete. Consider updating your DEVLOG with: @update-devlog'"
+      }
+    ],
+    "postToolUse": [
+      {
+        "matcher": "write",
+        "command": "echo 'Files modified. Remember to document changes in DEVLOG if significant.'"
+      }
+    ]
+  }
+}
