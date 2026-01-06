@@ -145,3 +145,62 @@
 - Secure AI model storage and updates
 - Rate limiting for AI training requests
 - Monitoring for unusual AI behavior patterns
+
+## Git Workflow & Branch Strategy
+
+**Branch Structure**:
+- **main**: Production releases only
+- **develop**: Integration branch for completed features
+- **feature/US-XXX-description**: Individual user story implementation
+
+**User Story Development Workflow**:
+1. **Check current branch**: Ensure you're on `develop` branch
+2. **Create feature branch**: `git checkout -b feature/US-XXX-description`
+   - Format: `feature/US-002-procedural-terrain`
+   - Always include user story number and brief description
+3. **Implement feature**: Complete all tasks from implementation plan
+4. **Commit with detailed message**: Include technical details and acceptance criteria
+5. **Push feature branch**: `git push -u origin feature/US-XXX-description`
+6. **Merge to develop**: `git checkout develop && git merge --no-ff feature/US-XXX-description`
+7. **Clean up**: Delete feature branch locally and remotely
+8. **Push develop**: `git push origin develop`
+
+**Commit Message Format**:
+```
+feat: US-XXX - Brief description
+
+- Detailed implementation notes
+- Technical decisions made
+- Acceptance criteria met
+- Performance metrics
+- Visual confirmation details
+
+Ready for: Next user story or specific next steps
+```
+
+**Branch Naming Convention**:
+- `feature/US-001-3d-foundation`
+- `feature/US-002-procedural-terrain`
+- `feature/US-003-energy-economy`
+- `hotfix/critical-bug-description` (if needed)
+
+**Important Rules**:
+- **Never commit directly to main or develop**
+- **Always use feature branches for user stories**
+- **Use `--no-ff` for merge commits to maintain history**
+- **Delete feature branches after successful merge**
+- **Update documentation before merging**
+
+**Pre-Implementation Checklist**:
+- [ ] Implementation plan created in `.agents/plans/`
+- [ ] Feature branch created from develop
+- [ ] KANBAN board updated to "In Progress"
+- [ ] Development environment ready (`npm run dev`)
+
+**Post-Implementation Checklist**:
+- [ ] All acceptance criteria met and validated
+- [ ] Performance targets achieved (60fps maintained)
+- [ ] Documentation updated (DEVLOG, KANBAN, README if needed)
+- [ ] Feature branch merged to develop with detailed commit
+- [ ] Branch cleanup completed
+- [ ] Next user story identified and moved to Ready
