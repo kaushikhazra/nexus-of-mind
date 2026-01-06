@@ -402,8 +402,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('📊 Unit Manager Stats:', stats);
     };
     
-    // Test worker creation system
-    (window as any).testWorkerCreation = () => {
+    // Test complete mining workflow
+    (window as any).testMiningWorkflow = () => {
         const gameEngine = (app as any).gameEngine;
         if (!gameEngine) {
             console.log('❌ Game engine not available');
@@ -412,44 +412,78 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const energyManager = gameEngine.getEnergyManager();
         const unitManager = gameEngine.getUnitManager();
-        const buildingManager = gameEngine.getBuildingManager();
+        const terrainGenerator = gameEngine.getTerrainGenerator();
         
-        if (!energyManager || !unitManager || !buildingManager) {
+        if (!energyManager || !unitManager || !terrainGenerator) {
             console.log('❌ Required managers not available');
             return;
         }
         
-        console.log('👷 Testing Worker Creation System...');
+        console.log('⛏️ Testing Complete Mining Workflow...');
         
         // Show current state
         const currentEnergy = energyManager.getTotalEnergy();
-        const currentWorkers = unitManager.getUnitsByType('worker');
-        const buildings = buildingManager.getAllBuildings();
+        const workers = unitManager.getUnitsByType('worker');
+        const deposits = terrainGenerator.getVisibleMineralDeposits();
         
         console.log(`⚡ Current energy: ${currentEnergy}`);
-        console.log(`👷 Current workers: ${currentWorkers.length}`);
-        console.log(`🏗️ Buildings available: ${buildings.length}`);
+        console.log(`👷 Current workers: ${workers.length}`);
+        console.log(`💎 Mineral deposits: ${deposits.length}`);
         
-        // Show building positions for spawn reference
-        buildings.forEach((building: any, index: number) => {
-            const buildingType = building.getBuildingType();
-            const position = building.getPosition();
-            console.log(`🏗️ Building ${index + 1}: ${buildingType.name} at ${position.toString()}`);
+        if (workers.length === 0) {
+            console.log('⚠️ No workers available - create workers first using WORKFORCE panel');
+            console.log('💡 Run testWorkerCreation() for worker creation instructions');
+            return;
+        }
+        
+        if (deposits.length === 0) {
+            console.log('⚠️ No mineral deposits found');
+            console.log('💡 Run showTerrainStats() to check terrain generation');
+            return;
+        }
+        
+        // Show first worker and deposit for testing
+        const firstWorker = workers[0];
+        const firstDeposit = deposits[0];
+        
+        console.log(`👷 First worker: ${firstWorker.getId()} at ${firstWorker.getPosition().toString()}`);
+        console.log(`💎 First deposit: ${firstDeposit.getId()} at ${firstDeposit.getPosition().toString()}`);
+        
+        // Test mining assignment
+        console.log('⛏️ Testing mining assignment...');
+        
+        firstWorker.startMining(firstDeposit).then((success: boolean) => {
+            if (success) {
+                console.log('✅ Mining assignment successful!');
+                console.log('💡 Worker is now mining - energy should increase over time');
+                
+                // Show mining stats after a few seconds
+                setTimeout(() => {
+                    const newEnergy = energyManager.getTotalEnergy();
+                    const energyGain = newEnergy - currentEnergy;
+                    console.log(`⚡ Energy after mining: ${newEnergy} (+${energyGain.toFixed(1)})`);
+                    
+                    const workerStats = firstWorker.getStats();
+                    console.log('👷 Worker status:', workerStats.currentAction);
+                    
+                    const depositStats = firstDeposit.getStats();
+                    console.log(`💎 Deposit remaining: ${depositStats.remaining}/${depositStats.capacity} E`);
+                }, 3000);
+                
+            } else {
+                console.log('❌ Mining assignment failed');
+            }
+        }).catch((error: any) => {
+            console.error('❌ Mining assignment error:', error);
         });
         
-        console.log('🎮 Worker Creation Instructions:');
-        console.log('  1. Look for the WORKFORCE panel on the right side');
-        console.log('  2. Click CREATE WORKER button (costs 25E)');
-        console.log('  3. Worker will spawn near your base building');
-        console.log('  4. Check worker count increases in the panel');
-        console.log('  5. Energy will be consumed (25E per worker)');
-        
-        if (currentEnergy < 25) {
-            console.log('⚠️ Warning: Insufficient energy for worker creation');
-            console.log('💡 Build a power plant or wait for energy generation');
-        } else {
-            console.log('✅ Sufficient energy available for worker creation');
-        }
+        console.log('🎮 Complete Workflow Instructions:');
+        console.log('  1. Create workers using WORKFORCE panel (25E each)');
+        console.log('  2. Workers spawn near your base building');
+        console.log('  3. Assign workers to mine mineral deposits');
+        console.log('  4. Watch energy increase from mining operations');
+        console.log('  5. Use generated energy to create more workers');
+        console.log('  6. Expand your mining operations strategically');
     };
     
     // Expose terrain stats function
@@ -482,7 +516,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('  - testBuildingSystem() - Test building creation and energy costs');
     console.log('  - testMovementSystem() - Test unit movement and energy consumption');
     console.log('  - testUnitSystem() - Test unit creation and management');
-    console.log('  - testWorkerCreation() - Test worker creation system and UI');
+    console.log('  - testMiningWorkflow() - Test complete worker creation → mining → energy loop');
     console.log('  - showTerrainStats() - Show terrain and mineral deposit information');
 });
 
