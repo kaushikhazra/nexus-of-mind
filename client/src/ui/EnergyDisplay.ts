@@ -72,89 +72,195 @@ export class EnergyDisplay {
         // Clear existing content
         this.container.innerHTML = '';
         
-        // Main energy display
+        // Main energy display with advanced SciFi styling
         const energyPanel = document.createElement('div');
         energyPanel.className = 'energy-panel';
         energyPanel.style.cssText = `
-            background: rgba(0, 20, 40, 0.9);
+            background: linear-gradient(135deg, rgba(0, 10, 30, 0.95) 0%, rgba(0, 30, 60, 0.95) 100%);
             border: 2px solid #00ffff;
-            border-radius: 8px;
-            padding: 12px;
-            font-family: 'Courier New', monospace;
+            border-radius: 12px;
+            padding: 16px;
+            font-family: 'Orbitron', 'Courier New', monospace;
             color: #00ffff;
-            min-width: 200px;
-            box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+            min-width: 240px;
+            box-shadow: 
+                0 0 20px rgba(0, 255, 255, 0.4),
+                inset 0 0 20px rgba(0, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
         `;
 
-        // Energy value display
+        // Add animated background pattern
+        const bgPattern = document.createElement('div');
+        bgPattern.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                repeating-linear-gradient(
+                    90deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(0, 255, 255, 0.03) 2px,
+                    rgba(0, 255, 255, 0.03) 4px
+                );
+            pointer-events: none;
+            z-index: 0;
+        `;
+        energyPanel.appendChild(bgPattern);
+
+        // Content container
+        const contentContainer = document.createElement('div');
+        contentContainer.style.cssText = 'position: relative; z-index: 1;';
+
+        // Energy header with SciFi styling
         const energyHeader = document.createElement('div');
         energyHeader.style.cssText = `
-            font-size: 16px;
-            font-weight: bold;
-            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 12px;
             text-align: center;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #00ffff;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+            border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+            padding-bottom: 8px;
         `;
-        energyHeader.textContent = 'ENERGY SYSTEM';
+        energyHeader.innerHTML = '◊ ENERGY CORE ◊';
 
+        // Energy value display with holographic effect
         this.energyValueElement = document.createElement('div');
         this.energyValueElement.style.cssText = `
-            font-size: 24px;
-            font-weight: bold;
+            font-size: 28px;
+            font-weight: 900;
             text-align: center;
-            margin-bottom: 10px;
+            margin: 16px 0;
             color: #00ff00;
+            text-shadow: 
+                0 0 10px rgba(0, 255, 0, 0.8),
+                0 0 20px rgba(0, 255, 0, 0.4);
+            font-family: 'Orbitron', monospace;
+            letter-spacing: 1px;
         `;
         this.energyValueElement.textContent = '0 J';
 
-        // Energy bar
+        // Energy bar with advanced styling
         const energyBarContainer = document.createElement('div');
         energyBarContainer.style.cssText = `
             width: 100%;
-            height: 20px;
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid #00ffff;
-            border-radius: 10px;
+            height: 24px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid #00ffff;
+            border-radius: 12px;
             overflow: hidden;
-            margin-bottom: 10px;
+            margin: 16px 0;
+            position: relative;
+            box-shadow: inset 0 0 10px rgba(0, 255, 255, 0.2);
         `;
+
+        // Energy bar background glow
+        const energyBarGlow = document.createElement('div');
+        energyBarGlow.style.cssText = `
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(90deg, #00ffff, #00ff00, #ffff00, #ff0000);
+            border-radius: 12px;
+            opacity: 0.3;
+            z-index: 0;
+        `;
+        energyBarContainer.appendChild(energyBarGlow);
 
         this.energyBarFillElement = document.createElement('div');
         this.energyBarFillElement.style.cssText = `
             height: 100%;
-            background: linear-gradient(90deg, #00ff00, #ffff00, #ff0000);
+            background: linear-gradient(90deg, 
+                rgba(0, 255, 0, 0.9) 0%, 
+                rgba(0, 255, 255, 0.9) 50%, 
+                rgba(255, 255, 0, 0.9) 80%, 
+                rgba(255, 0, 0, 0.9) 100%);
             width: 100%;
-            transition: width 0.3s ease;
+            transition: width 0.5s ease;
+            position: relative;
+            z-index: 1;
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.6);
         `;
+
+        // Add animated energy flow effect
+        const energyFlow = document.createElement('div');
+        energyFlow.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                rgba(255, 255, 255, 0.4) 50%, 
+                transparent 100%);
+            animation: energyFlow 2s infinite linear;
+            z-index: 2;
+        `;
+        this.energyBarFillElement.appendChild(energyFlow);
 
         energyBarContainer.appendChild(this.energyBarFillElement);
 
-        // Details section
+        // Details section with SciFi styling
         let detailsSection: HTMLElement | null = null;
         if (this.config.showDetails) {
             detailsSection = document.createElement('div');
             detailsSection.style.cssText = `
-                font-size: 12px;
-                margin-top: 8px;
-                border-top: 1px solid #00ffff;
-                padding-top: 8px;
+                font-size: 11px;
+                margin-top: 12px;
+                border-top: 1px solid rgba(0, 255, 255, 0.4);
+                padding-top: 12px;
+                font-family: 'Orbitron', monospace;
+                letter-spacing: 0.5px;
             `;
 
             // Generation rate
             const generationRow = document.createElement('div');
-            generationRow.style.cssText = 'display: flex; justify-content: space-between; margin-bottom: 4px;';
-            generationRow.innerHTML = '<span>Generation:</span><span id="generation-rate">0 J/s</span>';
+            generationRow.style.cssText = `
+                display: flex; 
+                justify-content: space-between; 
+                margin-bottom: 6px;
+                padding: 4px 0;
+                border-left: 2px solid rgba(0, 255, 0, 0.6);
+                padding-left: 8px;
+            `;
+            generationRow.innerHTML = '<span>⚡ GENERATION:</span><span id="generation-rate" style="color: #00ff00; font-weight: bold;">0 J/s</span>';
             this.generationRateElement = generationRow.querySelector('#generation-rate');
 
             // Consumption rate
             const consumptionRow = document.createElement('div');
-            consumptionRow.style.cssText = 'display: flex; justify-content: space-between; margin-bottom: 4px;';
-            consumptionRow.innerHTML = '<span>Consumption:</span><span id="consumption-rate">0 J/s</span>';
+            consumptionRow.style.cssText = `
+                display: flex; 
+                justify-content: space-between; 
+                margin-bottom: 6px;
+                padding: 4px 0;
+                border-left: 2px solid rgba(255, 165, 0, 0.6);
+                padding-left: 8px;
+            `;
+            consumptionRow.innerHTML = '<span>⚡ CONSUMPTION:</span><span id="consumption-rate" style="color: #ffaa00; font-weight: bold;">0 J/s</span>';
             this.consumptionRateElement = consumptionRow.querySelector('#consumption-rate');
 
             // Efficiency
             const efficiencyRow = document.createElement('div');
-            efficiencyRow.style.cssText = 'display: flex; justify-content: space-between; margin-bottom: 4px;';
-            efficiencyRow.innerHTML = '<span>Efficiency:</span><span id="efficiency">100%</span>';
+            efficiencyRow.style.cssText = `
+                display: flex; 
+                justify-content: space-between; 
+                margin-bottom: 6px;
+                padding: 4px 0;
+                border-left: 2px solid rgba(0, 255, 255, 0.6);
+                padding-left: 8px;
+            `;
+            efficiencyRow.innerHTML = '<span>◊ EFFICIENCY:</span><span id="efficiency" style="color: #00ffff; font-weight: bold;">100%</span>';
             this.efficiencyElement = efficiencyRow.querySelector('#efficiency');
 
             detailsSection.appendChild(generationRow);
@@ -162,38 +268,105 @@ export class EnergyDisplay {
             detailsSection.appendChild(efficiencyRow);
         }
 
-        // Transaction history
+        // Transaction history with SciFi styling
         if (this.config.showHistory) {
             this.transactionHistoryElement = document.createElement('div');
             this.transactionHistoryElement.style.cssText = `
-                font-size: 10px;
-                margin-top: 8px;
-                border-top: 1px solid #00ffff;
+                font-size: 9px;
+                margin-top: 12px;
+                border-top: 1px solid rgba(0, 255, 255, 0.4);
                 padding-top: 8px;
-                max-height: 100px;
+                max-height: 120px;
                 overflow-y: auto;
+                font-family: 'Orbitron', monospace;
             `;
             
             const historyTitle = document.createElement('div');
-            historyTitle.textContent = 'Recent Transactions:';
-            historyTitle.style.cssText = 'font-weight: bold; margin-bottom: 4px;';
+            historyTitle.textContent = '◊ TRANSACTION LOG ◊';
+            historyTitle.style.cssText = `
+                font-weight: bold; 
+                margin-bottom: 6px; 
+                color: #00ffff;
+                text-align: center;
+                letter-spacing: 1px;
+            `;
             this.transactionHistoryElement.appendChild(historyTitle);
         }
 
         // Assemble UI
-        energyPanel.appendChild(energyHeader);
-        energyPanel.appendChild(this.energyValueElement);
-        energyPanel.appendChild(energyBarContainer);
+        contentContainer.appendChild(energyHeader);
+        contentContainer.appendChild(this.energyValueElement);
+        contentContainer.appendChild(energyBarContainer);
         
         if (detailsSection) {
-            energyPanel.appendChild(detailsSection);
+            contentContainer.appendChild(detailsSection);
         }
         
         if (this.transactionHistoryElement) {
-            energyPanel.appendChild(this.transactionHistoryElement);
+            contentContainer.appendChild(this.transactionHistoryElement);
         }
 
+        energyPanel.appendChild(contentContainer);
         this.container.appendChild(energyPanel);
+
+        // Add CSS animations
+        this.addSciFiAnimations();
+    }
+
+    /**
+     * Add SciFi CSS animations
+     */
+    private addSciFiAnimations(): void {
+        if (!document.querySelector('#scifi-energy-animations')) {
+            const style = document.createElement('style');
+            style.id = 'scifi-energy-animations';
+            style.textContent = `
+                @keyframes energyFlow {
+                    0% { left: -100%; }
+                    100% { left: 100%; }
+                }
+                
+                @keyframes energyPulse {
+                    0%, 100% { 
+                        box-shadow: 
+                            0 0 20px rgba(0, 255, 255, 0.4),
+                            inset 0 0 20px rgba(0, 255, 255, 0.1);
+                    }
+                    50% { 
+                        box-shadow: 
+                            0 0 30px rgba(0, 255, 255, 0.6),
+                            inset 0 0 30px rgba(0, 255, 255, 0.2);
+                    }
+                }
+                
+                @keyframes textGlow {
+                    0%, 100% { 
+                        text-shadow: 
+                            0 0 10px rgba(0, 255, 255, 0.8),
+                            0 0 20px rgba(0, 255, 255, 0.4);
+                    }
+                    50% { 
+                        text-shadow: 
+                            0 0 15px rgba(0, 255, 255, 1),
+                            0 0 30px rgba(0, 255, 255, 0.6);
+                    }
+                }
+                
+                @keyframes blink {
+                    0%, 50% { opacity: 1; }
+                    51%, 100% { opacity: 0.3; }
+                }
+                
+                .energy-panel {
+                    animation: energyPulse 3s infinite ease-in-out;
+                }
+                
+                .energy-panel:hover {
+                    animation: energyPulse 1s infinite ease-in-out;
+                }
+            `;
+            document.head.appendChild(style);
+        }
     }
 
     /**

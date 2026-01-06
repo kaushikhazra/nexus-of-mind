@@ -34,18 +34,18 @@ class Application {
             }
 
             // Update loading progress
-            this.updateLoadingProgress(25, 'Setting up 3D Engine...');
+            this.updateLoadingProgress(25, 'Initializing Quantum Engine...');
 
             // Initialize game engine
             this.gameEngine = new GameEngine(this.canvas);
             await this.gameEngine.initialize();
 
-            this.updateLoadingProgress(75, 'Loading 3D World...');
+            this.updateLoadingProgress(75, 'Generating Neural Pathways...');
 
             // Start the game
             await this.gameEngine.start();
 
-            this.updateLoadingProgress(100, 'Ready!');
+            this.updateLoadingProgress(100, 'Neural Core Online!');
 
             // Hide loading screen after a brief delay
             setTimeout(() => {
@@ -56,7 +56,7 @@ class Application {
 
         } catch (error) {
             console.error('❌ Failed to initialize application:', error);
-            this.showError('Failed to initialize 3D world. Please refresh the page.');
+            this.showError('Neural Core Initialization Failed. Please refresh the page.');
         }
     }
 
