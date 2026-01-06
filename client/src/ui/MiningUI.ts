@@ -49,7 +49,6 @@ export class MineralReserveUI {
         this.reservePanel.className = 'mineral-reserve-panel';
         this.reservePanel.innerHTML = `
             <div class="reserve-content">
-                <span class="reserve-label">MINERALS</span>
                 <span class="reserve-stat">
                     <span class="stat-label">VIS</span>
                     <span class="stat-value" id="visible-deposits">0</span>
@@ -80,14 +79,14 @@ export class MineralReserveUI {
                 top: 80px;
                 right: 20px;
                 height: 40px;
-                min-width: 300px;
-                background: linear-gradient(135deg, rgba(0, 20, 40, 0.95), rgba(0, 40, 80, 0.95));
-                border: 2px solid #00ffff;
-                border-radius: 8px;
+                min-width: 250px;
+                background: rgba(0, 10, 20, 0.2);
+                border: 1px solid rgba(0, 255, 255, 0.4);
+                border-radius: 6px;
                 font-family: 'Orbitron', monospace;
                 color: #00ffff;
-                box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
-                backdrop-filter: blur(10px);
+                backdrop-filter: blur(8px);
+                box-shadow: 0 0 10px rgba(0, 255, 255, 0.15);
                 z-index: 1000;
                 display: flex;
                 align-items: center;
@@ -97,18 +96,8 @@ export class MineralReserveUI {
                 display: flex;
                 align-items: center;
                 width: 100%;
-                padding: 0 15px;
+                padding: 6px 12px;
                 gap: 20px;
-            }
-
-            .reserve-label {
-                font-size: 14px;
-                font-weight: bold;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-                text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
-                color: #00ffff;
-                min-width: 80px;
             }
 
             .reserve-stat {
@@ -116,6 +105,7 @@ export class MineralReserveUI {
                 align-items: center;
                 gap: 5px;
                 font-size: 12px;
+                letter-spacing: 0.5px;
             }
 
             .stat-label {
@@ -123,7 +113,6 @@ export class MineralReserveUI {
                 opacity: 0.8;
                 font-weight: normal;
                 text-transform: uppercase;
-                letter-spacing: 0.5px;
             }
 
             .stat-value {

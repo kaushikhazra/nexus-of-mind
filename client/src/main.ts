@@ -420,8 +420,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         console.log('🎮 UI Features:');
         console.log('  - Linear mineral reserve bar below energy bar (top-right)');
-        console.log('  - Format: "MINERALS VIS 92 CAP 5490E AVG 60E"');
-        console.log('  - Matches energy bar styling and layout');
+        console.log('  - Format: "VIS 92 CAP 5490E AVG 60E" (no MINERALS label)');
+        console.log('  - Exact same styling as energy bar (border, transparency, padding)');
         console.log('  - Updates automatically every 2 seconds');
         
         console.log('💡 The Mineral Reserve UI shows your available mineral resources for strategic planning');
