@@ -87,59 +87,62 @@ export class MineralDeposit {
     private createMesh(materialManager: MaterialManager): void {
         if (!this.scene) return;
 
-        // Create a parent node for the crystal cluster
+        // Create a parent node for the rock cluster
         const clusterNode = new TransformNode(`mineral_cluster_${this.id}`, this.scene);
         clusterNode.position = this.position.clone();
 
-        // Create multiple crystals in a cluster (3-5 crystals)
-        const crystalCount = 3 + Math.floor(Math.random() * 3); // 3-5 crystals
-        const crystals: Mesh[] = [];
+        // Create multiple rocks in a cluster (2-4 rocks)
+        const rockCount = 2 + Math.floor(Math.random() * 3); // 2-4 rocks
+        const rocks: Mesh[] = [];
 
-        for (let i = 0; i < crystalCount; i++) {
-            // Vary crystal size (60% to 140% of base size)
-            const sizeVariation = 0.6 + Math.random() * 0.8;
-            const crystalSize = this.size * sizeVariation;
+        for (let i = 0; i < rockCount; i++) {
+            // Vary rock size (70% to 130% of base size)
+            const sizeVariation = 0.7 + Math.random() * 0.6;
+            const rockSize = this.size * sizeVariation;
             
-            // Create individual crystal
-            const crystal = MeshBuilder.CreateCylinder(`mineral_crystal_${this.id}_${i}`, {
-                diameterTop: crystalSize * 0.2,        // Sharp point
-                diameterBottom: crystalSize * 0.6,     // Wider base
-                height: crystalSize * (1.5 + Math.random() * 0.8), // Height variation
-                tessellation: 6,                       // Hexagonal
-                subdivisions: 1                        // Low poly
+            // Create individual rock using irregular box shape
+            const rock = MeshBuilder.CreateBox(`mineral_rock_${this.id}_${i}`, {
+                width: rockSize * (0.8 + Math.random() * 0.4),   // Width variation
+                height: rockSize * (0.6 + Math.random() * 0.8),  // Height variation  
+                depth: rockSize * (0.8 + Math.random() * 0.4),   // Depth variation
             }, this.scene);
 
-            // Position crystals in cluster formation
-            const angle = (i / crystalCount) * Math.PI * 2 + Math.random() * 0.5;
-            const distance = this.size * 0.3 * Math.random(); // Random clustering
+            // Make rocks look more irregular by scaling on different axes
+            rock.scaling.x *= 0.8 + Math.random() * 0.4; // 0.8-1.2
+            rock.scaling.y *= 0.6 + Math.random() * 0.8; // 0.6-1.4
+            rock.scaling.z *= 0.8 + Math.random() * 0.4; // 0.8-1.2
+
+            // Position rocks in cluster formation
+            const angle = (i / rockCount) * Math.PI * 2 + Math.random() * 0.8;
+            const distance = this.size * 0.4 * Math.random(); // Random clustering
             
-            crystal.position.x = Math.cos(angle) * distance;
-            crystal.position.z = Math.sin(angle) * distance;
-            crystal.position.y = (crystalSize * 1.5) / 2; // Sit on ground
+            rock.position.x = Math.cos(angle) * distance;
+            rock.position.z = Math.sin(angle) * distance;
+            rock.position.y = (rock.scaling.y * rockSize * 0.6) / 2; // Sit on ground
             
-            // Random rotation for each crystal
-            crystal.rotation.y = Math.random() * Math.PI * 2;
-            crystal.rotation.x = (Math.random() - 0.5) * 0.3;
-            crystal.rotation.z = (Math.random() - 0.5) * 0.3;
+            // Random rotation for each rock (more dramatic than crystals)
+            rock.rotation.y = Math.random() * Math.PI * 2;
+            rock.rotation.x = (Math.random() - 0.5) * 0.4; // More tilt
+            rock.rotation.z = (Math.random() - 0.5) * 0.4; // More tilt
             
             // Parent to cluster
-            crystal.parent = clusterNode;
-            crystals.push(crystal);
+            rock.parent = clusterNode;
+            rocks.push(rock);
         }
 
         // Store the cluster node as the main mesh
         this.mesh = clusterNode as any; // TransformNode acts as container
-        this.crystals = crystals; // Store individual crystals for material application
+        this.crystals = rocks; // Store individual rocks for material application
 
-        // Apply material to all crystals
+        // Apply material to all rocks
         this.material = materialManager.getMineralMaterial();
         if (this.material) {
-            crystals.forEach(crystal => {
-                crystal.material = this.material;
+            rocks.forEach(rock => {
+                rock.material = this.material;
             });
         }
 
-        console.log(`💎 Crystal cluster created for mineral deposit ${this.id} (${crystalCount} crystals)`);
+        console.log(`💎 Rock cluster created for mineral deposit ${this.id} (${rockCount} rocks)`);
     }
 
     /**

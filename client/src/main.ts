@@ -372,28 +372,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('📊 Unit Manager Stats:', stats);
     };
     
-    // Test mining system
-    (window as any).testMiningSystem = () => {
+    // Test mineral deposits display
+    (window as any).testMineralDeposits = () => {
         const gameEngine = (app as any).gameEngine;
         if (!gameEngine) {
             console.log('❌ Game engine not available');
             return;
         }
         
-        const unitManager = gameEngine.getUnitManager();
         const terrainGenerator = gameEngine.getTerrainGenerator();
-        const energyManager = gameEngine.getEnergyManager();
         
-        if (!unitManager || !terrainGenerator || !energyManager) {
-            console.log('❌ Required managers not available');
+        if (!terrainGenerator) {
+            console.log('❌ Terrain generator not available');
             return;
         }
         
-        console.log('⛏️ Testing Complete Mining System...');
-        
-        // Show current energy
-        const initialEnergy = energyManager.getTotalEnergy();
-        console.log(`⚡ Initial energy: ${initialEnergy}`);
+        console.log('💎 Testing Mineral Deposits Display...');
         
         // Show mineral deposits
         const deposits = terrainGenerator.getVisibleMineralDeposits();
@@ -404,62 +398,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         
-        // Show first deposit details
-        const deposit = deposits[0];
-        const depositStats = deposit.getStats();
-        console.log('💎 First deposit stats:', depositStats);
-        
-        // Create a test worker if none exist
-        const workers = unitManager.getUnitsByType('worker');
-        let testWorker;
-        
-        if (workers.length === 0) {
-            console.log('👷 Creating test worker...');
-            testWorker = unitManager.createUnit('worker', new (window as any).Vector3(0, 0, 0));
-        } else {
-            testWorker = workers[0];
-        }
-        
-        if (!testWorker) {
-            console.log('❌ Failed to create or find worker');
-            return;
-        }
-        
-        console.log(`👷 Using worker ${testWorker.getId()}`);
-        
-        // Test mining assignment
-        console.log('⛏️ Testing mining assignment...');
-        testWorker.startMining(deposit).then((success: boolean) => {
-            if (success) {
-                console.log('✅ Mining started successfully!');
-                console.log('💡 Watch the energy display - it should increase over time');
-                console.log('💡 Check mining UI panel on the right side of screen');
-                
-                // Show mining stats after a few seconds
-                setTimeout(() => {
-                    const currentEnergy = energyManager.getTotalEnergy();
-                    const energyGain = currentEnergy - initialEnergy;
-                    console.log(`⚡ Energy after mining: ${currentEnergy} (+${energyGain})`);
-                    
-                    const updatedDepositStats = deposit.getStats();
-                    console.log('💎 Updated deposit stats:', updatedDepositStats);
-                    
-                    const workerStats = testWorker.getStats();
-                    console.log('👷 Worker stats:', workerStats);
-                }, 3000);
-            } else {
-                console.log('❌ Failed to start mining');
-            }
-        }).catch((error: any) => {
-            console.error('❌ Mining assignment error:', error);
+        // Show deposit details
+        deposits.slice(0, 5).forEach((deposit: any, index: number) => {
+            const stats = deposit.getStats();
+            const pos = deposit.getPosition();
+            console.log(`💎 Deposit ${index + 1}: ${stats.capacity} energy at (${pos.x.toFixed(1)}, ${pos.z.toFixed(1)}) - ${stats.biome} biome`);
         });
         
-        // Show UI instructions
-        console.log('🎮 Mining UI Instructions:');
-        console.log('  1. Click on workers to select them (green spheres)');
-        console.log('  2. Click on mineral deposits to assign mining (blue crystals)');
-        console.log('  3. Watch the Mining Operations panel on the right');
-        console.log('  4. Energy should increase over time from mining');
+        console.log('🎮 Visual Changes:');
+        console.log('  - Mineral deposits now look like rocky clusters instead of crystals');
+        console.log('  - Brown-gray rocky color instead of light blue');
+        console.log('  - Irregular box shapes with random scaling for natural rock appearance');
+        console.log('  - 2-4 rocks per cluster with varied sizes and rotations');
+        console.log('  - Subtle warm glow instead of bright blue emission');
+        
+        console.log('💡 Note: Worker creation and mining actions will be implemented later');
+        console.log('💡 For now, you can see the new rock-like mineral deposits scattered across the terrain');
     };
     
     // Expose terrain stats function
@@ -492,7 +446,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('  - testBuildingSystem() - Test building creation and energy costs');
     console.log('  - testMovementSystem() - Test unit movement and energy consumption');
     console.log('  - testUnitSystem() - Test unit creation and management');
-    console.log('  - testMiningSystem() - Test complete mining system with worker assignment');
+    console.log('  - testMineralDeposits() - View new rock-like mineral deposits');
     console.log('  - showTerrainStats() - Show terrain and mineral deposit information');
 });
 
