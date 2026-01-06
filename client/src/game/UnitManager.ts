@@ -1,0 +1,485 @@
+/**
+ * UnitManager - Central unit management system with selection and command handling
+ * 
+ * Manages unit lifecycle, selection, command queuing, and interaction with the
+ * rendering system. Provides the interface between player input and unit actions.
+ */
+
+import { Vector3 } from '@babylonjs/core';
+import { Unit } from './entities/Unit';
+import { Worker } from './entities/Worker';
+import { Scout } from './entities/Scout';
+import { Protector } from './entities/Protector';
+import { GameState } from './GameState';
+import { UnitRenderer, UnitVisual } from '../rendering/UnitRenderer';
+
+export interface UnitCommand {
+    id: string;
+    unitId: string;
+    commandType: 'move' | 'mine' | 'build' | 'attack' | 'patrol' | 'stop';
+    targetPosition?: Vector3;
+    targetId?: string;
+    parameters?: any;
+    priority: number;
+    createdAt: number;
+}
+
+export interface UnitManagerStats {
+    totalUnits: number;
+    activeUnits: number;
+    selectedUnits: number;
+    unitsByType: { [key: string]: number };
+    commandsQueued: number;
+    commandsExecuted: number;
+}
+
+export class UnitManager {
+    private gameState: GameState;
+    private unitRenderer: UnitRenderer;
+    
+    // Unit management
+    private units: Map<string, Unit> = new Map();
+    private selectedUnits: Set<string> = new Set();
+    
+    // Command system
+    private commandQueue: UnitCommand[] = [];
+    private commandIdCounter: number = 0;
+    private commandsExecuted: number = 0;
+    
+    // Unit creation counters
+    private unitCounters = {
+        worker: 0,
+        scout: 0,
+        protector: 0
+    };
+
+    constructor(gameState: GameState, unitRenderer: UnitRenderer) {
+        this.gameState = gameState;
+        this.unitRenderer = unitRenderer;
+        
+        console.log('👥 UnitManager initialized');
+    }
+
+    /**
+     * Create a new unit
+     */
+    public createUnit(unitType: 'worker' | 'scout' | 'protector', position: Vector3): Unit | null {
+        try {
+            let unit: Unit;
+            
+            // Create unit based on type
+            switch (unitType) {
+                case 'worker':
+                    unit = new Worker(position);
+                    break;
+                case 'scout':
+                    unit = new Scout(position);
+                    break;
+                case 'protector':
+                    unit = new Protector(position);
+                    break;
+                default:
+                    console.error(`❌ Unknown unit type: ${unitType}`);
+                    return null;
+            }
+
+            // Add to units map
+            this.units.set(unit.getId(), unit);
+            
+            // Update counter
+            this.unitCounters[unitType]++;
+            
+            // Create visual representation
+            const unitVisual = this.unitRenderer.createUnitVisual(unit);
+            if (!unitVisual) {
+                console.error(`❌ Failed to create visual for unit ${unit.getId()}`);
+                this.units.delete(unit.getId());
+                return null;
+            }
+
+            // Add to game state
+            this.gameState.addUnit(unit);
+
+            // Setup unit event callbacks
+            this.setupUnitCallbacks(unit);
+
+            console.log(`👤 Created ${unitType} unit ${unit.getId()} at ${position.toString()}`);
+            return unit;
+
+        } catch (error) {
+            console.error(`❌ Failed to create ${unitType} unit:`, error);
+            return null;
+        }
+    }
+
+    /**
+     * Setup event callbacks for a unit
+     */
+    private setupUnitCallbacks(unit: Unit): void {
+        unit.onDestroyed((destroyedUnit) => {
+            this.handleUnitDestroyed(destroyedUnit);
+        });
+
+        unit.onEnergyDepleted((depletedUnit) => {
+            console.warn(`⚠️ Unit ${depletedUnit.getId()} energy depleted - stopping actions`);
+            this.stopUnit(depletedUnit.getId());
+        });
+
+        unit.onActionComplete((completedUnit, action) => {
+            console.log(`✅ Unit ${completedUnit.getId()} completed ${action} action`);
+        });
+    }
+
+    /**
+     * Handle unit destruction
+     */
+    private handleUnitDestroyed(unit: Unit): void {
+        const unitId = unit.getId();
+        
+        // Remove from selection
+        this.selectedUnits.delete(unitId);
+        
+        // Remove visual
+        this.unitRenderer.removeUnitVisual(unitId);
+        
+        // Remove from units map
+        this.units.delete(unitId);
+        
+        // Remove from game state
+        this.gameState.removeUnit(unitId);
+        
+        // Cancel any queued commands for this unit
+        this.commandQueue = this.commandQueue.filter(cmd => cmd.unitId !== unitId);
+        
+        console.log(`💀 Unit ${unitId} removed from management`);
+    }
+
+    /**
+     * Select units
+     */
+    public selectUnits(unitIds: string[]): void {
+        // Clear current selection
+        this.clearSelection();
+        
+        // Add new selection
+        for (const unitId of unitIds) {
+            const unit = this.units.get(unitId);
+            if (unit && unit.isActiveUnit()) {
+                this.selectedUnits.add(unitId);
+                this.unitRenderer.setUnitSelection(unitId, true);
+            }
+        }
+        
+        console.log(`👆 Selected ${this.selectedUnits.size} units`);
+    }
+
+    /**
+     * Add unit to selection
+     */
+    public addToSelection(unitId: string): void {
+        const unit = this.units.get(unitId);
+        if (unit && unit.isActiveUnit()) {
+            this.selectedUnits.add(unitId);
+            this.unitRenderer.setUnitSelection(unitId, true);
+        }
+    }
+
+    /**
+     * Remove unit from selection
+     */
+    public removeFromSelection(unitId: string): void {
+        this.selectedUnits.delete(unitId);
+        this.unitRenderer.setUnitSelection(unitId, false);
+    }
+
+    /**
+     * Clear all selections
+     */
+    public clearSelection(): void {
+        for (const unitId of this.selectedUnits) {
+            this.unitRenderer.setUnitSelection(unitId, false);
+        }
+        this.selectedUnits.clear();
+    }
+
+    /**
+     * Get selected units
+     */
+    public getSelectedUnits(): Unit[] {
+        const selectedUnits: Unit[] = [];
+        for (const unitId of this.selectedUnits) {
+            const unit = this.units.get(unitId);
+            if (unit) {
+                selectedUnits.push(unit);
+            }
+        }
+        return selectedUnits;
+    }
+
+    /**
+     * Issue command to selected units
+     */
+    public issueCommand(
+        commandType: UnitCommand['commandType'],
+        targetPosition?: Vector3,
+        targetId?: string,
+        parameters?: any
+    ): void {
+        const selectedUnits = this.getSelectedUnits();
+        
+        if (selectedUnits.length === 0) {
+            console.warn('⚠️ No units selected for command');
+            return;
+        }
+
+        // Create commands for each selected unit
+        for (const unit of selectedUnits) {
+            const command: UnitCommand = {
+                id: this.generateCommandId(),
+                unitId: unit.getId(),
+                commandType,
+                targetPosition: targetPosition?.clone(),
+                targetId,
+                parameters,
+                priority: 1,
+                createdAt: performance.now()
+            };
+
+            this.commandQueue.push(command);
+        }
+
+        console.log(`📋 Issued ${commandType} command to ${selectedUnits.length} units`);
+    }
+
+    /**
+     * Generate unique command ID
+     */
+    private generateCommandId(): string {
+        return `cmd_${++this.commandIdCounter}_${Date.now()}`;
+    }
+
+    /**
+     * Process command queue
+     */
+    public processCommands(): void {
+        if (this.commandQueue.length === 0) {
+            return;
+        }
+
+        // Sort commands by priority (higher priority first)
+        this.commandQueue.sort((a, b) => b.priority - a.priority);
+
+        // Process commands
+        const commandsToRemove: number[] = [];
+        
+        for (let i = 0; i < this.commandQueue.length; i++) {
+            const command = this.commandQueue[i];
+            const unit = this.units.get(command.unitId);
+            
+            if (!unit || !unit.isActiveUnit()) {
+                commandsToRemove.push(i);
+                continue;
+            }
+
+            if (this.executeCommand(unit, command)) {
+                commandsToRemove.push(i);
+                this.commandsExecuted++;
+            }
+        }
+
+        // Remove processed commands (in reverse order to maintain indices)
+        for (let i = commandsToRemove.length - 1; i >= 0; i--) {
+            this.commandQueue.splice(commandsToRemove[i], 1);
+        }
+    }
+
+    /**
+     * Execute a command on a unit
+     */
+    private executeCommand(unit: Unit, command: UnitCommand): boolean {
+        try {
+            switch (command.commandType) {
+                case 'move':
+                    if (command.targetPosition) {
+                        unit.startMovement(command.targetPosition);
+                        return true;
+                    }
+                    break;
+
+                case 'mine':
+                    if (command.targetId) {
+                        // TODO: Get mineral deposit by ID
+                        const target = this.gameState.getMineralDeposit(command.targetId);
+                        if (target) {
+                            unit.startMining(target);
+                            return true;
+                        }
+                    }
+                    break;
+
+                case 'build':
+                    if (command.targetPosition && command.parameters?.buildingType) {
+                        unit.startBuilding(command.parameters.buildingType, command.targetPosition);
+                        return true;
+                    }
+                    break;
+
+                case 'attack':
+                    if (command.targetId && unit instanceof Protector) {
+                        // TODO: Get target by ID and attack
+                        console.log(`⚔️ Attack command for protector ${unit.getId()} - not yet implemented`);
+                        return true;
+                    }
+                    break;
+
+                case 'patrol':
+                    if (command.targetPosition && unit instanceof Protector) {
+                        const radius = command.parameters?.radius || 10;
+                        unit.startPatrol(command.targetPosition, radius);
+                        return true;
+                    }
+                    break;
+
+                case 'stop':
+                    unit.stopAllActions();
+                    return true;
+
+                default:
+                    console.warn(`⚠️ Unknown command type: ${command.commandType}`);
+                    return true; // Remove unknown commands
+            }
+
+        } catch (error) {
+            console.error(`❌ Error executing command ${command.id}:`, error);
+            return true; // Remove failed commands
+        }
+
+        return false; // Command not executed, keep in queue
+    }
+
+    /**
+     * Stop a specific unit
+     */
+    public stopUnit(unitId: string): void {
+        const unit = this.units.get(unitId);
+        if (unit) {
+            unit.stopAllActions();
+            console.log(`⏹️ Stopped unit ${unitId}`);
+        }
+    }
+
+    /**
+     * Stop all selected units
+     */
+    public stopSelectedUnits(): void {
+        for (const unitId of this.selectedUnits) {
+            this.stopUnit(unitId);
+        }
+    }
+
+    /**
+     * Update all units
+     */
+    public update(deltaTime: number): void {
+        // Update all units
+        for (const unit of this.units.values()) {
+            if (unit.isActiveUnit()) {
+                unit.update(deltaTime);
+            }
+        }
+
+        // Process command queue
+        this.processCommands();
+
+        // Update unit renderer
+        this.unitRenderer.updateAllVisuals();
+    }
+
+    /**
+     * Get unit by ID
+     */
+    public getUnit(unitId: string): Unit | null {
+        return this.units.get(unitId) || null;
+    }
+
+    /**
+     * Get all units
+     */
+    public getAllUnits(): Unit[] {
+        return Array.from(this.units.values());
+    }
+
+    /**
+     * Get units by type
+     */
+    public getUnitsByType(unitType: 'worker' | 'scout' | 'protector'): Unit[] {
+        return Array.from(this.units.values()).filter(unit => unit.getUnitType() === unitType);
+    }
+
+    /**
+     * Get active units
+     */
+    public getActiveUnits(): Unit[] {
+        return Array.from(this.units.values()).filter(unit => unit.isActiveUnit());
+    }
+
+    /**
+     * Get unit manager statistics
+     */
+    public getStats(): UnitManagerStats {
+        const unitsByType: { [key: string]: number } = {};
+        let activeUnits = 0;
+
+        for (const unit of this.units.values()) {
+            const unitType = unit.getUnitType();
+            unitsByType[unitType] = (unitsByType[unitType] || 0) + 1;
+            
+            if (unit.isActiveUnit()) {
+                activeUnits++;
+            }
+        }
+
+        return {
+            totalUnits: this.units.size,
+            activeUnits,
+            selectedUnits: this.selectedUnits.size,
+            unitsByType,
+            commandsQueued: this.commandQueue.length,
+            commandsExecuted: this.commandsExecuted
+        };
+    }
+
+    /**
+     * Get unit creation counts
+     */
+    public getUnitCounts(): { [key: string]: number } {
+        return { ...this.unitCounters };
+    }
+
+    /**
+     * Clear all commands
+     */
+    public clearCommands(): void {
+        this.commandQueue = [];
+        console.log('📋 Command queue cleared');
+    }
+
+    /**
+     * Dispose unit manager
+     */
+    public dispose(): void {
+        console.log('🗑️ Disposing UnitManager...');
+
+        // Stop all units
+        for (const unit of this.units.values()) {
+            unit.dispose();
+        }
+
+        // Clear collections
+        this.units.clear();
+        this.selectedUnits.clear();
+        this.commandQueue = [];
+
+        console.log('✅ UnitManager disposed');
+    }
+}

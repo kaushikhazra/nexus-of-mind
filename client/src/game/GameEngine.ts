@@ -14,6 +14,8 @@ import { PerformanceMonitor } from '../utils/PerformanceMonitor';
 import { EnergyManager } from './EnergyManager';
 import { EnergyDisplay } from '../ui/EnergyDisplay';
 import { GameState } from './GameState';
+import { UnitManager } from './UnitManager';
+import { UnitRenderer } from '../rendering/UnitRenderer';
 
 export class GameEngine {
     private static instance: GameEngine | null = null;
@@ -35,6 +37,10 @@ export class GameEngine {
     
     // Game state
     private gameState: GameState | null = null;
+    
+    // Unit system
+    private unitManager: UnitManager | null = null;
+    private unitRenderer: UnitRenderer | null = null;
     
     private isInitialized: boolean = false;
     private isRunning: boolean = false;
@@ -102,6 +108,10 @@ export class GameEngine {
             this.gameState = GameState.getInstance();
             this.gameState.initialize();
 
+            // Initialize unit system
+            this.unitRenderer = new UnitRenderer(this.scene, this.materialManager);
+            this.unitManager = new UnitManager(this.gameState, this.unitRenderer);
+
             // Setup components
             this.cameraController.setupCamera();
             this.lightingSetup.setupLighting();
@@ -161,6 +171,11 @@ export class GameEngine {
                     // Update game state
                     if (this.gameState) {
                         this.gameState.update(deltaTime);
+                    }
+                    
+                    // Update unit system
+                    if (this.unitManager) {
+                        this.unitManager.update(deltaTime);
                     }
                     
                     // Update energy system
@@ -299,6 +314,13 @@ export class GameEngine {
     }
 
     /**
+     * Get unit manager
+     */
+    public getUnitManager(): UnitManager | null {
+        return this.unitManager;
+    }
+
+    /**
      * Dispose of all resources
      */
     public dispose(): void {
@@ -307,6 +329,8 @@ export class GameEngine {
         this.stop();
 
         // Dispose components in reverse order
+        this.unitManager?.dispose();
+        this.unitRenderer?.dispose();
         this.gameState?.dispose();
         this.energyDisplay?.dispose();
         this.energyManager?.dispose();

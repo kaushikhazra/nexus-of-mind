@@ -246,6 +246,105 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     };
     
+    // Test unit system
+    (window as any).testUnitSystem = () => {
+        const gameEngine = (app as any).gameEngine;
+        if (!gameEngine) {
+            console.log('❌ Game engine not available');
+            return;
+        }
+        
+        const unitManager = gameEngine.getUnitManager();
+        const energyManager = gameEngine.getEnergyManager();
+        
+        if (!unitManager || !energyManager) {
+            console.log('❌ Unit manager or energy manager not available');
+            return;
+        }
+        
+        console.log('👥 Testing Unit System...');
+        
+        // Show current energy
+        console.log(`⚡ Current energy: ${energyManager.getTotalEnergy()}`);
+        
+        // Create test units
+        const worker = unitManager.createUnit('worker', new (window as any).Vector3(5, 0, 5));
+        const scout = unitManager.createUnit('scout', new (window as any).Vector3(-5, 0, 5));
+        const protector = unitManager.createUnit('protector', new (window as any).Vector3(0, 0, -5));
+        
+        if (worker && scout && protector) {
+            console.log(`✅ Created units: Worker ${worker.getId()}, Scout ${scout.getId()}, Protector ${protector.getId()}`);
+            
+            // Show unit stats
+            console.log('👷 Worker stats:', worker.getStats());
+            console.log('🔍 Scout stats:', scout.getStats());
+            console.log('🛡️ Protector stats:', protector.getStats());
+            
+            // Test unit selection
+            unitManager.selectUnits([worker.getId(), scout.getId()]);
+            console.log('👆 Selected worker and scout');
+            
+            // Test movement command
+            unitManager.issueCommand('move', new (window as any).Vector3(10, 0, 10));
+            console.log('🚶 Issued movement command to selected units');
+        }
+        
+        // Show unit manager stats
+        const stats = unitManager.getStats();
+        console.log('📊 Unit Manager Stats:', stats);
+    };
+    
+    // Test unit actions
+    (window as any).testUnitActions = () => {
+        const gameEngine = (app as any).gameEngine;
+        if (!gameEngine) {
+            console.log('❌ Game engine not available');
+            return;
+        }
+        
+        const unitManager = gameEngine.getUnitManager();
+        const terrainGenerator = gameEngine.getTerrainGenerator();
+        
+        if (!unitManager || !terrainGenerator) {
+            console.log('❌ Unit manager or terrain generator not available');
+            return;
+        }
+        
+        console.log('⚡ Testing Unit Actions...');
+        
+        // Get all units
+        const units = unitManager.getAllUnits();
+        console.log(`👥 Found ${units.length} units`);
+        
+        // Test mining with workers
+        const workers = unitManager.getUnitsByType('worker');
+        if (workers.length > 0) {
+            const worker = workers[0];
+            const deposits = terrainGenerator.getVisibleMineralDeposits();
+            
+            if (deposits.length > 0) {
+                console.log(`⛏️ Testing mining with worker ${worker.getId()}`);
+                worker.startMining(deposits[0]);
+            }
+        }
+        
+        // Test exploration with scouts
+        const scouts = unitManager.getUnitsByType('scout');
+        if (scouts.length > 0) {
+            const scout = scouts[0];
+            console.log(`🔍 Testing exploration with scout ${scout.getId()}`);
+            scout.discoverMinerals(terrainGenerator);
+        }
+        
+        // Test shield with protectors
+        const protectors = unitManager.getUnitsByType('protector');
+        if (protectors.length > 0) {
+            const protector = protectors[0];
+            console.log(`🛡️ Testing shield with protector ${protector.getId()}`);
+            protector.activateShield();
+        }
+    };
+    
     // Expose terrain stats function
     (window as any).showTerrainStats = () => {
         const gameEngine = (app as any).gameEngine;
@@ -275,6 +374,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('  - testEnergySystem() - Test energy generation and consumption');
     console.log('  - testBuildingSystem() - Test building creation and energy costs');
     console.log('  - testMovementSystem() - Test unit movement and energy consumption');
+    console.log('  - testUnitSystem() - Test unit creation and management');
+    console.log('  - testUnitActions() - Test unit-specific actions (mining, exploration, combat)');
     console.log('  - showTerrainStats() - Show terrain and mineral deposit information');
 });
 
