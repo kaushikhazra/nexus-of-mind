@@ -419,7 +419,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log(`  - Average per Deposit: ${avgCapacity} E`);
         
         console.log('🎮 UI Features:');
-        console.log('  - Mineral Reserve panel appears below energy bar (top-left)');
+        console.log('  - Mineral Reserve panel appears below energy bar (top-right)');
         console.log('  - Shows visible deposits, total capacity, and average per deposit');
         console.log('  - Updates automatically every 2 seconds');
         console.log('  - Clean SciFi styling matching energy display');

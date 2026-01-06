@@ -82,7 +82,7 @@ export class MineralReserveUI {
             .mineral-reserve-panel {
                 position: fixed;
                 top: 80px;
-                left: 20px;
+                right: 20px;
                 width: 220px;
                 background: linear-gradient(135deg, rgba(0, 20, 40, 0.95), rgba(0, 40, 80, 0.95));
                 border: 2px solid #00ffff;
