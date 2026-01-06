@@ -116,16 +116,16 @@ export class SceneManager {
 
     /**
      * Add test objects to verify the scene is working
-     * Note: Ground plane replaced by procedural terrain system
+     * Note: Objects positioned above terrain height
      */
     private addTestObjects(): void {
         if (!this.scene) return;
 
         console.log('🧪 Adding test objects...');
 
-        // Create a test sphere (representing a unit)
+        // Create a test sphere (representing a unit) - positioned high above terrain
         const testSphere = MeshBuilder.CreateSphere('testSphere', { diameter: 2 }, this.scene);
-        testSphere.position = new Vector3(0, 5, 0); // Raised higher for terrain
+        testSphere.position = new Vector3(0, 15, 0); // Much higher to be above terrain
 
         // Create material for the test sphere
         const testMaterial = new StandardMaterial('testMaterial', this.scene);
@@ -133,9 +133,9 @@ export class SceneManager {
         testMaterial.specularColor = new Color3(0.1, 0.1, 0.1);
         testSphere.material = testMaterial;
 
-        // Create a test pyramid (representing a base)
+        // Create a test pyramid (representing a base) - positioned high above terrain
         const testPyramid = MeshBuilder.CreateBox('testPyramid', { size: 2 }, this.scene);
-        testPyramid.position = new Vector3(10, 5, 0); // Positioned on terrain
+        testPyramid.position = new Vector3(10, 15, 0); // Much higher to be above terrain
         testPyramid.scaling = new Vector3(1, 1.5, 1); // Make it more pyramid-like
 
         // Create material for the pyramid
@@ -144,7 +144,7 @@ export class SceneManager {
         pyramidMaterial.specularColor = new Color3(0.1, 0.1, 0.1);
         testPyramid.material = pyramidMaterial;
 
-        console.log('✅ Test objects added - sphere and pyramid (terrain replaces ground)');
+        console.log('✅ Test objects added - sphere and pyramid positioned above terrain');
     }
 
     /**
