@@ -86,16 +86,18 @@ export class MineralDeposit {
     private createMesh(materialManager: MaterialManager): void {
         if (!this.scene) return;
 
-        // Create crystal-like geometry
-        this.mesh = MeshBuilder.CreateBox(`mineral_${this.id}`, {
-            width: this.size,
-            height: this.size * 1.5,
-            depth: this.size
+        // Create crystal-like geometry using a tapered cylinder
+        this.mesh = MeshBuilder.CreateCylinder(`mineral_${this.id}`, {
+            diameterTop: this.size * 0.3,      // Narrow top
+            diameterBottom: this.size,          // Wider bottom
+            height: this.size * 1.8,            // Tall crystal
+            tessellation: 6,                    // Hexagonal for crystal look
+            subdivisions: 1                     // Low poly
         }, this.scene);
 
         // Position the mesh
         this.mesh.position = this.position.clone();
-        this.mesh.position.y += (this.size * 1.5) / 2; // Raise above ground
+        this.mesh.position.y += (this.size * 1.8) / 2; // Raise above ground
 
         // Get or create mineral material
         this.material = materialManager.getMineralMaterial();
@@ -105,10 +107,10 @@ export class MineralDeposit {
 
         // Add some rotation for visual interest
         this.mesh.rotation.y = Math.random() * Math.PI * 2;
-        this.mesh.rotation.x = (Math.random() - 0.5) * 0.3;
-        this.mesh.rotation.z = (Math.random() - 0.5) * 0.3;
+        this.mesh.rotation.x = (Math.random() - 0.5) * 0.2; // Slight tilt
+        this.mesh.rotation.z = (Math.random() - 0.5) * 0.2;
 
-        console.log(`💎 Visual created for mineral deposit ${this.id}`);
+        console.log(`💎 Crystal visual created for mineral deposit ${this.id}`);
     }
 
     /**

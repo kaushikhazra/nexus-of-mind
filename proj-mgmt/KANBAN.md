@@ -54,19 +54,26 @@
 
 ## 🚀 Ready (Planned for Current Sprint)
 
-### Week 2 Focus Items - Interactive Gameplay
-- [ ] **[US-006]** Interactive building placement system (bases and power plants)
+### Week 2 Focus Items - AI Opponent & Combat System
+- [ ] **[US-007]** Mineral deposits (light blue crystals) and mining mechanics
+  - *Estimate*: 4 hours
+  - *Priority*: P0 (Must Have)
+  - *Dependencies*: US-002 (Terrain), US-003 (Energy), US-004 (Units) - all complete
+  - *Acceptance Criteria*: Visible mineral deposits with worker mining interactions
+  - *Status*: Ready for implementation - foundation systems complete
+
+- [ ] **[US-008]** Energy-based combat system with variable costs per target
   - *Estimate*: 6 hours
   - *Priority*: P0 (Must Have)
-  - *Dependencies*: US-001, US-003, US-005 (all complete)
-  - *Acceptance Criteria*: Interactive 3D building placement with energy cost validation
-  - *Status*: Ready for implementation - all dependencies complete
+  - *Dependencies*: US-004 (Units), US-003 (Energy) - all complete
+  - *Acceptance Criteria*: Unit vs unit combat with energy consumption per attack
+  - *Status*: Ready for implementation - unit and energy systems complete
 
 ---
 
 ## 🔄 In Progress
 
-*No items currently in progress - Week 1 COMPLETE! 🎉*
+*No items currently in progress*
 
 ---
 
@@ -120,13 +127,21 @@
   - *Visual Confirmation*: Low poly buildings with distinct shapes and colors
   - *Performance*: Building management optimized, construction system working
   - *Git Status*: Feature branch merged to develop, Week 1 COMPLETE
+- [x] **[US-006]** Interactive building placement system (bases and power plants) - COMPLETE ✅
+  - *Status*: ✅ COMPLETED & VALIDATED
+  - *Implementation*: Complete interactive 3D building placement with mouse controls and energy validation
+  - *Validation*: All 3 phases complete, preview system working, click-to-place functional
+  - *Visual Confirmation*: Green/red preview meshes, real-time energy validation, SciFi UI styling
+  - *Performance*: 60fps maintained during preview and placement operations
+  - *Git Status*: Feature branch merged to develop, interactive gameplay foundation complete
 
-### 🎉 WEEK 1 MILESTONE ACHIEVED! 🎉
-**Status**: ✅ ALL WEEK 1 SUCCESS CRITERIA MET
+### 🎉 WEEK 1+ MILESTONE ACHIEVED! 🎉
+**Status**: ✅ ALL WEEK 1 SUCCESS CRITERIA MET + INTERACTIVE BUILDING PLACEMENT
 - ✅ Playable low poly 3D SciFi world with procedural terrain
 - ✅ Energy economy system functional (mining, consumption, storage)
 - ✅ Three unit types working (Workers, Scouts, Protectors)
 - ✅ Basic building placement (Base, Power Plant)
+- ✅ Interactive building placement with 3D preview system
 - ✅ 60fps performance maintained in infinite world
 
 ---
@@ -161,34 +176,39 @@
 ## 🎯 Daily Standup Template
 
 ### What I completed yesterday:
-- ✅ US-004: Complete unit system (Workers, Scouts, Protectors) with 3D visualization
-- ✅ US-005: Complete building system (Base, Power Plant) with energy integration
-- ✅ Week 1 Milestone: ALL SUCCESS CRITERIA ACHIEVED! 🎉
-  - Playable 3D world with procedural terrain ✅
-  - Energy economy system functional ✅
-  - Three unit types working ✅
-  - Basic building placement ✅
-  - 60fps performance maintained ✅
-- ✅ Git flow: All feature branches merged to develop, clean repository state
-- ✅ Documentation: KANBAN updated with Week 1 completion milestone
+- ✅ US-006: Interactive building placement system with 3D preview and click-to-place functionality
+- ✅ Fixed CameraController duplicate method compilation error
+- ✅ Enhanced building preview visibility with improved positioning and materials
+- ✅ Complete Phase 3 implementation: energy validation, building creation, UI state management
+- ✅ All acceptance criteria met: building selection UI, 3D preview system, interactive placement, energy validation
+- ✅ Git flow: Feature branch merged to develop, clean repository state
+- ✅ Performance: 60fps maintained during all preview and placement operations
 
 ### What I'm working on today:
-- 🎯 Week 2 Planning: AI opponent and combat system design
-- 🚀 US-008: Energy-based combat system implementation
-- 🤖 AI Behavior: Basic AI decision making for energy allocation
-- ⚔️ Combat Mechanics: Unit vs unit combat with energy costs
+- 🎯 Week 2 Planning: Next user story selection (US-007 or US-008)
+- 🚀 US-007: Mineral deposits and mining mechanics implementation
+- 💎 Mining System: Worker-mineral interaction with energy generation
+- ⚔️ Alternative: US-008 Combat system with energy-based attacks
 
 ### Blockers/Challenges:
-- None currently - Week 1 foundation is solid and complete
-- All systems maintain 60fps performance target
+- None currently - Interactive building placement system fully functional
+- All core systems (terrain, energy, units, buildings) working seamlessly
 - Ready to build advanced gameplay mechanics on proven foundation
 
 ### Major Achievement:
-🎉 **WEEK 1 COMPLETED AHEAD OF SCHEDULE!** 🎉
-- Delivered all planned features in 2 days instead of 7
+🎉 **US-006 INTERACTIVE BUILDING PLACEMENT COMPLETE!** 🎉
+- Full 3D building placement with mouse controls working
+- Green/red preview system with real-time validation
+- Energy integration with cost validation and consumption
+- SciFi UI styling consistent with game theme
+- Clean git workflow with proper feature branch management
 - Exceeded performance expectations with 60fps maintained
-- Clean, maintainable codebase with comprehensive testing functions
-- Ready to tackle AI opponent and combat system for Week 2
+
+### Next Steps:
+- Choose between US-007 (Mining mechanics) or US-008 (Combat system)
+- Both are ready for implementation with all dependencies complete
+- Mining mechanics would complete the resource gathering loop
+- Combat system would introduce player vs AI interactions
 
 ### Kiro CLI usage:
 - Used @plan-feature for US-001 implementation planning

@@ -12,7 +12,8 @@ import {
     StandardMaterial, 
     Color3, 
     Vector3,
-    TransformNode
+    TransformNode,
+    VertexData
 } from '@babylonjs/core';
 import { MaterialManager } from './MaterialManager';
 import { Building } from '../game/entities/Building';
@@ -22,7 +23,7 @@ export interface BuildingVisual {
     mesh: Mesh;
     material: StandardMaterial;
     constructionIndicator: Mesh;
-    energyIndicator: Mesh;
+    energyIndicator: Mesh | null; // Optional energy indicator
     rootNode: TransformNode;
 }
 
@@ -120,15 +121,43 @@ export class BuildingRenderer {
             // Create main building mesh based on type
             let mesh: Mesh;
             if (config.shape === 'pyramid') {
-                // Create pyramid for base
+                // Create actual pyramid for base
                 const pyramidConfig = config.size as { width: number; height: number; depth: number };
-                mesh = MeshBuilder.CreateBox(`building_${buildingId}`, {
-                    width: pyramidConfig.width,
-                    height: pyramidConfig.height,
-                    depth: pyramidConfig.depth
-                }, this.scene);
                 
-                // TODO: Could create actual pyramid geometry for better visual
+                // Create pyramid using custom vertices
+                const positions = [
+                    // Base vertices (bottom face)
+                    -pyramidConfig.width/2, 0, -pyramidConfig.depth/2,  // 0: back-left
+                     pyramidConfig.width/2, 0, -pyramidConfig.depth/2,  // 1: back-right
+                     pyramidConfig.width/2, 0,  pyramidConfig.depth/2,  // 2: front-right
+                    -pyramidConfig.width/2, 0,  pyramidConfig.depth/2,  // 3: front-left
+                    // Apex vertex (top)
+                     0, pyramidConfig.height, 0                         // 4: apex
+                ];
+                
+                const indices = [
+                    // Base (bottom face) - two triangles
+                    0, 2, 1,  0, 3, 2,
+                    // Side faces
+                    0, 1, 4,  // back face
+                    1, 2, 4,  // right face
+                    2, 3, 4,  // front face
+                    3, 0, 4   // left face
+                ];
+                
+                // Calculate normals for proper lighting
+                const normals = [];
+                for (let i = 0; i < positions.length; i += 3) {
+                    normals.push(0, 1, 0); // Simple upward normals for now
+                }
+                
+                mesh = new Mesh(`building_${buildingId}`, this.scene);
+                const vertexData = new VertexData();
+                vertexData.positions = positions;
+                vertexData.indices = indices;
+                vertexData.normals = normals;
+                vertexData.applyToMesh(mesh);
+                
             } else if (config.shape === 'cylinder') {
                 // Create cylinder for power plant
                 const cylinderConfig = config.size as { diameter: number; height: number };
@@ -149,7 +178,10 @@ export class BuildingRenderer {
             mesh.parent = rootNode;
             
             // Set position based on building type
-            if (config.shape === 'cylinder') {
+            if (config.shape === 'pyramid') {
+                // Pyramid is already positioned with base at y=0, no adjustment needed
+                mesh.position.y = 0;
+            } else if (config.shape === 'cylinder') {
                 const cylinderConfig = config.size as { diameter: number; height: number };
                 mesh.position.y = cylinderConfig.height / 2;
             } else {
@@ -169,23 +201,13 @@ export class BuildingRenderer {
             constructionIndicator.material = this.constructionMaterial;
             constructionIndicator.scaling = new Vector3(1.1, 1.1, 1.1); // Slightly larger
 
-            // Create energy indicator (small sphere above building)
-            const energyIndicator = MeshBuilder.CreateSphere(`building_energy_${buildingId}`, {
-                diameter: 0.4,
-                segments: 6
-            }, this.scene);
-
-            energyIndicator.parent = rootNode;
-            energyIndicator.position.y = (config.size.height || 1.5) + 0.5;
-            energyIndicator.material = this.energyIndicatorMaterial;
-
             // Create building visual object
             const buildingVisual: BuildingVisual = {
                 building,
                 mesh,
                 material: material!,
                 constructionIndicator,
-                energyIndicator,
+                energyIndicator: null, // No energy indicator for clean design
                 rootNode
             };
 
@@ -265,7 +287,7 @@ export class BuildingRenderer {
         const building = buildingVisual.building;
         const energyGeneration = building.getEnergyGeneration();
         
-        if (energyGeneration > 0 && building.isComplete()) {
+        if (energyGeneration > 0 && building.isComplete() && buildingVisual.energyIndicator) {
             // Show energy indicator for power-generating buildings
             buildingVisual.energyIndicator.setEnabled(true);
             
@@ -278,7 +300,7 @@ export class BuildingRenderer {
                 const intensity = Math.min(1.0, energyGeneration / 3.0); // Normalize to max 3 energy/sec
                 this.energyIndicatorMaterial.emissiveColor = new Color3(0, intensity, 0);
             }
-        } else {
+        } else if (buildingVisual.energyIndicator) {
             // Hide energy indicator for non-generating buildings
             buildingVisual.energyIndicator.setEnabled(false);
         }
@@ -330,7 +352,9 @@ export class BuildingRenderer {
         // Dispose all meshes
         buildingVisual.mesh.dispose();
         buildingVisual.constructionIndicator.dispose();
-        buildingVisual.energyIndicator.dispose();
+        if (buildingVisual.energyIndicator) {
+            buildingVisual.energyIndicator.dispose();
+        }
         buildingVisual.rootNode.dispose();
 
         // Remove from map

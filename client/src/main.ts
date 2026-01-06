@@ -364,20 +364,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const workers = unitManager.getUnitsByType('worker');
         if (workers.length > 0) {
             const worker = workers[0];
-            const deposits = terrainGenerator.getVisibleMineralDeposits();
-            
-            if (deposits.length > 0) {
-                console.log(`⛏️ Testing mining with worker ${worker.getId()}`);
-                worker.startMining(deposits[0]);
-            }
+            console.log(`⛏️ Worker ${worker.getId()} ready for mining (mineral deposits disabled for now)`);
         }
         
         // Test exploration with scouts
         const scouts = unitManager.getUnitsByType('scout');
         if (scouts.length > 0) {
             const scout = scouts[0];
-            console.log(`🔍 Testing exploration with scout ${scout.getId()}`);
-            scout.discoverMinerals(terrainGenerator);
+            console.log(`🔍 Scout ${scout.getId()} ready for exploration (mineral discovery disabled for now)`);
         }
         
         // Test shield with protectors
