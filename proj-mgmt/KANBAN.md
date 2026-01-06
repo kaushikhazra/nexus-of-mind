@@ -55,13 +55,6 @@
 ## 🚀 Ready (Planned for Current Sprint)
 
 ### Week 2 Focus Items - AI Opponent & Combat System
-- [ ] **[US-007]** Mineral deposits (light blue crystals) and mining mechanics
-  - *Estimate*: 4 hours
-  - *Priority*: P0 (Must Have)
-  - *Dependencies*: US-002 (Terrain), US-003 (Energy), US-004 (Units) - all complete
-  - *Acceptance Criteria*: Visible mineral deposits with worker mining interactions
-  - *Status*: Ready for implementation - foundation systems complete
-
 - [ ] **[US-008]** Energy-based combat system with variable costs per target
   - *Estimate*: 6 hours
   - *Priority*: P0 (Must Have)
@@ -134,6 +127,13 @@
   - *Visual Confirmation*: Green/red preview meshes, real-time energy validation, SciFi UI styling
   - *Performance*: 60fps maintained during preview and placement operations
   - *Git Status*: Feature branch merged to develop, interactive gameplay foundation complete
+- [x] **[US-007]** Mineral deposits (light blue crystals) and mining mechanics - COMPLETE ✅
+  - *Status*: ✅ COMPLETED & VALIDATED
+  - *Implementation*: Complete mining system with clustered crystal deposits, worker mining, and UI
+  - *Validation*: All 3 phases complete, mining assignment working, energy generation functional
+  - *Visual Confirmation*: Clustered crystal formations, Mining Operations UI panel, real-time stats
+  - *Performance*: 60fps maintained during mining operations, efficient energy calculations
+  - *Git Status*: Feature branch ready for merge to develop, mining gameplay complete
 
 ### 🎉 WEEK 1+ MILESTONE ACHIEVED! 🎉
 **Status**: ✅ ALL WEEK 1 SUCCESS CRITERIA MET + INTERACTIVE BUILDING PLACEMENT

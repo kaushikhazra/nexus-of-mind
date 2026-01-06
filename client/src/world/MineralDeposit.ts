@@ -6,7 +6,7 @@
  * visual feedback for resource availability.
  */
 
-import { Vector3, Mesh, MeshBuilder, StandardMaterial, Color3, Scene } from '@babylonjs/core';
+import { Vector3, Mesh, MeshBuilder, StandardMaterial, Color3, Scene, TransformNode } from '@babylonjs/core';
 import { MaterialManager } from '../rendering/MaterialManager';
 
 export interface MineralDepositConfig {
@@ -40,7 +40,8 @@ export class MineralDeposit {
     private size: number;
     
     // Visual representation
-    private mesh: Mesh | null = null;
+    private mesh: Mesh | TransformNode | null = null;
+    private crystals: Mesh[] = []; // Individual crystal meshes in cluster
     private material: StandardMaterial | null = null;
     private scene: Scene | null = null;
     
@@ -86,31 +87,59 @@ export class MineralDeposit {
     private createMesh(materialManager: MaterialManager): void {
         if (!this.scene) return;
 
-        // Create crystal-like geometry using a tapered cylinder
-        this.mesh = MeshBuilder.CreateCylinder(`mineral_${this.id}`, {
-            diameterTop: this.size * 0.3,      // Narrow top
-            diameterBottom: this.size,          // Wider bottom
-            height: this.size * 1.8,            // Tall crystal
-            tessellation: 6,                    // Hexagonal for crystal look
-            subdivisions: 1                     // Low poly
-        }, this.scene);
+        // Create a parent node for the crystal cluster
+        const clusterNode = new TransformNode(`mineral_cluster_${this.id}`, this.scene);
+        clusterNode.position = this.position.clone();
 
-        // Position the mesh
-        this.mesh.position = this.position.clone();
-        this.mesh.position.y += (this.size * 1.8) / 2; // Raise above ground
+        // Create multiple crystals in a cluster (3-5 crystals)
+        const crystalCount = 3 + Math.floor(Math.random() * 3); // 3-5 crystals
+        const crystals: Mesh[] = [];
 
-        // Get or create mineral material
-        this.material = materialManager.getMineralMaterial();
-        if (this.material) {
-            this.mesh.material = this.material;
+        for (let i = 0; i < crystalCount; i++) {
+            // Vary crystal size (60% to 140% of base size)
+            const sizeVariation = 0.6 + Math.random() * 0.8;
+            const crystalSize = this.size * sizeVariation;
+            
+            // Create individual crystal
+            const crystal = MeshBuilder.CreateCylinder(`mineral_crystal_${this.id}_${i}`, {
+                diameterTop: crystalSize * 0.2,        // Sharp point
+                diameterBottom: crystalSize * 0.6,     // Wider base
+                height: crystalSize * (1.5 + Math.random() * 0.8), // Height variation
+                tessellation: 6,                       // Hexagonal
+                subdivisions: 1                        // Low poly
+            }, this.scene);
+
+            // Position crystals in cluster formation
+            const angle = (i / crystalCount) * Math.PI * 2 + Math.random() * 0.5;
+            const distance = this.size * 0.3 * Math.random(); // Random clustering
+            
+            crystal.position.x = Math.cos(angle) * distance;
+            crystal.position.z = Math.sin(angle) * distance;
+            crystal.position.y = (crystalSize * 1.5) / 2; // Sit on ground
+            
+            // Random rotation for each crystal
+            crystal.rotation.y = Math.random() * Math.PI * 2;
+            crystal.rotation.x = (Math.random() - 0.5) * 0.3;
+            crystal.rotation.z = (Math.random() - 0.5) * 0.3;
+            
+            // Parent to cluster
+            crystal.parent = clusterNode;
+            crystals.push(crystal);
         }
 
-        // Add some rotation for visual interest
-        this.mesh.rotation.y = Math.random() * Math.PI * 2;
-        this.mesh.rotation.x = (Math.random() - 0.5) * 0.2; // Slight tilt
-        this.mesh.rotation.z = (Math.random() - 0.5) * 0.2;
+        // Store the cluster node as the main mesh
+        this.mesh = clusterNode as any; // TransformNode acts as container
+        this.crystals = crystals; // Store individual crystals for material application
 
-        console.log(`💎 Crystal visual created for mineral deposit ${this.id}`);
+        // Apply material to all crystals
+        this.material = materialManager.getMineralMaterial();
+        if (this.material) {
+            crystals.forEach(crystal => {
+                crystal.material = this.material;
+            });
+        }
+
+        console.log(`💎 Crystal cluster created for mineral deposit ${this.id} (${crystalCount} crystals)`);
     }
 
     /**
