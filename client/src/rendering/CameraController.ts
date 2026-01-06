@@ -190,14 +190,7 @@ export class CameraController {
         return this.camera;
     }
 
-    /**
-     * Set camera target position
-     */
-    public setCameraTarget(position: Vector3): void {
-        if (this.camera) {
-            this.camera.setTarget(position);
-        }
-    }
+
 
     /**
      * Smoothly move camera to a new position

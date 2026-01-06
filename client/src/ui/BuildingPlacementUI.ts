@@ -295,6 +295,10 @@ export class BuildingPlacementUI {
             this.previewMesh.material = this.previewMaterial;
             this.previewMesh.position.y = this.getPreviewHeight();
             this.previewMesh.isPickable = false; // Don't interfere with mouse picking
+            this.previewMesh.renderingGroupId = 1; // Render on top of terrain
+            
+            // Ensure preview is visible
+            this.previewMesh.visibility = 1.0;
             
             // Add subtle animation to make preview more visible
             this.animatePreview();
@@ -341,21 +345,22 @@ export class BuildingPlacementUI {
 
         this.previewMaterial = new StandardMaterial('building_preview_material', this.scene);
         this.previewMaterial.diffuseColor = new Color3(0, 1, 1); // Cyan
-        this.previewMaterial.alpha = 0.6;
+        this.previewMaterial.alpha = 0.7; // More opaque for better visibility
         this.previewMaterial.wireframe = false;
-        this.previewMaterial.emissiveColor = new Color3(0, 0.3, 0.3); // Subtle glow
+        this.previewMaterial.emissiveColor = new Color3(0, 0.5, 0.5); // Stronger glow
+        this.previewMaterial.disableLighting = true; // Always visible regardless of lighting
     }
 
     /**
      * Get preview height based on building type
      */
     private getPreviewHeight(): number {
-        if (!this.currentBuildingType) return 1.5;
+        if (!this.currentBuildingType) return 3.0;
         
         switch (this.currentBuildingType) {
-            case 'base': return 1.5; // Half of building height (3)
-            case 'power_plant': return 2.0; // Half of building height (4)
-            default: return 1.5;
+            case 'base': return 3.0; // Position well above terrain
+            case 'power_plant': return 4.0; // Position well above terrain
+            default: return 3.0;
         }
     }
 
@@ -413,7 +418,8 @@ export class BuildingPlacementUI {
             // Position preview above the actual terrain height
             const terrainHeight = this.currentMousePosition.y;
             const buildingHeight = this.getPreviewHeight();
-            this.previewMesh.position.y = terrainHeight + buildingHeight;
+            const finalY = terrainHeight + buildingHeight;
+            this.previewMesh.position.y = finalY;
             
             // Check if position is valid and update preview color
             const isValid = this.isValidBuildingPosition(this.currentMousePosition);
