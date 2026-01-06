@@ -343,6 +343,29 @@ export class GameState {
     }
 
     /**
+     * Add unit to game state
+     */
+    public addUnit(unit: any): void {
+        // This will be implemented when we integrate with the existing GameState
+        console.log(`👤 Unit ${unit.getId()} added to game state`);
+    }
+
+    /**
+     * Remove unit from game state
+     */
+    public removeUnit(unitId: string): void {
+        // This will be implemented when we integrate with the existing GameState
+        console.log(`👤 Unit ${unitId} removed from game state`);
+    }
+
+    /**
+     * Get mineral deposit by ID
+     */
+    public getMineralDeposit(depositId: string): any {
+        return this.mineralDeposits.get(depositId) || null;
+    }
+
+    /**
      * Get all mineral deposits
      */
     public getAllMineralDeposits(): MineralDeposit[] {
