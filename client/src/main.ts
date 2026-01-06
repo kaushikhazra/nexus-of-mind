@@ -10,6 +10,7 @@ import { BuildingAction } from './game/actions/BuildingAction';
 import { MovementAction } from './game/actions/MovementAction';
 import { BuildingPlacementUI } from './ui/BuildingPlacementUI';
 import { MineralReserveUI } from './ui/MiningUI';
+import { WorkerCreationUI } from './ui/WorkerCreationUI';
 import { Vector3 } from '@babylonjs/core';
 
 /**
@@ -21,6 +22,7 @@ class Application {
     private loadingScreen: HTMLElement | null = null;
     private buildingPlacementUI: BuildingPlacementUI | null = null;
     private mineralReserveUI: MineralReserveUI | null = null;
+    private workerCreationUI: WorkerCreationUI | null = null;
 
     /**
      * Initialize the application
@@ -56,6 +58,9 @@ class Application {
 
             // Initialize mineral reserve UI
             this.initializeMineralReserveUI();
+
+            // Initialize worker creation UI
+            this.initializeWorkerCreationUI();
 
             // Hide loading screen after a brief delay
             setTimeout(() => {
@@ -107,8 +112,32 @@ class Application {
     }
 
     /**
-     * Initialize mineral reserve UI
+     * Initialize worker creation UI
      */
+    private initializeWorkerCreationUI(): void {
+        if (!this.gameEngine) {
+            console.error('❌ Cannot initialize worker creation UI: GameEngine not available');
+            return;
+        }
+
+        const energyManager = this.gameEngine.getEnergyManager();
+        const unitManager = this.gameEngine.getUnitManager();
+        const buildingManager = this.gameEngine.getBuildingManager();
+
+        if (!energyManager || !unitManager || !buildingManager) {
+            console.error('❌ Cannot initialize worker creation UI: Required components not available');
+            return;
+        }
+
+        this.workerCreationUI = new WorkerCreationUI({
+            containerId: 'worker-creation-ui',
+            energyManager: energyManager,
+            unitManager: unitManager,
+            buildingManager: buildingManager
+        });
+
+        console.log('👷 Worker Creation UI initialized');
+    }
     private initializeMineralReserveUI(): void {
         if (!this.gameEngine) {
             console.error('❌ Cannot initialize mineral reserve UI: GameEngine not available');
@@ -158,6 +187,11 @@ class Application {
      * Cleanup on page unload
      */
     public dispose(): void {
+        if (this.workerCreationUI) {
+            this.workerCreationUI.dispose();
+            this.workerCreationUI = null;
+        }
+        
         if (this.mineralReserveUI) {
             this.mineralReserveUI.dispose();
             this.mineralReserveUI = null;
