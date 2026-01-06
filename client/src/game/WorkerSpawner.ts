@@ -8,6 +8,7 @@
 import { Vector3 } from '@babylonjs/core';
 import { UnitManager } from './UnitManager';
 import { BuildingManager } from './BuildingManager';
+import { TerrainGenerator } from '../rendering/TerrainGenerator';
 import { Worker } from './entities/Worker';
 
 export interface WorkerSpawnResult {
@@ -20,11 +21,20 @@ export interface WorkerSpawnResult {
 export class WorkerSpawner {
     private unitManager: UnitManager;
     private buildingManager: BuildingManager;
+    private terrainGenerator: TerrainGenerator | null = null;
 
-    constructor(unitManager: UnitManager, buildingManager: BuildingManager) {
+    constructor(unitManager: UnitManager, buildingManager: BuildingManager, terrainGenerator?: TerrainGenerator) {
         this.unitManager = unitManager;
         this.buildingManager = buildingManager;
+        this.terrainGenerator = terrainGenerator || null;
         console.log('👷 WorkerSpawner initialized');
+    }
+
+    /**
+     * Set terrain generator for height calculations
+     */
+    public setTerrainGenerator(terrainGenerator: TerrainGenerator): void {
+        this.terrainGenerator = terrainGenerator;
     }
 
     /**
@@ -130,7 +140,15 @@ export class WorkerSpawner {
         
         const spawnX = basePosition.x + Math.cos(angle) * distance;
         const spawnZ = basePosition.z + Math.sin(angle) * distance;
-        const spawnY = basePosition.y; // Same height as base
+        
+        // Get terrain height at spawn position
+        let spawnY = basePosition.y; // Default to base height
+        if (this.terrainGenerator) {
+            spawnY = this.terrainGenerator.getHeightAtPosition(spawnX, spawnZ);
+            console.log(`🌍 Terrain height at (${spawnX.toFixed(1)}, ${spawnZ.toFixed(1)}): ${spawnY.toFixed(2)}`);
+        } else {
+            console.warn('⚠️ No terrain generator available, using base height');
+        }
         
         const spawnPosition = new Vector3(spawnX, spawnY, spawnZ);
         console.log(`📍 Calculated spawn position near base: ${spawnPosition.toString()}`);
@@ -146,7 +164,16 @@ export class WorkerSpawner {
         const offsetX = (Math.random() - 0.5) * 10; // -5 to +5
         const offsetZ = (Math.random() - 0.5) * 10; // -5 to +5
         
-        const spawnPosition = new Vector3(offsetX, 0, offsetZ);
+        // Get terrain height at spawn position
+        let spawnY = 0; // Default to ground level
+        if (this.terrainGenerator) {
+            spawnY = this.terrainGenerator.getHeightAtPosition(offsetX, offsetZ);
+            console.log(`🌍 Terrain height at origin offset (${offsetX.toFixed(1)}, ${offsetZ.toFixed(1)}): ${spawnY.toFixed(2)}`);
+        } else {
+            console.warn('⚠️ No terrain generator available, using ground level');
+        }
+        
+        const spawnPosition = new Vector3(offsetX, spawnY, offsetZ);
         console.log(`📍 Calculated spawn position at origin: ${spawnPosition.toString()}`);
         
         return spawnPosition;

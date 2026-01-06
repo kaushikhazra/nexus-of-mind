@@ -123,8 +123,9 @@ class Application {
         const energyManager = this.gameEngine.getEnergyManager();
         const unitManager = this.gameEngine.getUnitManager();
         const buildingManager = this.gameEngine.getBuildingManager();
+        const terrainGenerator = this.gameEngine.getTerrainGenerator();
 
-        if (!energyManager || !unitManager || !buildingManager) {
+        if (!energyManager || !unitManager || !buildingManager || !terrainGenerator) {
             console.error('❌ Cannot initialize worker creation UI: Required components not available');
             return;
         }
@@ -133,7 +134,8 @@ class Application {
             containerId: 'worker-creation-ui',
             energyManager: energyManager,
             unitManager: unitManager,
-            buildingManager: buildingManager
+            buildingManager: buildingManager,
+            terrainGenerator: terrainGenerator
         });
 
         console.log('👷 Worker Creation UI initialized');

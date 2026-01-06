@@ -8,6 +8,7 @@
 import { EnergyManager } from '../game/EnergyManager';
 import { UnitManager } from '../game/UnitManager';
 import { BuildingManager } from '../game/BuildingManager';
+import { TerrainGenerator } from '../rendering/TerrainGenerator';
 import { WorkerSpawner } from '../game/WorkerSpawner';
 
 export interface WorkerCreationUIConfig {
@@ -15,6 +16,7 @@ export interface WorkerCreationUIConfig {
     energyManager: EnergyManager;
     unitManager: UnitManager;
     buildingManager: BuildingManager;
+    terrainGenerator: TerrainGenerator;
 }
 
 export class WorkerCreationUI {
@@ -31,7 +33,7 @@ export class WorkerCreationUI {
 
     constructor(config: WorkerCreationUIConfig) {
         this.config = config;
-        this.workerSpawner = new WorkerSpawner(config.unitManager, config.buildingManager);
+        this.workerSpawner = new WorkerSpawner(config.unitManager, config.buildingManager, config.terrainGenerator);
         this.initialize();
     }
 
