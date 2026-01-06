@@ -8,6 +8,7 @@
 import { EnergyManager } from '../game/EnergyManager';
 import { UnitManager } from '../game/UnitManager';
 import { BuildingManager } from '../game/BuildingManager';
+import { WorkerSpawner } from '../game/WorkerSpawner';
 
 export interface WorkerCreationUIConfig {
     containerId: string;
@@ -23,12 +24,14 @@ export class WorkerCreationUI {
     private createButton: HTMLElement | null = null;
     private workerCountElement: HTMLElement | null = null;
     private energyCostElement: HTMLElement | null = null;
+    private workerSpawner: WorkerSpawner;
     
     // Configuration
     private readonly WORKER_ENERGY_COST = 25;
 
     constructor(config: WorkerCreationUIConfig) {
         this.config = config;
+        this.workerSpawner = new WorkerSpawner(config.unitManager, config.buildingManager);
         this.initialize();
     }
 
@@ -270,12 +273,25 @@ export class WorkerCreationUI {
     }
 
     /**
-     * Create worker (placeholder for Phase 2 implementation)
+     * Create worker using WorkerSpawner
      */
     private createWorker(): void {
-        // TODO: Implement in Phase 2
-        console.log('👷 Worker creation logic - to be implemented in Phase 2');
-        this.showFeedback('Worker Created!', 'success');
+        console.log('👷 Creating worker...');
+        
+        const spawnResult = this.workerSpawner.spawnWorker();
+        
+        if (spawnResult.success) {
+            console.log(`✅ Worker created successfully: ${spawnResult.worker?.getId()}`);
+            this.showFeedback('Worker Created!', 'success');
+            
+            // Log spawn details
+            if (spawnResult.position) {
+                console.log(`📍 Worker spawned at: ${spawnResult.position.toString()}`);
+            }
+        } else {
+            console.error(`❌ Worker creation failed: ${spawnResult.message}`);
+            this.showFeedback(`Creation Failed: ${spawnResult.message}`, 'error');
+        }
     }
 
     /**

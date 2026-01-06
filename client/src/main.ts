@@ -402,63 +402,54 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('📊 Unit Manager Stats:', stats);
     };
     
-    // Test mineral reserve display
-    (window as any).testMineralReserves = () => {
+    // Test worker creation system
+    (window as any).testWorkerCreation = () => {
         const gameEngine = (app as any).gameEngine;
         if (!gameEngine) {
             console.log('❌ Game engine not available');
             return;
         }
         
-        const terrainGenerator = gameEngine.getTerrainGenerator();
+        const energyManager = gameEngine.getEnergyManager();
+        const unitManager = gameEngine.getUnitManager();
+        const buildingManager = gameEngine.getBuildingManager();
         
-        if (!terrainGenerator) {
-            console.log('❌ Terrain generator not available');
+        if (!energyManager || !unitManager || !buildingManager) {
+            console.log('❌ Required managers not available');
             return;
         }
         
-        console.log('💎 Testing Mineral Reserve Display...');
+        console.log('👷 Testing Worker Creation System...');
         
-        // Show mineral deposits
-        const visibleDeposits = terrainGenerator.getVisibleMineralDeposits();
-        const allDeposits = terrainGenerator.getAllMineralDeposits();
+        // Show current state
+        const currentEnergy = energyManager.getTotalEnergy();
+        const currentWorkers = unitManager.getUnitsByType('worker');
+        const buildings = buildingManager.getAllBuildings();
         
-        console.log(`💎 Found ${visibleDeposits.length} visible deposits out of ${allDeposits.length} total`);
+        console.log(`⚡ Current energy: ${currentEnergy}`);
+        console.log(`👷 Current workers: ${currentWorkers.length}`);
+        console.log(`🏗️ Buildings available: ${buildings.length}`);
         
-        if (visibleDeposits.length === 0) {
-            console.log('❌ No mineral deposits found - check terrain generation');
-            return;
-        }
-        
-        // Calculate reserve statistics
-        let totalCapacity = 0;
-        let totalRemaining = 0;
-        
-        visibleDeposits.forEach((deposit: any, index: number) => {
-            const stats = deposit.getStats();
-            const pos = deposit.getPosition();
-            totalCapacity += stats.capacity;
-            totalRemaining += stats.remaining;
-            
-            if (index < 3) { // Show first 3 deposits
-                console.log(`💎 Deposit ${index + 1}: ${stats.remaining}/${stats.capacity} E at (${pos.x.toFixed(1)}, ${pos.z.toFixed(1)}) - ${stats.biome} biome`);
-            }
+        // Show building positions for spawn reference
+        buildings.forEach((building: any, index: number) => {
+            const buildingType = building.getBuildingType();
+            const position = building.getPosition();
+            console.log(`🏗️ Building ${index + 1}: ${buildingType.name} at ${position.toString()}`);
         });
         
-        const avgCapacity = Math.round(totalCapacity / visibleDeposits.length);
+        console.log('🎮 Worker Creation Instructions:');
+        console.log('  1. Look for the WORKFORCE panel on the right side');
+        console.log('  2. Click CREATE WORKER button (costs 25E)');
+        console.log('  3. Worker will spawn near your base building');
+        console.log('  4. Check worker count increases in the panel');
+        console.log('  5. Energy will be consumed (25E per worker)');
         
-        console.log(`📊 Reserve Summary:`);
-        console.log(`  - Visible Deposits: ${visibleDeposits.length}`);
-        console.log(`  - Total Remaining: ${Math.round(totalRemaining)} E`);
-        console.log(`  - Average per Deposit: ${avgCapacity} E`);
-        
-        console.log('🎮 UI Features:');
-        console.log('  - Linear mineral reserve bar below energy bar (top-right)');
-        console.log('  - Format: "VIS 92 CAP 5490E AVG 60E" (no MINERALS label)');
-        console.log('  - Exact same styling as energy bar (border, transparency, padding)');
-        console.log('  - Updates automatically every 2 seconds');
-        
-        console.log('💡 The Mineral Reserve UI shows your available mineral resources for strategic planning');
+        if (currentEnergy < 25) {
+            console.log('⚠️ Warning: Insufficient energy for worker creation');
+            console.log('💡 Build a power plant or wait for energy generation');
+        } else {
+            console.log('✅ Sufficient energy available for worker creation');
+        }
     };
     
     // Expose terrain stats function
@@ -491,7 +482,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('  - testBuildingSystem() - Test building creation and energy costs');
     console.log('  - testMovementSystem() - Test unit movement and energy consumption');
     console.log('  - testUnitSystem() - Test unit creation and management');
-    console.log('  - testMineralReserves() - View mineral reserve display and statistics');
+    console.log('  - testWorkerCreation() - Test worker creation system and UI');
     console.log('  - showTerrainStats() - Show terrain and mineral deposit information');
 });
 
