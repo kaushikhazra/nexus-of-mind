@@ -137,26 +137,40 @@ export class NoiseGenerator {
      * Generate height value for terrain at given world coordinates
      */
     public generateHeight(x: number, z: number): number {
-        // Use fractal noise for natural terrain variation
-        const noiseValue = this.fractalNoise2D(x, z, 6, 0.4, 0.008);
+        // Base terrain with multiple noise layers for complexity
+        const baseNoise = this.fractalNoise2D(x, z, 6, 0.4, 0.008);
         
-        // Add some additional variation for more interesting terrain
-        const detailNoise = this.fractalNoise2D(x * 0.1, z * 0.1, 3, 0.3, 0.05);
+        // Add fine detail noise for surface variation
+        const detailNoise = this.fractalNoise2D(x * 0.1, z * 0.1, 4, 0.3, 0.05);
         
-        // Combine base terrain with detail
-        const combinedNoise = noiseValue + (detailNoise * 0.3);
+        // Add micro-detail for natural surface roughness
+        const microNoise = this.fractalNoise2D(x * 0.5, z * 0.5, 3, 0.2, 0.1);
         
-        // Convert from [-1, 1] to [0, 12] height range for more dramatic terrain
-        return Math.max(0, (combinedNoise + 1) * 6);
+        // Ridge noise for more interesting terrain features
+        const ridgeNoise = Math.abs(this.fractalNoise2D(x * 0.02, z * 0.02, 3, 0.5, 0.02));
+        
+        // Combine all noise layers
+        let combinedNoise = baseNoise + (detailNoise * 0.3) + (microNoise * 0.1) + (ridgeNoise * 0.4);
+        
+        // Add some randomness to break up patterns
+        const randomFactor = this.fractalNoise2D(x * 0.003, z * 0.003, 2, 0.6, 0.001);
+        combinedNoise += randomFactor * 0.2;
+        
+        // Convert from [-1, 1] to [0, 15] height range for more dramatic terrain
+        return Math.max(0, (combinedNoise + 1) * 7.5);
     }
 
     /**
-     * Get biome type based on height value
+     * Get biome type based on height value with more variation
      */
     public getBiomeType(height: number): 'vegetation' | 'desert' | 'rocky' {
-        if (height < 4) {
+        // Add some noise-based variation to biome boundaries for more natural transitions
+        const biomeNoise = this.fractalNoise2D(height * 0.1, height * 0.1, 2, 0.5, 0.1);
+        const adjustedHeight = height + (biomeNoise * 1.5);
+        
+        if (adjustedHeight < 5) {
             return 'vegetation';  // Low areas - green
-        } else if (height < 8) {
+        } else if (adjustedHeight < 10) {
             return 'desert';      // Mid areas - yellow
         } else {
             return 'rocky';       // High areas - brown

@@ -137,29 +137,35 @@ export class TerrainChunk {
     }
 
     /**
-     * Get color values for biome type
+     * Get color values for biome type with natural variation
      */
     private getBiomeColor(biome: string): { r: number; g: number; b: number } {
         const palette = this.materialManager.getColorPalette();
         
+        // Add some random variation to make biomes look more natural
+        const variation = 0.1; // 10% color variation
+        const randomR = (Math.random() - 0.5) * variation;
+        const randomG = (Math.random() - 0.5) * variation;
+        const randomB = (Math.random() - 0.5) * variation;
+        
         switch (biome) {
             case 'vegetation':
                 return {
-                    r: palette.terrain.vegetation.r,
-                    g: palette.terrain.vegetation.g,
-                    b: palette.terrain.vegetation.b
+                    r: Math.max(0, Math.min(1, palette.terrain.vegetation.r + randomR)),
+                    g: Math.max(0, Math.min(1, palette.terrain.vegetation.g + randomG)),
+                    b: Math.max(0, Math.min(1, palette.terrain.vegetation.b + randomB))
                 };
             case 'desert':
                 return {
-                    r: palette.terrain.desert.r,
-                    g: palette.terrain.desert.g,
-                    b: palette.terrain.desert.b
+                    r: Math.max(0, Math.min(1, palette.terrain.desert.r + randomR)),
+                    g: Math.max(0, Math.min(1, palette.terrain.desert.g + randomG)),
+                    b: Math.max(0, Math.min(1, palette.terrain.desert.b + randomB))
                 };
             case 'rocky':
                 return {
-                    r: palette.terrain.rocky.r,
-                    g: palette.terrain.rocky.g,
-                    b: palette.terrain.rocky.b
+                    r: Math.max(0, Math.min(1, palette.terrain.rocky.r + randomR)),
+                    g: Math.max(0, Math.min(1, palette.terrain.rocky.g + randomG)),
+                    b: Math.max(0, Math.min(1, palette.terrain.rocky.b + randomB))
                 };
             default:
                 return { r: 0.5, g: 0.5, b: 0.5 }; // Gray fallback
