@@ -10,6 +10,7 @@ import { BuildingAction } from './game/actions/BuildingAction';
 import { MovementAction } from './game/actions/MovementAction';
 import { BuildingPlacementUI } from './ui/BuildingPlacementUI';
 import { MineralReserveUI } from './ui/MiningUI';
+import { WorkerCreationUI } from './ui/WorkerCreationUI';
 import { Vector3 } from '@babylonjs/core';
 
 /**
@@ -21,6 +22,7 @@ class Application {
     private loadingScreen: HTMLElement | null = null;
     private buildingPlacementUI: BuildingPlacementUI | null = null;
     private mineralReserveUI: MineralReserveUI | null = null;
+    private workerCreationUI: WorkerCreationUI | null = null;
 
     /**
      * Initialize the application
@@ -56,6 +58,9 @@ class Application {
 
             // Initialize mineral reserve UI
             this.initializeMineralReserveUI();
+
+            // Initialize worker creation UI
+            this.initializeWorkerCreationUI();
 
             // Hide loading screen after a brief delay
             setTimeout(() => {
@@ -107,8 +112,32 @@ class Application {
     }
 
     /**
-     * Initialize mineral reserve UI
+     * Initialize worker creation UI
      */
+    private initializeWorkerCreationUI(): void {
+        if (!this.gameEngine) {
+            console.error('❌ Cannot initialize worker creation UI: GameEngine not available');
+            return;
+        }
+
+        const energyManager = this.gameEngine.getEnergyManager();
+        const unitManager = this.gameEngine.getUnitManager();
+        const buildingManager = this.gameEngine.getBuildingManager();
+
+        if (!energyManager || !unitManager || !buildingManager) {
+            console.error('❌ Cannot initialize worker creation UI: Required components not available');
+            return;
+        }
+
+        this.workerCreationUI = new WorkerCreationUI({
+            containerId: 'worker-creation-ui',
+            energyManager: energyManager,
+            unitManager: unitManager,
+            buildingManager: buildingManager
+        });
+
+        console.log('👷 Worker Creation UI initialized');
+    }
     private initializeMineralReserveUI(): void {
         if (!this.gameEngine) {
             console.error('❌ Cannot initialize mineral reserve UI: GameEngine not available');
@@ -158,6 +187,11 @@ class Application {
      * Cleanup on page unload
      */
     public dispose(): void {
+        if (this.workerCreationUI) {
+            this.workerCreationUI.dispose();
+            this.workerCreationUI = null;
+        }
+        
         if (this.mineralReserveUI) {
             this.mineralReserveUI.dispose();
             this.mineralReserveUI = null;
@@ -368,63 +402,88 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('📊 Unit Manager Stats:', stats);
     };
     
-    // Test mineral reserve display
-    (window as any).testMineralReserves = () => {
+    // Test complete mining workflow
+    (window as any).testMiningWorkflow = () => {
         const gameEngine = (app as any).gameEngine;
         if (!gameEngine) {
             console.log('❌ Game engine not available');
             return;
         }
         
+        const energyManager = gameEngine.getEnergyManager();
+        const unitManager = gameEngine.getUnitManager();
         const terrainGenerator = gameEngine.getTerrainGenerator();
         
-        if (!terrainGenerator) {
-            console.log('❌ Terrain generator not available');
+        if (!energyManager || !unitManager || !terrainGenerator) {
+            console.log('❌ Required managers not available');
             return;
         }
         
-        console.log('💎 Testing Mineral Reserve Display...');
+        console.log('⛏️ Testing Complete Mining Workflow...');
         
-        // Show mineral deposits
-        const visibleDeposits = terrainGenerator.getVisibleMineralDeposits();
-        const allDeposits = terrainGenerator.getAllMineralDeposits();
+        // Show current state
+        const currentEnergy = energyManager.getTotalEnergy();
+        const workers = unitManager.getUnitsByType('worker');
+        const deposits = terrainGenerator.getVisibleMineralDeposits();
         
-        console.log(`💎 Found ${visibleDeposits.length} visible deposits out of ${allDeposits.length} total`);
+        console.log(`⚡ Current energy: ${currentEnergy}`);
+        console.log(`👷 Current workers: ${workers.length}`);
+        console.log(`💎 Mineral deposits: ${deposits.length}`);
         
-        if (visibleDeposits.length === 0) {
-            console.log('❌ No mineral deposits found - check terrain generation');
+        if (workers.length === 0) {
+            console.log('⚠️ No workers available - create workers first using WORKFORCE panel');
+            console.log('💡 Run testWorkerCreation() for worker creation instructions');
             return;
         }
         
-        // Calculate reserve statistics
-        let totalCapacity = 0;
-        let totalRemaining = 0;
+        if (deposits.length === 0) {
+            console.log('⚠️ No mineral deposits found');
+            console.log('💡 Run showTerrainStats() to check terrain generation');
+            return;
+        }
         
-        visibleDeposits.forEach((deposit: any, index: number) => {
-            const stats = deposit.getStats();
-            const pos = deposit.getPosition();
-            totalCapacity += stats.capacity;
-            totalRemaining += stats.remaining;
-            
-            if (index < 3) { // Show first 3 deposits
-                console.log(`💎 Deposit ${index + 1}: ${stats.remaining}/${stats.capacity} E at (${pos.x.toFixed(1)}, ${pos.z.toFixed(1)}) - ${stats.biome} biome`);
+        // Show first worker and deposit for testing
+        const firstWorker = workers[0];
+        const firstDeposit = deposits[0];
+        
+        console.log(`👷 First worker: ${firstWorker.getId()} at ${firstWorker.getPosition().toString()}`);
+        console.log(`💎 First deposit: ${firstDeposit.getId()} at ${firstDeposit.getPosition().toString()}`);
+        
+        // Test mining assignment
+        console.log('⛏️ Testing mining assignment...');
+        
+        firstWorker.startMining(firstDeposit).then((success: boolean) => {
+            if (success) {
+                console.log('✅ Mining assignment successful!');
+                console.log('💡 Worker is now mining - energy should increase over time');
+                
+                // Show mining stats after a few seconds
+                setTimeout(() => {
+                    const newEnergy = energyManager.getTotalEnergy();
+                    const energyGain = newEnergy - currentEnergy;
+                    console.log(`⚡ Energy after mining: ${newEnergy} (+${energyGain.toFixed(1)})`);
+                    
+                    const workerStats = firstWorker.getStats();
+                    console.log('👷 Worker status:', workerStats.currentAction);
+                    
+                    const depositStats = firstDeposit.getStats();
+                    console.log(`💎 Deposit remaining: ${depositStats.remaining}/${depositStats.capacity} E`);
+                }, 3000);
+                
+            } else {
+                console.log('❌ Mining assignment failed');
             }
+        }).catch((error: any) => {
+            console.error('❌ Mining assignment error:', error);
         });
         
-        const avgCapacity = Math.round(totalCapacity / visibleDeposits.length);
-        
-        console.log(`📊 Reserve Summary:`);
-        console.log(`  - Visible Deposits: ${visibleDeposits.length}`);
-        console.log(`  - Total Remaining: ${Math.round(totalRemaining)} E`);
-        console.log(`  - Average per Deposit: ${avgCapacity} E`);
-        
-        console.log('🎮 UI Features:');
-        console.log('  - Linear mineral reserve bar below energy bar (top-right)');
-        console.log('  - Format: "VIS 92 CAP 5490E AVG 60E" (no MINERALS label)');
-        console.log('  - Exact same styling as energy bar (border, transparency, padding)');
-        console.log('  - Updates automatically every 2 seconds');
-        
-        console.log('💡 The Mineral Reserve UI shows your available mineral resources for strategic planning');
+        console.log('🎮 Complete Workflow Instructions:');
+        console.log('  1. Create workers using WORKFORCE panel (25E each)');
+        console.log('  2. Workers spawn near your base building');
+        console.log('  3. Assign workers to mine mineral deposits');
+        console.log('  4. Watch energy increase from mining operations');
+        console.log('  5. Use generated energy to create more workers');
+        console.log('  6. Expand your mining operations strategically');
     };
     
     // Expose terrain stats function
@@ -457,7 +516,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('  - testBuildingSystem() - Test building creation and energy costs');
     console.log('  - testMovementSystem() - Test unit movement and energy consumption');
     console.log('  - testUnitSystem() - Test unit creation and management');
-    console.log('  - testMineralReserves() - View mineral reserve display and statistics');
+    console.log('  - testMiningWorkflow() - Test complete worker creation → mining → energy loop');
     console.log('  - showTerrainStats() - Show terrain and mineral deposit information');
 });
 
