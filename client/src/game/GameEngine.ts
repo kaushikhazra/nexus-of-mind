@@ -16,6 +16,8 @@ import { EnergyDisplay } from '../ui/EnergyDisplay';
 import { GameState } from './GameState';
 import { UnitManager } from './UnitManager';
 import { UnitRenderer } from '../rendering/UnitRenderer';
+import { BuildingManager } from './BuildingManager';
+import { BuildingRenderer } from '../rendering/BuildingRenderer';
 
 export class GameEngine {
     private static instance: GameEngine | null = null;
@@ -41,6 +43,10 @@ export class GameEngine {
     // Unit system
     private unitManager: UnitManager | null = null;
     private unitRenderer: UnitRenderer | null = null;
+    
+    // Building system
+    private buildingManager: BuildingManager | null = null;
+    private buildingRenderer: BuildingRenderer | null = null;
     
     private isInitialized: boolean = false;
     private isRunning: boolean = false;
@@ -112,6 +118,10 @@ export class GameEngine {
             this.unitRenderer = new UnitRenderer(this.scene, this.materialManager);
             this.unitManager = new UnitManager(this.gameState, this.unitRenderer);
 
+            // Initialize building system
+            this.buildingRenderer = new BuildingRenderer(this.scene, this.materialManager);
+            this.buildingManager = new BuildingManager(this.gameState, this.buildingRenderer, this.energyManager);
+
             // Setup components
             this.cameraController.setupCamera();
             this.lightingSetup.setupLighting();
@@ -176,6 +186,11 @@ export class GameEngine {
                     // Update unit system
                     if (this.unitManager) {
                         this.unitManager.update(deltaTime);
+                    }
+                    
+                    // Update building system
+                    if (this.buildingManager) {
+                        this.buildingManager.update(deltaTime);
                     }
                     
                     // Update energy system
@@ -321,6 +336,13 @@ export class GameEngine {
     }
 
     /**
+     * Get building manager
+     */
+    public getBuildingManager(): BuildingManager | null {
+        return this.buildingManager;
+    }
+
+    /**
      * Dispose of all resources
      */
     public dispose(): void {
@@ -329,6 +351,8 @@ export class GameEngine {
         this.stop();
 
         // Dispose components in reverse order
+        this.buildingManager?.dispose();
+        this.buildingRenderer?.dispose();
         this.unitManager?.dispose();
         this.unitRenderer?.dispose();
         this.gameState?.dispose();
