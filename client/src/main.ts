@@ -8,6 +8,7 @@
 import { GameEngine } from './game/GameEngine';
 import { BuildingAction } from './game/actions/BuildingAction';
 import { MovementAction } from './game/actions/MovementAction';
+import { BuildingPlacementUI } from './ui/BuildingPlacementUI';
 import { Vector3 } from '@babylonjs/core';
 
 /**
@@ -17,6 +18,7 @@ class Application {
     private gameEngine: GameEngine | null = null;
     private canvas: HTMLCanvasElement | null = null;
     private loadingScreen: HTMLElement | null = null;
+    private buildingPlacementUI: BuildingPlacementUI | null = null;
 
     /**
      * Initialize the application
@@ -46,6 +48,9 @@ class Application {
             await this.gameEngine.start();
 
             this.updateLoadingProgress(100, 'Neural Core Online!');
+
+            // Initialize building placement UI
+            this.initializeBuildingPlacementUI();
 
             // Hide loading screen after a brief delay
             setTimeout(() => {
