@@ -162,18 +162,18 @@ export class NoiseGenerator {
 
     /**
      * Get biome type based on height value with more variation
-     * Modified to only use desert and rocky biomes (no vegetation)
      */
     public getBiomeType(height: number): 'vegetation' | 'desert' | 'rocky' {
         // Add some noise-based variation to biome boundaries for more natural transitions
         const biomeNoise = this.fractalNoise2D(height * 0.1, height * 0.1, 2, 0.5, 0.1);
         const adjustedHeight = height + (biomeNoise * 1.5);
         
-        // Only use mid (desert) and high (rocky) - no low vegetation areas
-        if (adjustedHeight < 9) {
-            return 'desert';      // Low-mid areas - yellow/sand
+        if (adjustedHeight < 5) {
+            return 'vegetation';  // Low areas - green
+        } else if (adjustedHeight < 10) {
+            return 'desert';      // Mid areas - yellow
         } else {
-            return 'rocky';       // High areas - brown/rock
+            return 'rocky';       // High areas - brown
         }
     }
 
