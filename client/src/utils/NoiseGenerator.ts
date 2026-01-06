@@ -113,9 +113,9 @@ export class NoiseGenerator {
     public fractalNoise2D(
         x: number, 
         y: number, 
-        octaves: number = 4, 
-        persistence: number = 0.5, 
-        scale: number = 0.01
+        octaves: number = 6, 
+        persistence: number = 0.4, 
+        scale: number = 0.008
     ): number {
         let value = 0;
         let amplitude = 1;
@@ -126,7 +126,7 @@ export class NoiseGenerator {
             value += this.noise2D(x * frequency, y * frequency) * amplitude;
             maxValue += amplitude;
             amplitude *= persistence;
-            frequency *= 2;
+            frequency *= 2.1; // Slightly irregular frequency for more natural look
         }
 
         // Normalize to [-1, 1] range
@@ -138,19 +138,25 @@ export class NoiseGenerator {
      */
     public generateHeight(x: number, z: number): number {
         // Use fractal noise for natural terrain variation
-        const noiseValue = this.fractalNoise2D(x, z, 4, 0.5, 0.01);
+        const noiseValue = this.fractalNoise2D(x, z, 6, 0.4, 0.008);
         
-        // Convert from [-1, 1] to [0, 10] height range
-        return (noiseValue + 1) * 5;
+        // Add some additional variation for more interesting terrain
+        const detailNoise = this.fractalNoise2D(x * 0.1, z * 0.1, 3, 0.3, 0.05);
+        
+        // Combine base terrain with detail
+        const combinedNoise = noiseValue + (detailNoise * 0.3);
+        
+        // Convert from [-1, 1] to [0, 12] height range for more dramatic terrain
+        return Math.max(0, (combinedNoise + 1) * 6);
     }
 
     /**
      * Get biome type based on height value
      */
     public getBiomeType(height: number): 'vegetation' | 'desert' | 'rocky' {
-        if (height < 3) {
+        if (height < 4) {
             return 'vegetation';  // Low areas - green
-        } else if (height < 6) {
+        } else if (height < 8) {
             return 'desert';      // Mid areas - yellow
         } else {
             return 'rocky';       // High areas - brown

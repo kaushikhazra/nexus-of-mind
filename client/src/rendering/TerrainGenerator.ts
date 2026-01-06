@@ -44,7 +44,7 @@ export class TerrainGenerator {
         // Default configuration
         this.config = {
             chunkSize: 64,
-            chunkResolution: 64,
+            chunkResolution: 65, // One extra vertex for seamless blending
             loadRadius: 3, // Load 7x7 grid of chunks
             unloadRadius: 5, // Unload chunks beyond this distance
             seed: 12345,
