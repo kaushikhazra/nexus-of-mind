@@ -9,9 +9,9 @@
     "globalTimeout": 0,
     "grep": {},
     "grepInvert": null,
-    "maxFailures": 0,
+    "maxFailures": 1,
     "metadata": {
-      "actualWorkers": 8
+      "actualWorkers": 7
     },
     "preserveOutput": "always",
     "reporter": [
@@ -43,7 +43,7 @@
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
-          "actualWorkers": 8
+          "actualWorkers": 7
         },
         "id": "chromium",
         "name": "chromium",
@@ -59,7 +59,7 @@
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
-          "actualWorkers": 8
+          "actualWorkers": 7
         },
         "id": "firefox",
         "name": "firefox",
@@ -75,7 +75,7 @@
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
-          "actualWorkers": 8
+          "actualWorkers": 7
         },
         "id": "webkit",
         "name": "webkit",
@@ -91,7 +91,7 @@
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
-          "actualWorkers": 8
+          "actualWorkers": 7
         },
         "id": "Mobile Chrome",
         "name": "Mobile Chrome",
@@ -132,7 +132,7 @@
           "specs": [
             {
               "title": "should load game successfully",
-              "ok": false,
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -145,58 +145,18 @@
                     {
                       "workerIndex": 0,
                       "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 44277,
-                      "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#loadingScreen')\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('#loadingScreen')\u001b[22m\n\u001b[2m    10 × locator resolved to <div class=\"hidden\" id=\"loadingScreen\">…</div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#loadingScreen')\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('#loadingScreen')\u001b[22m\n\u001b[2m    10 × locator resolved to <div class=\"hidden\" id=\"loadingScreen\">…</div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:16:50",
-                        "location": {
-                          "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                          "column": 50,
-                          "line": 16
-                        },
-                        "snippet": "\u001b[0m \u001b[90m 14 |\u001b[39m     \n \u001b[90m 15 |\u001b[39m     \u001b[90m// Wait for loading screen to appear and disappear\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 16 |\u001b[39m     \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m'#loadingScreen'\u001b[39m))\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                  \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 17 |\u001b[39m     \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m'#loadingScreen'\u001b[39m))\u001b[33m.\u001b[39mtoBeHidden({ timeout\u001b[33m:\u001b[39m \u001b[35m30000\u001b[39m })\u001b[33m;\u001b[39m\n \u001b[90m 18 |\u001b[39m     \n \u001b[90m 19 |\u001b[39m     \u001b[90m// Game canvas should be visible\u001b[39m\u001b[0m"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                            "column": 50,
-                            "line": 16
-                          },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#loadingScreen')\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('#loadingScreen')\u001b[22m\n\u001b[2m    10 × locator resolved to <div class=\"hidden\" id=\"loadingScreen\">…</div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n\n\u001b[0m \u001b[90m 14 |\u001b[39m     \n \u001b[90m 15 |\u001b[39m     \u001b[90m// Wait for loading screen to appear and disappear\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 16 |\u001b[39m     \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m'#loadingScreen'\u001b[39m))\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                  \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 17 |\u001b[39m     \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m'#loadingScreen'\u001b[39m))\u001b[33m.\u001b[39mtoBeHidden({ timeout\u001b[33m:\u001b[39m \u001b[35m30000\u001b[39m })\u001b[33m;\u001b[39m\n \u001b[90m 18 |\u001b[39m     \n \u001b[90m 19 |\u001b[39m     \u001b[90m// Game canvas should be visible\u001b[39m\u001b[0m\n\u001b[2m    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:16:50\u001b[22m"
-                        }
-                      ],
+                      "status": "passed",
+                      "duration": 35823,
+                      "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-01-06T14:45:38.285Z",
+                      "startTime": "2026-01-06T15:02:09.421Z",
                       "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Tests-should-load-game-successfully-chromium\\test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Tests-should-load-game-successfully-chromium\\video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Tests-should-load-game-successfully-chromium\\error-context.md"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                        "column": 50,
-                        "line": 16
-                      }
+                      "attachments": []
                     }
                   ],
-                  "status": "unexpected"
+                  "status": "expected"
                 }
               ],
               "id": "971fcc4275ad8903d642-d4d6f0001bc46ef8956f",
@@ -206,7 +166,7 @@
             },
             {
               "title": "should display SciFi loading screen",
-              "ok": false,
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -219,63 +179,33 @@
                     {
                       "workerIndex": 1,
                       "parallelIndex": 1,
-                      "status": "failed",
-                      "duration": 45702,
-                      "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#loadingScreen')\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('#loadingScreen')\u001b[22m\n\u001b[2m    11 × locator resolved to <div class=\"hidden\" id=\"loadingScreen\">…</div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#loadingScreen')\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('#loadingScreen')\u001b[22m\n\u001b[2m    11 × locator resolved to <div class=\"hidden\" id=\"loadingScreen\">…</div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:27:33",
-                        "location": {
-                          "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                          "column": 33,
-                          "line": 27
-                        },
-                        "snippet": "\u001b[0m \u001b[90m 25 |\u001b[39m     \n \u001b[90m 26 |\u001b[39m     \u001b[36mconst\u001b[39m loadingScreen \u001b[33m=\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'#loadingScreen'\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 27 |\u001b[39m     \u001b[36mawait\u001b[39m expect(loadingScreen)\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                 \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 28 |\u001b[39m     \n \u001b[90m 29 |\u001b[39m     \u001b[90m// Check SciFi title\u001b[39m\n \u001b[90m 30 |\u001b[39m     \u001b[36mawait\u001b[39m expect(loadingScreen\u001b[33m.\u001b[39mgetByText(\u001b[32m'◊ Nexus of Mind ◊'\u001b[39m))\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\u001b[0m"
-                      },
-                      "errors": [
+                      "status": "interrupted",
+                      "duration": 36622,
+                      "errors": [],
+                      "stdout": [
                         {
-                          "location": {
-                            "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                            "column": 33,
-                            "line": 27
-                          },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#loadingScreen')\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('#loadingScreen')\u001b[22m\n\u001b[2m    11 × locator resolved to <div class=\"hidden\" id=\"loadingScreen\">…</div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n\n\u001b[0m \u001b[90m 25 |\u001b[39m     \n \u001b[90m 26 |\u001b[39m     \u001b[36mconst\u001b[39m loadingScreen \u001b[33m=\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'#loadingScreen'\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 27 |\u001b[39m     \u001b[36mawait\u001b[39m expect(loadingScreen)\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                 \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 28 |\u001b[39m     \n \u001b[90m 29 |\u001b[39m     \u001b[90m// Check SciFi title\u001b[39m\n \u001b[90m 30 |\u001b[39m     \u001b[36mawait\u001b[39m expect(loadingScreen\u001b[33m.\u001b[39mgetByText(\u001b[32m'◊ Nexus of Mind ◊'\u001b[39m))\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\u001b[0m\n\u001b[2m    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:27:33\u001b[22m"
+                          "text": "Loading screen too fast to catch - game loads quickly!\n"
                         }
                       ],
-                      "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-01-06T14:45:38.289Z",
+                      "startTime": "2026-01-06T15:02:09.413Z",
                       "annotations": [],
                       "attachments": [
                         {
                           "name": "screenshot",
                           "contentType": "image/png",
                           "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-chromium\\test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-chromium\\video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-chromium\\error-context.md"
                         }
-                      ],
-                      "errorLocation": {
-                        "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                        "column": 33,
-                        "line": 27
-                      }
+                      ]
                     }
                   ],
-                  "status": "unexpected"
+                  "status": "skipped"
                 }
               ],
               "id": "971fcc4275ad8903d642-ae40bd287f3390562a38",
               "file": "game-smoke.spec.ts",
-              "line": 23,
+              "line": 21,
               "column": 7
             },
             {
@@ -294,12 +224,12 @@
                       "workerIndex": 2,
                       "parallelIndex": 2,
                       "status": "passed",
-                      "duration": 44730,
+                      "duration": 25353,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-01-06T14:45:38.317Z",
+                      "startTime": "2026-01-06T15:02:09.451Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -327,18 +257,24 @@
                     {
                       "workerIndex": 3,
                       "parallelIndex": 3,
-                      "status": "passed",
-                      "duration": 44992,
+                      "status": "interrupted",
+                      "duration": 36414,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-01-06T14:45:38.342Z",
+                      "startTime": "2026-01-06T15:02:09.447Z",
                       "annotations": [],
-                      "attachments": []
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Test-cd49d-alize-building-placement-UI-chromium\\test-failed-1.png"
+                        }
+                      ]
                     }
                   ],
-                  "status": "expected"
+                  "status": "skipped"
                 }
               ],
               "id": "971fcc4275ad8903d642-ecb2d67963ac23e01609",
@@ -348,7 +284,7 @@
             },
             {
               "title": "should have working 3D scene",
-              "ok": false,
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -361,57 +297,24 @@
                     {
                       "workerIndex": 4,
                       "parallelIndex": 4,
-                      "status": "failed",
-                      "duration": 43808,
-                      "error": {
-                        "message": "Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'getScene')\n    at eval (eval at evaluate (:290:30), <anonymous>:4:48)\n    at UtilityScript.evaluate (<anonymous>:292:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)",
-                        "stack": "Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'getScene')\n    at eval (eval at evaluate (:290:30), <anonymous>:4:48)\n    at UtilityScript.evaluate (<anonymous>:292:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at eval (eval at evaluate (:290:30), <anonymous>:4:48)\n    at UtilityScript.evaluate (<anonymous>:292:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:84:38",
-                        "location": {
-                          "file": "eval at evaluate (:290:30), <anonymous>",
-                          "column": 48,
-                          "line": 4
-                        }
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "eval at evaluate (:290:30), <anonymous>",
-                            "column": 48,
-                            "line": 4
-                          },
-                          "message": "Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'getScene')\n\u001b[2m    at eval (eval at evaluate (:290:30), <anonymous>:4:48)\u001b[22m\n\u001b[2m    at UtilityScript.evaluate (<anonymous>:292:16)\u001b[22m\n\u001b[2m    at UtilityScript.<anonymous> (<anonymous>:1:44)\u001b[22m\n\u001b[2m    at eval (eval at evaluate (:290:30), <anonymous>:4:48)\u001b[22m\n\u001b[2m    at UtilityScript.evaluate (<anonymous>:292:16)\u001b[22m\n\u001b[2m    at UtilityScript.<anonymous> (<anonymous>:1:44)\u001b[22m\n\u001b[2m    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:84:38\u001b[22m"
-                        }
-                      ],
+                      "status": "interrupted",
+                      "duration": 36168,
+                      "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-01-06T14:45:38.295Z",
+                      "startTime": "2026-01-06T15:02:09.431Z",
                       "annotations": [],
                       "attachments": [
                         {
                           "name": "screenshot",
                           "contentType": "image/png",
                           "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-chromium\\test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-chromium\\video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-chromium\\error-context.md"
                         }
-                      ],
-                      "errorLocation": {
-                        "file": "eval at evaluate (:290:30), <anonymous>",
-                        "column": 48,
-                        "line": 4
-                      }
+                      ]
                     }
                   ],
-                  "status": "unexpected"
+                  "status": "skipped"
                 }
               ],
               "id": "971fcc4275ad8903d642-256395204af874c9fe2d",
@@ -435,31 +338,31 @@
                       "workerIndex": 5,
                       "parallelIndex": 5,
                       "status": "failed",
-                      "duration": 45143,
+                      "duration": 36304,
                       "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m30\u001b[39m\nReceived:   \u001b[31m0\u001b[39m",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m30\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:109:17",
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m\n    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:134:29",
                         "location": {
                           "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                          "column": 17,
-                          "line": 109
+                          "column": 29,
+                          "line": 134
                         },
-                        "snippet": "\u001b[0m \u001b[90m 107 |\u001b[39m     \n \u001b[90m 108 |\u001b[39m     \u001b[90m// Should maintain good FPS (allow some variance for CI)\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 109 |\u001b[39m     expect(fps)\u001b[33m.\u001b[39mtoBeGreaterThan(\u001b[35m30\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                 \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 110 |\u001b[39m   })\u001b[33m;\u001b[39m\n \u001b[90m 111 |\u001b[39m   \n \u001b[90m 112 |\u001b[39m   test(\u001b[32m'should have responsive UI layout'\u001b[39m\u001b[33m,\u001b[39m \u001b[36masync\u001b[39m ({ page }) \u001b[33m=>\u001b[39m {\u001b[0m"
+                        "snippet": "\u001b[0m \u001b[90m 132 |\u001b[39m     })\u001b[33m;\u001b[39m\n \u001b[90m 133 |\u001b[39m     \n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 134 |\u001b[39m     expect(performanceGood)\u001b[33m.\u001b[39mtoBe(\u001b[36mtrue\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                             \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 135 |\u001b[39m   })\u001b[33m;\u001b[39m\n \u001b[90m 136 |\u001b[39m   \n \u001b[90m 137 |\u001b[39m   test(\u001b[32m'should have responsive UI layout'\u001b[39m\u001b[33m,\u001b[39m \u001b[36masync\u001b[39m ({ page }) \u001b[33m=>\u001b[39m {\u001b[0m"
                       },
                       "errors": [
                         {
                           "location": {
                             "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                            "column": 17,
-                            "line": 109
+                            "column": 29,
+                            "line": 134
                           },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m30\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n\n\u001b[0m \u001b[90m 107 |\u001b[39m     \n \u001b[90m 108 |\u001b[39m     \u001b[90m// Should maintain good FPS (allow some variance for CI)\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 109 |\u001b[39m     expect(fps)\u001b[33m.\u001b[39mtoBeGreaterThan(\u001b[35m30\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                 \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 110 |\u001b[39m   })\u001b[33m;\u001b[39m\n \u001b[90m 111 |\u001b[39m   \n \u001b[90m 112 |\u001b[39m   test(\u001b[32m'should have responsive UI layout'\u001b[39m\u001b[33m,\u001b[39m \u001b[36masync\u001b[39m ({ page }) \u001b[33m=>\u001b[39m {\u001b[0m\n\u001b[2m    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:109:17\u001b[22m"
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m\n\n\u001b[0m \u001b[90m 132 |\u001b[39m     })\u001b[33m;\u001b[39m\n \u001b[90m 133 |\u001b[39m     \n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 134 |\u001b[39m     expect(performanceGood)\u001b[33m.\u001b[39mtoBe(\u001b[36mtrue\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                             \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 135 |\u001b[39m   })\u001b[33m;\u001b[39m\n \u001b[90m 136 |\u001b[39m   \n \u001b[90m 137 |\u001b[39m   test(\u001b[32m'should have responsive UI layout'\u001b[39m\u001b[33m,\u001b[39m \u001b[36masync\u001b[39m ({ page }) \u001b[33m=>\u001b[39m {\u001b[0m\n\u001b[2m    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:134:29\u001b[22m"
                         }
                       ],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-01-06T14:45:38.323Z",
+                      "startTime": "2026-01-06T15:02:09.445Z",
                       "annotations": [],
                       "attachments": [
                         {
@@ -480,8 +383,8 @@
                       ],
                       "errorLocation": {
                         "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                        "column": 17,
-                        "line": 109
+                        "column": 29,
+                        "line": 134
                       }
                     }
                   ],
@@ -490,7 +393,7 @@
               ],
               "id": "971fcc4275ad8903d642-eb56f7c10d6bd0e6ad6a",
               "file": "game-smoke.spec.ts",
-              "line": 92,
+              "line": 103,
               "column": 7
             },
             {
@@ -508,1095 +411,29 @@
                     {
                       "workerIndex": 6,
                       "parallelIndex": 6,
-                      "status": "passed",
-                      "duration": 44977,
+                      "status": "interrupted",
+                      "duration": 36120,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-01-06T14:45:38.312Z",
+                      "startTime": "2026-01-06T15:02:09.464Z",
                       "annotations": [],
-                      "attachments": []
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Tests-should-have-responsive-UI-layout-chromium\\test-failed-1.png"
+                        }
+                      ]
                     }
                   ],
-                  "status": "expected"
+                  "status": "skipped"
                 }
               ],
               "id": "971fcc4275ad8903d642-9956f140e7e2c528efbd",
               "file": "game-smoke.spec.ts",
-              "line": 112,
-              "column": 7
-            },
-            {
-              "title": "should load game successfully",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "firefox",
-                  "projectName": "firefox",
-                  "results": [
-                    {
-                      "workerIndex": 7,
-                      "parallelIndex": 7,
-                      "status": "passed",
-                      "duration": 46832,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-06T14:45:38.342Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "971fcc4275ad8903d642-a980a836505989378563",
-              "file": "game-smoke.spec.ts",
-              "line": 12,
-              "column": 7
-            },
-            {
-              "title": "should display SciFi loading screen",
-              "ok": false,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "firefox",
-                  "projectName": "firefox",
-                  "results": [
-                    {
-                      "workerIndex": 8,
-                      "parallelIndex": 4,
-                      "status": "failed",
-                      "duration": 31020,
-                      "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#loadingScreen')\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('#loadingScreen')\u001b[22m\n\u001b[2m    11 × locator resolved to <div class=\"hidden\" id=\"loadingScreen\">…</div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#loadingScreen')\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('#loadingScreen')\u001b[22m\n\u001b[2m    11 × locator resolved to <div class=\"hidden\" id=\"loadingScreen\">…</div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:27:33",
-                        "location": {
-                          "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                          "column": 33,
-                          "line": 27
-                        },
-                        "snippet": "\u001b[0m \u001b[90m 25 |\u001b[39m     \n \u001b[90m 26 |\u001b[39m     \u001b[36mconst\u001b[39m loadingScreen \u001b[33m=\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'#loadingScreen'\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 27 |\u001b[39m     \u001b[36mawait\u001b[39m expect(loadingScreen)\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                 \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 28 |\u001b[39m     \n \u001b[90m 29 |\u001b[39m     \u001b[90m// Check SciFi title\u001b[39m\n \u001b[90m 30 |\u001b[39m     \u001b[36mawait\u001b[39m expect(loadingScreen\u001b[33m.\u001b[39mgetByText(\u001b[32m'◊ Nexus of Mind ◊'\u001b[39m))\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\u001b[0m"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                            "column": 33,
-                            "line": 27
-                          },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#loadingScreen')\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('#loadingScreen')\u001b[22m\n\u001b[2m    11 × locator resolved to <div class=\"hidden\" id=\"loadingScreen\">…</div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n\n\u001b[0m \u001b[90m 25 |\u001b[39m     \n \u001b[90m 26 |\u001b[39m     \u001b[36mconst\u001b[39m loadingScreen \u001b[33m=\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'#loadingScreen'\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 27 |\u001b[39m     \u001b[36mawait\u001b[39m expect(loadingScreen)\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                 \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 28 |\u001b[39m     \n \u001b[90m 29 |\u001b[39m     \u001b[90m// Check SciFi title\u001b[39m\n \u001b[90m 30 |\u001b[39m     \u001b[36mawait\u001b[39m expect(loadingScreen\u001b[33m.\u001b[39mgetByText(\u001b[32m'◊ Nexus of Mind ◊'\u001b[39m))\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\u001b[0m\n\u001b[2m    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:27:33\u001b[22m"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-06T14:46:26.060Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-firefox\\test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-firefox\\video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-firefox\\error-context.md"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                        "column": 33,
-                        "line": 27
-                      }
-                    }
-                  ],
-                  "status": "unexpected"
-                }
-              ],
-              "id": "971fcc4275ad8903d642-641a4081f310d705e006",
-              "file": "game-smoke.spec.ts",
-              "line": 23,
-              "column": 7
-            },
-            {
-              "title": "should initialize energy system",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "firefox",
-                  "projectName": "firefox",
-                  "results": [
-                    {
-                      "workerIndex": 9,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 30588,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-06T14:46:26.057Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "971fcc4275ad8903d642-82ca1e3c86392ae794df",
-              "file": "game-smoke.spec.ts",
-              "line": 49,
-              "column": 7
-            },
-            {
-              "title": "should initialize building placement UI",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "firefox",
-                  "projectName": "firefox",
-                  "results": [
-                    {
-                      "workerIndex": 10,
-                      "parallelIndex": 2,
-                      "status": "passed",
-                      "duration": 32202,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-06T14:46:26.314Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "971fcc4275ad8903d642-3cfd53fc8605697ab838",
-              "file": "game-smoke.spec.ts",
-              "line": 63,
-              "column": 7
-            },
-            {
-              "title": "should have working 3D scene",
-              "ok": false,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "firefox",
-                  "projectName": "firefox",
-                  "results": [
-                    {
-                      "workerIndex": 11,
-                      "parallelIndex": 6,
-                      "status": "failed",
-                      "duration": 29279,
-                      "error": {
-                        "message": "Error: page.evaluate: can't access property \"getScene\", gameEngine is undefined\n@debugger eval code line 290 > eval:4:7\nevaluate@debugger eval code:292:16\n@debugger eval code:1:44\n",
-                        "stack": "Error: page.evaluate: can't access property \"getScene\", gameEngine is undefined\n@debugger eval code line 290 > eval:4:7\nevaluate@debugger eval code:292:16\n@debugger eval code:1:44\n\n    at @debugger eval code line 290 > eval:4:7\n    at evaluate@debugger eval code:292:16\n    at @debugger eval code:1:44\n    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:84:38",
-                        "location": {
-                          "file": "@debugger eval code line 290 > eval",
-                          "column": 7,
-                          "line": 4
-                        }
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "@debugger eval code line 290 > eval",
-                            "column": 7,
-                            "line": 4
-                          },
-                          "message": "Error: page.evaluate: can't access property \"getScene\", gameEngine is undefined\n@debugger eval code line 290 > eval:4:7\nevaluate@debugger eval code:292:16\n@debugger eval code:1:44\n\n\u001b[2m    at @debugger eval code line 290 > eval:4:7\u001b[22m\n\u001b[2m    at evaluate@debugger eval code:292:16\u001b[22m\n\u001b[2m    at @debugger eval code:1:44\u001b[22m\n\u001b[2m    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:84:38\u001b[22m"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-06T14:46:26.502Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-firefox\\test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-firefox\\video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-firefox\\error-context.md"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "@debugger eval code line 290 > eval",
-                        "column": 7,
-                        "line": 4
-                      }
-                    }
-                  ],
-                  "status": "unexpected"
-                }
-              ],
-              "id": "971fcc4275ad8903d642-db3570e9f3a9473927d9",
-              "file": "game-smoke.spec.ts",
-              "line": 77,
-              "column": 7
-            },
-            {
-              "title": "should maintain 60fps performance",
-              "ok": false,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "firefox",
-                  "projectName": "firefox",
-                  "results": [
-                    {
-                      "workerIndex": 12,
-                      "parallelIndex": 3,
-                      "status": "failed",
-                      "duration": 33090,
-                      "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m30\u001b[39m\nReceived:   \u001b[31m0\u001b[39m",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m30\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:109:17",
-                        "location": {
-                          "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                          "column": 17,
-                          "line": 109
-                        },
-                        "snippet": "\u001b[0m \u001b[90m 107 |\u001b[39m     \n \u001b[90m 108 |\u001b[39m     \u001b[90m// Should maintain good FPS (allow some variance for CI)\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 109 |\u001b[39m     expect(fps)\u001b[33m.\u001b[39mtoBeGreaterThan(\u001b[35m30\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                 \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 110 |\u001b[39m   })\u001b[33m;\u001b[39m\n \u001b[90m 111 |\u001b[39m   \n \u001b[90m 112 |\u001b[39m   test(\u001b[32m'should have responsive UI layout'\u001b[39m\u001b[33m,\u001b[39m \u001b[36masync\u001b[39m ({ page }) \u001b[33m=>\u001b[39m {\u001b[0m"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                            "column": 17,
-                            "line": 109
-                          },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m30\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n\n\u001b[0m \u001b[90m 107 |\u001b[39m     \n \u001b[90m 108 |\u001b[39m     \u001b[90m// Should maintain good FPS (allow some variance for CI)\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 109 |\u001b[39m     expect(fps)\u001b[33m.\u001b[39mtoBeGreaterThan(\u001b[35m30\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                 \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 110 |\u001b[39m   })\u001b[33m;\u001b[39m\n \u001b[90m 111 |\u001b[39m   \n \u001b[90m 112 |\u001b[39m   test(\u001b[32m'should have responsive UI layout'\u001b[39m\u001b[33m,\u001b[39m \u001b[36masync\u001b[39m ({ page }) \u001b[33m=>\u001b[39m {\u001b[0m\n\u001b[2m    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:109:17\u001b[22m"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-06T14:46:26.453Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-firefox\\test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-firefox\\video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-firefox\\error-context.md"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                        "column": 17,
-                        "line": 109
-                      }
-                    }
-                  ],
-                  "status": "unexpected"
-                }
-              ],
-              "id": "971fcc4275ad8903d642-aa7e3741524f853b81d1",
-              "file": "game-smoke.spec.ts",
-              "line": 92,
-              "column": 7
-            },
-            {
-              "title": "should have responsive UI layout",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "firefox",
-                  "projectName": "firefox",
-                  "results": [
-                    {
-                      "workerIndex": 13,
-                      "parallelIndex": 5,
-                      "status": "passed",
-                      "duration": 33052,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-06T14:46:26.714Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "971fcc4275ad8903d642-9490abe5b649e160c42c",
-              "file": "game-smoke.spec.ts",
-              "line": 112,
-              "column": 7
-            },
-            {
-              "title": "should load game successfully",
-              "ok": false,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "webkit",
-                  "projectName": "webkit",
-                  "results": [
-                    {
-                      "workerIndex": 14,
-                      "parallelIndex": 1,
-                      "status": "failed",
-                      "duration": 31015,
-                      "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#loadingScreen')\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('#loadingScreen')\u001b[22m\n\u001b[2m    7 × locator resolved to <div class=\"hidden\" id=\"loadingScreen\">…</div>\u001b[22m\n\u001b[2m      - unexpected value \"hidden\"\u001b[22m\n",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#loadingScreen')\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('#loadingScreen')\u001b[22m\n\u001b[2m    7 × locator resolved to <div class=\"hidden\" id=\"loadingScreen\">…</div>\u001b[22m\n\u001b[2m      - unexpected value \"hidden\"\u001b[22m\n\n    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:16:50",
-                        "location": {
-                          "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                          "column": 50,
-                          "line": 16
-                        },
-                        "snippet": "\u001b[0m \u001b[90m 14 |\u001b[39m     \n \u001b[90m 15 |\u001b[39m     \u001b[90m// Wait for loading screen to appear and disappear\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 16 |\u001b[39m     \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m'#loadingScreen'\u001b[39m))\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                  \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 17 |\u001b[39m     \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m'#loadingScreen'\u001b[39m))\u001b[33m.\u001b[39mtoBeHidden({ timeout\u001b[33m:\u001b[39m \u001b[35m30000\u001b[39m })\u001b[33m;\u001b[39m\n \u001b[90m 18 |\u001b[39m     \n \u001b[90m 19 |\u001b[39m     \u001b[90m// Game canvas should be visible\u001b[39m\u001b[0m"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                            "column": 50,
-                            "line": 16
-                          },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#loadingScreen')\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('#loadingScreen')\u001b[22m\n\u001b[2m    7 × locator resolved to <div class=\"hidden\" id=\"loadingScreen\">…</div>\u001b[22m\n\u001b[2m      - unexpected value \"hidden\"\u001b[22m\n\n\n\u001b[0m \u001b[90m 14 |\u001b[39m     \n \u001b[90m 15 |\u001b[39m     \u001b[90m// Wait for loading screen to appear and disappear\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 16 |\u001b[39m     \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m'#loadingScreen'\u001b[39m))\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                  \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 17 |\u001b[39m     \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m'#loadingScreen'\u001b[39m))\u001b[33m.\u001b[39mtoBeHidden({ timeout\u001b[33m:\u001b[39m \u001b[35m30000\u001b[39m })\u001b[33m;\u001b[39m\n \u001b[90m 18 |\u001b[39m     \n \u001b[90m 19 |\u001b[39m     \u001b[90m// Game canvas should be visible\u001b[39m\u001b[0m\n\u001b[2m    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:16:50\u001b[22m"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-06T14:46:27.039Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Tests-should-load-game-successfully-webkit\\test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Tests-should-load-game-successfully-webkit\\video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Tests-should-load-game-successfully-webkit\\error-context.md"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                        "column": 50,
-                        "line": 16
-                      }
-                    }
-                  ],
-                  "status": "unexpected"
-                }
-              ],
-              "id": "971fcc4275ad8903d642-016a3492f91e349f790f",
-              "file": "game-smoke.spec.ts",
-              "line": 12,
-              "column": 7
-            },
-            {
-              "title": "should display SciFi loading screen",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "webkit",
-                  "projectName": "webkit",
-                  "results": [
-                    {
-                      "workerIndex": 15,
-                      "parallelIndex": 7,
-                      "status": "passed",
-                      "duration": 32768,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-06T14:46:30.671Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "971fcc4275ad8903d642-5b6b4ecaa3281e4f682b",
-              "file": "game-smoke.spec.ts",
-              "line": 23,
-              "column": 7
-            },
-            {
-              "title": "should initialize energy system",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "webkit",
-                  "projectName": "webkit",
-                  "results": [
-                    {
-                      "workerIndex": 16,
-                      "parallelIndex": 1,
-                      "status": "passed",
-                      "duration": 14897,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-06T14:47:03.535Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "971fcc4275ad8903d642-945b0141cccd7918171b",
-              "file": "game-smoke.spec.ts",
-              "line": 49,
-              "column": 7
-            },
-            {
-              "title": "should initialize building placement UI",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "webkit",
-                  "projectName": "webkit",
-                  "results": [
-                    {
-                      "workerIndex": 18,
-                      "parallelIndex": 2,
-                      "status": "passed",
-                      "duration": 20965,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-06T14:47:04.451Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "971fcc4275ad8903d642-a7b25d97ec0b42aace77",
-              "file": "game-smoke.spec.ts",
-              "line": 63,
-              "column": 7
-            },
-            {
-              "title": "should have working 3D scene",
-              "ok": false,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "webkit",
-                  "projectName": "webkit",
-                  "results": [
-                    {
-                      "workerIndex": 17,
-                      "parallelIndex": 4,
-                      "status": "failed",
-                      "duration": 16905,
-                      "error": {
-                        "message": "Error: page.evaluate: TypeError: undefined is not an object (evaluating 'gameEngine.getScene')",
-                        "stack": "Error: page.evaluate: TypeError: undefined is not an object (evaluating 'gameEngine.getScene')\n    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:84:38",
-                        "location": {
-                          "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                          "column": 38,
-                          "line": 84
-                        },
-                        "snippet": "\u001b[0m \u001b[90m 82 |\u001b[39m     \n \u001b[90m 83 |\u001b[39m     \u001b[90m// Check that game engine is running\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 84 |\u001b[39m     \u001b[36mconst\u001b[39m isGameRunning \u001b[33m=\u001b[39m \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mevaluate(() \u001b[33m=>\u001b[39m {\n \u001b[90m    |\u001b[39m                                      \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 85 |\u001b[39m       \u001b[36mconst\u001b[39m gameEngine \u001b[33m=\u001b[39m (window \u001b[36mas\u001b[39m any)\u001b[33m.\u001b[39m\u001b[33mGameEngine\u001b[39m\u001b[33m?\u001b[39m\u001b[33m.\u001b[39mgetInstance()\u001b[33m;\u001b[39m\n \u001b[90m 86 |\u001b[39m       \u001b[36mreturn\u001b[39m gameEngine \u001b[33m!==\u001b[39m \u001b[36mnull\u001b[39m \u001b[33m&&\u001b[39m gameEngine\u001b[33m.\u001b[39mgetScene() \u001b[33m!==\u001b[39m \u001b[36mnull\u001b[39m\u001b[33m;\u001b[39m\n \u001b[90m 87 |\u001b[39m     })\u001b[33m;\u001b[39m\u001b[0m"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                            "column": 38,
-                            "line": 84
-                          },
-                          "message": "Error: page.evaluate: TypeError: undefined is not an object (evaluating 'gameEngine.getScene')\n\n\u001b[0m \u001b[90m 82 |\u001b[39m     \n \u001b[90m 83 |\u001b[39m     \u001b[90m// Check that game engine is running\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 84 |\u001b[39m     \u001b[36mconst\u001b[39m isGameRunning \u001b[33m=\u001b[39m \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mevaluate(() \u001b[33m=>\u001b[39m {\n \u001b[90m    |\u001b[39m                                      \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 85 |\u001b[39m       \u001b[36mconst\u001b[39m gameEngine \u001b[33m=\u001b[39m (window \u001b[36mas\u001b[39m any)\u001b[33m.\u001b[39m\u001b[33mGameEngine\u001b[39m\u001b[33m?\u001b[39m\u001b[33m.\u001b[39mgetInstance()\u001b[33m;\u001b[39m\n \u001b[90m 86 |\u001b[39m       \u001b[36mreturn\u001b[39m gameEngine \u001b[33m!==\u001b[39m \u001b[36mnull\u001b[39m \u001b[33m&&\u001b[39m gameEngine\u001b[33m.\u001b[39mgetScene() \u001b[33m!==\u001b[39m \u001b[36mnull\u001b[39m\u001b[33m;\u001b[39m\n \u001b[90m 87 |\u001b[39m     })\u001b[33m;\u001b[39m\u001b[0m\n\u001b[2m    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:84:38\u001b[22m"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-06T14:47:03.869Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-webkit\\test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-webkit\\video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-webkit\\error-context.md"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                        "column": 38,
-                        "line": 84
-                      }
-                    }
-                  ],
-                  "status": "unexpected"
-                }
-              ],
-              "id": "971fcc4275ad8903d642-233840436679e4caa29d",
-              "file": "game-smoke.spec.ts",
-              "line": 77,
-              "column": 7
-            },
-            {
-              "title": "should maintain 60fps performance",
-              "ok": false,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "webkit",
-                  "projectName": "webkit",
-                  "results": [
-                    {
-                      "workerIndex": 19,
-                      "parallelIndex": 3,
-                      "status": "failed",
-                      "duration": 21678,
-                      "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m30\u001b[39m\nReceived:   \u001b[31m0\u001b[39m",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m30\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:109:17",
-                        "location": {
-                          "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                          "column": 17,
-                          "line": 109
-                        },
-                        "snippet": "\u001b[0m \u001b[90m 107 |\u001b[39m     \n \u001b[90m 108 |\u001b[39m     \u001b[90m// Should maintain good FPS (allow some variance for CI)\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 109 |\u001b[39m     expect(fps)\u001b[33m.\u001b[39mtoBeGreaterThan(\u001b[35m30\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                 \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 110 |\u001b[39m   })\u001b[33m;\u001b[39m\n \u001b[90m 111 |\u001b[39m   \n \u001b[90m 112 |\u001b[39m   test(\u001b[32m'should have responsive UI layout'\u001b[39m\u001b[33m,\u001b[39m \u001b[36masync\u001b[39m ({ page }) \u001b[33m=>\u001b[39m {\u001b[0m"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                            "column": 17,
-                            "line": 109
-                          },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m30\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n\n\u001b[0m \u001b[90m 107 |\u001b[39m     \n \u001b[90m 108 |\u001b[39m     \u001b[90m// Should maintain good FPS (allow some variance for CI)\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 109 |\u001b[39m     expect(fps)\u001b[33m.\u001b[39mtoBeGreaterThan(\u001b[35m30\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                 \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 110 |\u001b[39m   })\u001b[33m;\u001b[39m\n \u001b[90m 111 |\u001b[39m   \n \u001b[90m 112 |\u001b[39m   test(\u001b[32m'should have responsive UI layout'\u001b[39m\u001b[33m,\u001b[39m \u001b[36masync\u001b[39m ({ page }) \u001b[33m=>\u001b[39m {\u001b[0m\n\u001b[2m    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:109:17\u001b[22m"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-06T14:47:04.590Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-webkit\\test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-webkit\\video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-webkit\\error-context.md"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                        "column": 17,
-                        "line": 109
-                      }
-                    }
-                  ],
-                  "status": "unexpected"
-                }
-              ],
-              "id": "971fcc4275ad8903d642-cdf47702d668ab8c7565",
-              "file": "game-smoke.spec.ts",
-              "line": 92,
-              "column": 7
-            },
-            {
-              "title": "should have responsive UI layout",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "webkit",
-                  "projectName": "webkit",
-                  "results": [
-                    {
-                      "workerIndex": 20,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 23547,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-06T14:47:06.305Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "971fcc4275ad8903d642-bd26515f427eabe7146e",
-              "file": "game-smoke.spec.ts",
-              "line": 112,
-              "column": 7
-            },
-            {
-              "title": "should load game successfully",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "Mobile Chrome",
-                  "projectName": "Mobile Chrome",
-                  "results": [
-                    {
-                      "workerIndex": 21,
-                      "parallelIndex": 5,
-                      "status": "passed",
-                      "duration": 13624,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-06T14:47:06.421Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "971fcc4275ad8903d642-832bfbdead0c5c3498c7",
-              "file": "game-smoke.spec.ts",
-              "line": 12,
-              "column": 7
-            },
-            {
-              "title": "should display SciFi loading screen",
-              "ok": false,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "Mobile Chrome",
-                  "projectName": "Mobile Chrome",
-                  "results": [
-                    {
-                      "workerIndex": 22,
-                      "parallelIndex": 7,
-                      "status": "failed",
-                      "duration": 22546,
-                      "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#loadingText')\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('#loadingText')\u001b[22m\n\u001b[2m    13 × locator resolved to <div id=\"loadingText\">Neural Core Online!</div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#loadingText')\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('#loadingText')\u001b[22m\n\u001b[2m    13 × locator resolved to <div id=\"loadingText\">Neural Core Online!</div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:34:31",
-                        "location": {
-                          "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                          "column": 31,
-                          "line": 34
-                        },
-                        "snippet": "\u001b[0m \u001b[90m 32 |\u001b[39m     \u001b[90m// Check loading messages\u001b[39m\n \u001b[90m 33 |\u001b[39m     \u001b[36mconst\u001b[39m loadingText \u001b[33m=\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'#loadingText'\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 34 |\u001b[39m     \u001b[36mawait\u001b[39m expect(loadingText)\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                               \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 35 |\u001b[39m     \n \u001b[90m 36 |\u001b[39m     \u001b[90m// Should show SciFi loading messages\u001b[39m\n \u001b[90m 37 |\u001b[39m     \u001b[36mconst\u001b[39m possibleMessages \u001b[33m=\u001b[39m [\u001b[0m"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                            "column": 31,
-                            "line": 34
-                          },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#loadingText')\nExpected: visible\nReceived: hidden\nTimeout:  10000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('#loadingText')\u001b[22m\n\u001b[2m    13 × locator resolved to <div id=\"loadingText\">Neural Core Online!</div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n\n\u001b[0m \u001b[90m 32 |\u001b[39m     \u001b[90m// Check loading messages\u001b[39m\n \u001b[90m 33 |\u001b[39m     \u001b[36mconst\u001b[39m loadingText \u001b[33m=\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'#loadingText'\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 34 |\u001b[39m     \u001b[36mawait\u001b[39m expect(loadingText)\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                               \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 35 |\u001b[39m     \n \u001b[90m 36 |\u001b[39m     \u001b[90m// Should show SciFi loading messages\u001b[39m\n \u001b[90m 37 |\u001b[39m     \u001b[36mconst\u001b[39m possibleMessages \u001b[33m=\u001b[39m [\u001b[0m\n\u001b[2m    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:34:31\u001b[22m"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-06T14:47:06.737Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-Mobile-Chrome\\test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-Mobile-Chrome\\video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-Mobile-Chrome\\error-context.md"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                        "column": 31,
-                        "line": 34
-                      }
-                    }
-                  ],
-                  "status": "unexpected"
-                }
-              ],
-              "id": "971fcc4275ad8903d642-6b45134e9e3666651910",
-              "file": "game-smoke.spec.ts",
-              "line": 23,
-              "column": 7
-            },
-            {
-              "title": "should initialize energy system",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "Mobile Chrome",
-                  "projectName": "Mobile Chrome",
-                  "results": [
-                    {
-                      "workerIndex": 23,
-                      "parallelIndex": 6,
-                      "status": "passed",
-                      "duration": 12922,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-06T14:47:08.316Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "971fcc4275ad8903d642-6d4c9d4ad48e802ceaeb",
-              "file": "game-smoke.spec.ts",
-              "line": 49,
-              "column": 7
-            },
-            {
-              "title": "should initialize building placement UI",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "Mobile Chrome",
-                  "projectName": "Mobile Chrome",
-                  "results": [
-                    {
-                      "workerIndex": 24,
-                      "parallelIndex": 1,
-                      "status": "passed",
-                      "duration": 8041,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-06T14:47:29.236Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "971fcc4275ad8903d642-d72e386e7513b49e9624",
-              "file": "game-smoke.spec.ts",
-              "line": 63,
-              "column": 7
-            },
-            {
-              "title": "should have working 3D scene",
-              "ok": false,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "Mobile Chrome",
-                  "projectName": "Mobile Chrome",
-                  "results": [
-                    {
-                      "workerIndex": 21,
-                      "parallelIndex": 5,
-                      "status": "failed",
-                      "duration": 14105,
-                      "error": {
-                        "message": "Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'getScene')\n    at eval (eval at evaluate (:290:30), <anonymous>:4:48)\n    at UtilityScript.evaluate (<anonymous>:292:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)",
-                        "stack": "Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'getScene')\n    at eval (eval at evaluate (:290:30), <anonymous>:4:48)\n    at UtilityScript.evaluate (<anonymous>:292:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at eval (eval at evaluate (:290:30), <anonymous>:4:48)\n    at UtilityScript.evaluate (<anonymous>:292:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:84:38",
-                        "location": {
-                          "file": "eval at evaluate (:290:30), <anonymous>",
-                          "column": 48,
-                          "line": 4
-                        }
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "eval at evaluate (:290:30), <anonymous>",
-                            "column": 48,
-                            "line": 4
-                          },
-                          "message": "Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'getScene')\n\u001b[2m    at eval (eval at evaluate (:290:30), <anonymous>:4:48)\u001b[22m\n\u001b[2m    at UtilityScript.evaluate (<anonymous>:292:16)\u001b[22m\n\u001b[2m    at UtilityScript.<anonymous> (<anonymous>:1:44)\u001b[22m\n\u001b[2m    at eval (eval at evaluate (:290:30), <anonymous>:4:48)\u001b[22m\n\u001b[2m    at UtilityScript.evaluate (<anonymous>:292:16)\u001b[22m\n\u001b[2m    at UtilityScript.<anonymous> (<anonymous>:1:44)\u001b[22m\n\u001b[2m    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:84:38\u001b[22m"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-06T14:47:21.021Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-Mobile-Chrome\\test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-Mobile-Chrome\\video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-Mobile-Chrome\\error-context.md"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "eval at evaluate (:290:30), <anonymous>",
-                        "column": 48,
-                        "line": 4
-                      }
-                    }
-                  ],
-                  "status": "unexpected"
-                }
-              ],
-              "id": "971fcc4275ad8903d642-dc35d1bd16989727e2c2",
-              "file": "game-smoke.spec.ts",
-              "line": 77,
-              "column": 7
-            },
-            {
-              "title": "should maintain 60fps performance",
-              "ok": false,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "Mobile Chrome",
-                  "projectName": "Mobile Chrome",
-                  "results": [
-                    {
-                      "workerIndex": 23,
-                      "parallelIndex": 6,
-                      "status": "failed",
-                      "duration": 14817,
-                      "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m30\u001b[39m\nReceived:   \u001b[31m0\u001b[39m",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m30\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:109:17",
-                        "location": {
-                          "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                          "column": 17,
-                          "line": 109
-                        },
-                        "snippet": "\u001b[0m \u001b[90m 107 |\u001b[39m     \n \u001b[90m 108 |\u001b[39m     \u001b[90m// Should maintain good FPS (allow some variance for CI)\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 109 |\u001b[39m     expect(fps)\u001b[33m.\u001b[39mtoBeGreaterThan(\u001b[35m30\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                 \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 110 |\u001b[39m   })\u001b[33m;\u001b[39m\n \u001b[90m 111 |\u001b[39m   \n \u001b[90m 112 |\u001b[39m   test(\u001b[32m'should have responsive UI layout'\u001b[39m\u001b[33m,\u001b[39m \u001b[36masync\u001b[39m ({ page }) \u001b[33m=>\u001b[39m {\u001b[0m"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                            "column": 17,
-                            "line": 109
-                          },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m30\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n\n\u001b[0m \u001b[90m 107 |\u001b[39m     \n \u001b[90m 108 |\u001b[39m     \u001b[90m// Should maintain good FPS (allow some variance for CI)\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 109 |\u001b[39m     expect(fps)\u001b[33m.\u001b[39mtoBeGreaterThan(\u001b[35m30\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                 \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 110 |\u001b[39m   })\u001b[33m;\u001b[39m\n \u001b[90m 111 |\u001b[39m   \n \u001b[90m 112 |\u001b[39m   test(\u001b[32m'should have responsive UI layout'\u001b[39m\u001b[33m,\u001b[39m \u001b[36masync\u001b[39m ({ page }) \u001b[33m=>\u001b[39m {\u001b[0m\n\u001b[2m    at C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts:109:17\u001b[22m"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-06T14:47:23.011Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-Mobile-Chrome\\test-failed-1.png"
-                        },
-                        {
-                          "name": "video",
-                          "contentType": "video/webm",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-Mobile-Chrome\\video.webm"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\test-results\\game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-Mobile-Chrome\\error-context.md"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "C:\\Projects\\sandbox\\test_kiro\\DKH-RTS-Game-Nesus-Of-Mind\\tests\\e2e\\game-smoke.spec.ts",
-                        "column": 17,
-                        "line": 109
-                      }
-                    }
-                  ],
-                  "status": "unexpected"
-                }
-              ],
-              "id": "971fcc4275ad8903d642-b944a9e9d812ad264c3e",
-              "file": "game-smoke.spec.ts",
-              "line": 92,
-              "column": 7
-            },
-            {
-              "title": "should have responsive UI layout",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 60000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "Mobile Chrome",
-                  "projectName": "Mobile Chrome",
-                  "results": [
-                    {
-                      "workerIndex": 25,
-                      "parallelIndex": 2,
-                      "status": "passed",
-                      "duration": 7594,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-06T14:47:32.135Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "971fcc4275ad8903d642-198f261b4175d86d41c0",
-              "file": "game-smoke.spec.ts",
-              "line": 112,
+              "line": 137,
               "column": 7
             }
           ]
@@ -1604,13 +441,17 @@
       ]
     }
   ],
-  "errors": [],
+  "errors": [
+    {
+      "message": "\u001b[31mTesting stopped early after 1 maximum allowed failures.\u001b[39m"
+    }
+  ],
   "stats": {
-    "startTime": "2026-01-06T14:45:36.942Z",
-    "duration": 123308.323,
-    "expected": 15,
-    "skipped": 0,
-    "unexpected": 13,
+    "startTime": "2026-01-06T15:02:08.021Z",
+    "duration": 38655.864,
+    "expected": 2,
+    "skipped": 4,
+    "unexpected": 1,
     "flaky": 0
   }
 }
