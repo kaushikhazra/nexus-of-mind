@@ -8,17 +8,17 @@
 ## 📋 Backlog
 
 ### Epic 1: Core Game Engine
-- [ ] **[US-006]** Interactive building placement system (bases and power plants)
-- [ ] **[US-007]** Mineral deposits (light blue crystals) and mining mechanics
+- [x] **[US-006]** Interactive building placement system (bases and power plants) - COMPLETE ✅
+- [x] **[US-007]** Mineral deposits (light blue crystals) and mining mechanics - COMPLETE ✅
 - [ ] **[US-008]** Infinite world generation with flora (low poly vegetation)
 
 ### Epic 2: Basic AI Opponent & Combat System
-- [ ] **[US-009]** Energy-based combat system with variable costs per target
-- [ ] **[US-010]** AI energy allocation and decision making
-- [ ] **[US-011]** Looting mechanics for bases, resources, and energy
-- [ ] **[US-012]** Shield system for bases with energy consumption
-- [ ] **[US-013]** AI base discovery mechanics (hidden until scouted)
-- [ ] **[US-014]** Combat targeting system (units, bases, power plants)
+- [ ] **[US-008]** Energy-based combat system with variable costs per target
+- [ ] **[US-009]** AI energy allocation and decision making
+- [ ] **[US-010]** Looting mechanics for bases, resources, and energy
+- [ ] **[US-011]** Shield system for bases with energy consumption
+- [ ] **[US-012]** AI base discovery mechanics (hidden until scouted)
+- [ ] **[US-013]** Combat targeting system (units, bases, power plants)
 
 ### Epic 3: Self-Learning AI System
 - [ ] **[US-014]** Player behavior classification (aggressive, defensive, economic)
@@ -58,21 +58,22 @@
 - [ ] **[US-008]** Energy-based combat system with variable costs per target
   - *Estimate*: 6 hours
   - *Priority*: P0 (Must Have)
-  - *Dependencies*: US-004 (Units), US-003 (Energy) - all complete
+  - *Dependencies*: US-004 (Units), US-003 (Energy), US-007 (Mining) - all complete
   - *Acceptance Criteria*: Unit vs unit combat with energy consumption per attack
-  - *Status*: Ready for implementation - unit and energy systems complete
+  - *Status*: Ready for implementation - all foundation systems complete including mining assignment
 
 ---
 
 ## 🔄 In Progress
 
-### Worker Mining Assignment System (Jan 7)
-- [x] **[US-MINING]** Worker Mining Assignment System - IN PROGRESS 🔄
+### Worker Mining Assignment Enhancement (Jan 7)
+- [x] **[ENHANCEMENT]** Worker Mining Assignment System - IN PROGRESS 🔄
+  - *Type*: Enhancement to existing US-007 (Mineral deposits and mining)
   - *Estimate*: 4 hours
-  - *Priority*: P0 (Critical for energy economy completion)
+  - *Priority*: P0 (Critical for completing energy economy loop)
   - *Dependencies*: US-007 (Mineral deposits), US-004 (Workers) - all complete
   - *Progress*: 75% complete - Core functionality implemented, energy validation debugging in progress
-  - *Implementation Status*:
+  - *What We're Actually Building*:
     - ✅ Click-to-select workers with visual feedback
     - ✅ Click-to-assign mining with mouse interaction system
     - ✅ Worker movement to mining targets with pathfinding
@@ -148,21 +149,29 @@
   - *Visual Confirmation*: Green/red preview meshes, real-time energy validation, SciFi UI styling
   - *Performance*: 60fps maintained during preview and placement operations
   - *Git Status*: Feature branch merged to develop, interactive gameplay foundation complete
+- [x] **[US-006]** Interactive building placement system (bases and power plants) - COMPLETE ✅
+  - *Status*: ✅ COMPLETED & VALIDATED
+  - *Implementation*: Complete interactive 3D building placement with mouse controls and energy validation
+  - *Validation*: All 3 phases complete, preview system working, click-to-place functional
+  - *Visual Confirmation*: Green/red preview meshes, real-time energy validation, SciFi UI styling
+  - *Performance*: 60fps maintained during preview and placement operations
+  - *Git Status*: Feature branch merged to develop, interactive gameplay foundation complete
 - [x] **[US-007]** Mineral deposits (light blue crystals) and mining mechanics - COMPLETE ✅
   - *Status*: ✅ COMPLETED & VALIDATED
   - *Implementation*: Complete mining system with clustered crystal deposits, worker mining, and UI
   - *Validation*: All 3 phases complete, mining assignment working, energy generation functional
   - *Visual Confirmation*: Clustered crystal formations, Mining Operations UI panel, real-time stats
   - *Performance*: 60fps maintained during mining operations, efficient energy calculations
-  - *Git Status*: Feature branch ready for merge to develop, mining gameplay complete
+  - *Git Status*: Feature branch merged to develop, mining gameplay complete
+  - *Note*: Enhanced with worker mining assignment system (click-to-select/assign functionality)
 
 ### 🎉 WEEK 1+ MILESTONE ACHIEVED! 🎉
-**Status**: ✅ ALL WEEK 1 SUCCESS CRITERIA MET + INTERACTIVE BUILDING PLACEMENT
+**Status**: ✅ ALL WEEK 1 SUCCESS CRITERIA MET + INTERACTIVE BUILDING PLACEMENT + MINERAL DEPOSITS
 - ✅ Playable low poly 3D SciFi world with procedural terrain
 - ✅ Energy economy system functional (mining, consumption, storage)
 - ✅ Three unit types working (Workers, Scouts, Protectors)
-- ✅ Basic building placement (Base, Power Plant)
-- ✅ Interactive building placement with 3D preview system
+- ✅ Interactive building placement with 3D preview system (US-006 COMPLETE)
+- ✅ Mineral deposits and mining mechanics (US-007 COMPLETE)
 - ✅ 60fps performance maintained in infinite world
 
 ---
@@ -180,14 +189,13 @@
 - ✅ Playable low poly 3D SciFi world with procedural terrain
 - ✅ Energy economy system functional (mining, consumption, storage)
 - ✅ Three unit types working (Workers, Scouts, Protectors)
-- ✅ Basic building placement (Base, Power Plant)
-- ✅ Interactive building placement with 3D preview system
-- ✅ Mineral deposits and mining mechanics (US-007 complete)
+- ✅ Interactive building placement with 3D preview system (US-006 COMPLETE)
+- ✅ Mineral deposits and mining mechanics (US-007 COMPLETE)
 - ✅ 60fps performance maintained in infinite world
 
 ### Week 2 Progress (Jan 7)
-- 🔄 Worker Mining Assignment System (75% complete)
-- 🎯 Next: Complete energy validation and move to combat system
+- 🔄 Worker Mining Assignment Enhancement (75% complete - enhancing US-007)
+- 🎯 Next: Complete energy validation and move to US-008 combat system
 
 ### Next Sprint (Week 2) - AI Opponent & Combat System
 - **Sprint Goal**: AI opponent with energy-based decision making and combat system
