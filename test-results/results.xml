@@ -1,0 +1,575 @@
+<testsuites id="" name="" tests="28" failures="13" skipped="0" errors="0" time="123.308323">
+<testsuite name="game-smoke.spec.ts" timestamp="2026-01-06T14:45:37.032Z" hostname="chromium" tests="7" failures="4" skipped="0" time="313.629" errors="0">
+<testcase name="Game Smoke Tests › should load game successfully" classname="game-smoke.spec.ts" time="44.277">
+<failure message="game-smoke.spec.ts:12:7 should load game successfully" type="FAILURE">
+<![CDATA[  [chromium] › game-smoke.spec.ts:12:7 › Game Smoke Tests › should load game successfully ──────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator:  locator('#loadingScreen')
+    Expected: visible
+    Received: hidden
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toBeVisible" with timeout 10000ms
+      - waiting for locator('#loadingScreen')
+        10 × locator resolved to <div class="hidden" id="loadingScreen">…</div>
+           - unexpected value "hidden"
+
+
+      14 |     
+      15 |     // Wait for loading screen to appear and disappear
+    > 16 |     await expect(page.locator('#loadingScreen')).toBeVisible();
+         |                                                  ^
+      17 |     await expect(page.locator('#loadingScreen')).toBeHidden({ timeout: 30000 });
+      18 |     
+      19 |     // Game canvas should be visible
+        at C:\Projects\sandbox\test_kiro\DKH-RTS-Game-Nesus-Of-Mind\tests\e2e\game-smoke.spec.ts:16:50
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Tests-should-load-game-successfully-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Tests-should-load-game-successfully-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\game-smoke-Game-Smoke-Tests-should-load-game-successfully-chromium\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|game-smoke-Game-Smoke-Tests-should-load-game-successfully-chromium\test-failed-1.png]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Tests-should-load-game-successfully-chromium\video.webm]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Tests-should-load-game-successfully-chromium\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Game Smoke Tests › should display SciFi loading screen" classname="game-smoke.spec.ts" time="45.702">
+<failure message="game-smoke.spec.ts:23:7 should display SciFi loading screen" type="FAILURE">
+<![CDATA[  [chromium] › game-smoke.spec.ts:23:7 › Game Smoke Tests › should display SciFi loading screen ────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator:  locator('#loadingScreen')
+    Expected: visible
+    Received: hidden
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toBeVisible" with timeout 10000ms
+      - waiting for locator('#loadingScreen')
+        11 × locator resolved to <div class="hidden" id="loadingScreen">…</div>
+           - unexpected value "hidden"
+
+
+      25 |     
+      26 |     const loadingScreen = page.locator('#loadingScreen');
+    > 27 |     await expect(loadingScreen).toBeVisible();
+         |                                 ^
+      28 |     
+      29 |     // Check SciFi title
+      30 |     await expect(loadingScreen.getByText('◊ Nexus of Mind ◊')).toBeVisible();
+        at C:\Projects\sandbox\test_kiro\DKH-RTS-Game-Nesus-Of-Mind\tests\e2e\game-smoke.spec.ts:27:33
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-chromium\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-chromium\test-failed-1.png]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-chromium\video.webm]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-chromium\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Game Smoke Tests › should initialize energy system" classname="game-smoke.spec.ts" time="44.73">
+</testcase>
+<testcase name="Game Smoke Tests › should initialize building placement UI" classname="game-smoke.spec.ts" time="44.992">
+</testcase>
+<testcase name="Game Smoke Tests › should have working 3D scene" classname="game-smoke.spec.ts" time="43.808">
+<failure message="game-smoke.spec.ts:77:7 should have working 3D scene" type="FAILURE">
+<![CDATA[  [chromium] › game-smoke.spec.ts:77:7 › Game Smoke Tests › should have working 3D scene ───────────
+
+    Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'getScene')
+        at eval (eval at evaluate (:290:30), <anonymous>:4:48)
+        at UtilityScript.evaluate (<anonymous>:292:16)
+        at UtilityScript.<anonymous> (<anonymous>:1:44)
+        at eval (eval at evaluate (:290:30), <anonymous>:4:48)
+        at UtilityScript.evaluate (<anonymous>:292:16)
+        at UtilityScript.<anonymous> (<anonymous>:1:44)
+        at C:\Projects\sandbox\test_kiro\DKH-RTS-Game-Nesus-Of-Mind\tests\e2e\game-smoke.spec.ts:84:38
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-chromium\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-chromium\test-failed-1.png]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-chromium\video.webm]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-chromium\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Game Smoke Tests › should maintain 60fps performance" classname="game-smoke.spec.ts" time="45.143">
+<failure message="game-smoke.spec.ts:92:7 should maintain 60fps performance" type="FAILURE">
+<![CDATA[  [chromium] › game-smoke.spec.ts:92:7 › Game Smoke Tests › should maintain 60fps performance ──────
+
+    Error: expect(received).toBeGreaterThan(expected)
+
+    Expected: > 30
+    Received:   0
+
+      107 |     
+      108 |     // Should maintain good FPS (allow some variance for CI)
+    > 109 |     expect(fps).toBeGreaterThan(30);
+          |                 ^
+      110 |   });
+      111 |   
+      112 |   test('should have responsive UI layout', async ({ page }) => {
+        at C:\Projects\sandbox\test_kiro\DKH-RTS-Game-Nesus-Of-Mind\tests\e2e\game-smoke.spec.ts:109:17
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-chromium\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-chromium\test-failed-1.png]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-chromium\video.webm]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-chromium\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Game Smoke Tests › should have responsive UI layout" classname="game-smoke.spec.ts" time="44.977">
+</testcase>
+</testsuite>
+<testsuite name="game-smoke.spec.ts" timestamp="2026-01-06T14:45:37.032Z" hostname="firefox" tests="7" failures="3" skipped="0" time="236.063" errors="0">
+<testcase name="Game Smoke Tests › should load game successfully" classname="game-smoke.spec.ts" time="46.832">
+</testcase>
+<testcase name="Game Smoke Tests › should display SciFi loading screen" classname="game-smoke.spec.ts" time="31.02">
+<failure message="game-smoke.spec.ts:23:7 should display SciFi loading screen" type="FAILURE">
+<![CDATA[  [firefox] › game-smoke.spec.ts:23:7 › Game Smoke Tests › should display SciFi loading screen ─────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator:  locator('#loadingScreen')
+    Expected: visible
+    Received: hidden
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toBeVisible" with timeout 10000ms
+      - waiting for locator('#loadingScreen')
+        11 × locator resolved to <div class="hidden" id="loadingScreen">…</div>
+           - unexpected value "hidden"
+
+
+      25 |     
+      26 |     const loadingScreen = page.locator('#loadingScreen');
+    > 27 |     await expect(loadingScreen).toBeVisible();
+         |                                 ^
+      28 |     
+      29 |     // Check SciFi title
+      30 |     await expect(loadingScreen.getByText('◊ Nexus of Mind ◊')).toBeVisible();
+        at C:\Projects\sandbox\test_kiro\DKH-RTS-Game-Nesus-Of-Mind\tests\e2e\game-smoke.spec.ts:27:33
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-firefox\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-firefox\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-firefox\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-firefox\test-failed-1.png]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-firefox\video.webm]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-firefox\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Game Smoke Tests › should initialize energy system" classname="game-smoke.spec.ts" time="30.588">
+</testcase>
+<testcase name="Game Smoke Tests › should initialize building placement UI" classname="game-smoke.spec.ts" time="32.202">
+</testcase>
+<testcase name="Game Smoke Tests › should have working 3D scene" classname="game-smoke.spec.ts" time="29.279">
+<failure message="game-smoke.spec.ts:77:7 should have working 3D scene" type="FAILURE">
+<![CDATA[  [firefox] › game-smoke.spec.ts:77:7 › Game Smoke Tests › should have working 3D scene ────────────
+
+    Error: page.evaluate: can't access property "getScene", gameEngine is undefined
+    @debugger eval code line 290 > eval:4:7
+    evaluate@debugger eval code:292:16
+    @debugger eval code:1:44
+
+        at @debugger eval code line 290 > eval:4:7
+        at evaluate@debugger eval code:292:16
+        at @debugger eval code:1:44
+        at C:\Projects\sandbox\test_kiro\DKH-RTS-Game-Nesus-Of-Mind\tests\e2e\game-smoke.spec.ts:84:38
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-firefox\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-firefox\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-firefox\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-firefox\test-failed-1.png]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-firefox\video.webm]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-firefox\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Game Smoke Tests › should maintain 60fps performance" classname="game-smoke.spec.ts" time="33.09">
+<failure message="game-smoke.spec.ts:92:7 should maintain 60fps performance" type="FAILURE">
+<![CDATA[  [firefox] › game-smoke.spec.ts:92:7 › Game Smoke Tests › should maintain 60fps performance ───────
+
+    Error: expect(received).toBeGreaterThan(expected)
+
+    Expected: > 30
+    Received:   0
+
+      107 |     
+      108 |     // Should maintain good FPS (allow some variance for CI)
+    > 109 |     expect(fps).toBeGreaterThan(30);
+          |                 ^
+      110 |   });
+      111 |   
+      112 |   test('should have responsive UI layout', async ({ page }) => {
+        at C:\Projects\sandbox\test_kiro\DKH-RTS-Game-Nesus-Of-Mind\tests\e2e\game-smoke.spec.ts:109:17
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-firefox\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-firefox\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-firefox\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-firefox\test-failed-1.png]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-firefox\video.webm]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-firefox\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Game Smoke Tests › should have responsive UI layout" classname="game-smoke.spec.ts" time="33.052">
+</testcase>
+</testsuite>
+<testsuite name="game-smoke.spec.ts" timestamp="2026-01-06T14:45:37.032Z" hostname="webkit" tests="7" failures="3" skipped="0" time="161.775" errors="0">
+<testcase name="Game Smoke Tests › should load game successfully" classname="game-smoke.spec.ts" time="31.015">
+<failure message="game-smoke.spec.ts:12:7 should load game successfully" type="FAILURE">
+<![CDATA[  [webkit] › game-smoke.spec.ts:12:7 › Game Smoke Tests › should load game successfully ────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator:  locator('#loadingScreen')
+    Expected: visible
+    Received: hidden
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toBeVisible" with timeout 10000ms
+      - waiting for locator('#loadingScreen')
+        7 × locator resolved to <div class="hidden" id="loadingScreen">…</div>
+          - unexpected value "hidden"
+
+
+      14 |     
+      15 |     // Wait for loading screen to appear and disappear
+    > 16 |     await expect(page.locator('#loadingScreen')).toBeVisible();
+         |                                                  ^
+      17 |     await expect(page.locator('#loadingScreen')).toBeHidden({ timeout: 30000 });
+      18 |     
+      19 |     // Game canvas should be visible
+        at C:\Projects\sandbox\test_kiro\DKH-RTS-Game-Nesus-Of-Mind\tests\e2e\game-smoke.spec.ts:16:50
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Tests-should-load-game-successfully-webkit\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Tests-should-load-game-successfully-webkit\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\game-smoke-Game-Smoke-Tests-should-load-game-successfully-webkit\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|game-smoke-Game-Smoke-Tests-should-load-game-successfully-webkit\test-failed-1.png]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Tests-should-load-game-successfully-webkit\video.webm]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Tests-should-load-game-successfully-webkit\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Game Smoke Tests › should display SciFi loading screen" classname="game-smoke.spec.ts" time="32.768">
+</testcase>
+<testcase name="Game Smoke Tests › should initialize energy system" classname="game-smoke.spec.ts" time="14.897">
+</testcase>
+<testcase name="Game Smoke Tests › should initialize building placement UI" classname="game-smoke.spec.ts" time="20.965">
+</testcase>
+<testcase name="Game Smoke Tests › should have working 3D scene" classname="game-smoke.spec.ts" time="16.905">
+<failure message="game-smoke.spec.ts:77:7 should have working 3D scene" type="FAILURE">
+<![CDATA[  [webkit] › game-smoke.spec.ts:77:7 › Game Smoke Tests › should have working 3D scene ─────────────
+
+    Error: page.evaluate: TypeError: undefined is not an object (evaluating 'gameEngine.getScene')
+
+      82 |     
+      83 |     // Check that game engine is running
+    > 84 |     const isGameRunning = await page.evaluate(() => {
+         |                                      ^
+      85 |       const gameEngine = (window as any).GameEngine?.getInstance();
+      86 |       return gameEngine !== null && gameEngine.getScene() !== null;
+      87 |     });
+        at C:\Projects\sandbox\test_kiro\DKH-RTS-Game-Nesus-Of-Mind\tests\e2e\game-smoke.spec.ts:84:38
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-webkit\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-webkit\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-webkit\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-webkit\test-failed-1.png]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-webkit\video.webm]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-webkit\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Game Smoke Tests › should maintain 60fps performance" classname="game-smoke.spec.ts" time="21.678">
+<failure message="game-smoke.spec.ts:92:7 should maintain 60fps performance" type="FAILURE">
+<![CDATA[  [webkit] › game-smoke.spec.ts:92:7 › Game Smoke Tests › should maintain 60fps performance ────────
+
+    Error: expect(received).toBeGreaterThan(expected)
+
+    Expected: > 30
+    Received:   0
+
+      107 |     
+      108 |     // Should maintain good FPS (allow some variance for CI)
+    > 109 |     expect(fps).toBeGreaterThan(30);
+          |                 ^
+      110 |   });
+      111 |   
+      112 |   test('should have responsive UI layout', async ({ page }) => {
+        at C:\Projects\sandbox\test_kiro\DKH-RTS-Game-Nesus-Of-Mind\tests\e2e\game-smoke.spec.ts:109:17
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-webkit\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-webkit\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-webkit\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-webkit\test-failed-1.png]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-webkit\video.webm]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-webkit\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Game Smoke Tests › should have responsive UI layout" classname="game-smoke.spec.ts" time="23.547">
+</testcase>
+</testsuite>
+<testsuite name="game-smoke.spec.ts" timestamp="2026-01-06T14:45:37.032Z" hostname="Mobile Chrome" tests="7" failures="3" skipped="0" time="93.649" errors="0">
+<testcase name="Game Smoke Tests › should load game successfully" classname="game-smoke.spec.ts" time="13.624">
+</testcase>
+<testcase name="Game Smoke Tests › should display SciFi loading screen" classname="game-smoke.spec.ts" time="22.546">
+<failure message="game-smoke.spec.ts:23:7 should display SciFi loading screen" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › game-smoke.spec.ts:23:7 › Game Smoke Tests › should display SciFi loading screen 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator:  locator('#loadingText')
+    Expected: visible
+    Received: hidden
+    Timeout:  10000ms
+
+    Call log:
+      - Expect "toBeVisible" with timeout 10000ms
+      - waiting for locator('#loadingText')
+        13 × locator resolved to <div id="loadingText">Neural Core Online!</div>
+           - unexpected value "hidden"
+
+
+      32 |     // Check loading messages
+      33 |     const loadingText = page.locator('#loadingText');
+    > 34 |     await expect(loadingText).toBeVisible();
+         |                               ^
+      35 |     
+      36 |     // Should show SciFi loading messages
+      37 |     const possibleMessages = [
+        at C:\Projects\sandbox\test_kiro\DKH-RTS-Game-Nesus-Of-Mind\tests\e2e\game-smoke.spec.ts:34:31
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-Mobile-Chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-Mobile-Chrome\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-Mobile-Chrome\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-Mobile-Chrome\test-failed-1.png]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-Mobile-Chrome\video.webm]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Test-c8c55-isplay-SciFi-loading-screen-Mobile-Chrome\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Game Smoke Tests › should initialize energy system" classname="game-smoke.spec.ts" time="12.922">
+</testcase>
+<testcase name="Game Smoke Tests › should initialize building placement UI" classname="game-smoke.spec.ts" time="8.041">
+</testcase>
+<testcase name="Game Smoke Tests › should have working 3D scene" classname="game-smoke.spec.ts" time="14.105">
+<failure message="game-smoke.spec.ts:77:7 should have working 3D scene" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › game-smoke.spec.ts:77:7 › Game Smoke Tests › should have working 3D scene ──────
+
+    Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'getScene')
+        at eval (eval at evaluate (:290:30), <anonymous>:4:48)
+        at UtilityScript.evaluate (<anonymous>:292:16)
+        at UtilityScript.<anonymous> (<anonymous>:1:44)
+        at eval (eval at evaluate (:290:30), <anonymous>:4:48)
+        at UtilityScript.evaluate (<anonymous>:292:16)
+        at UtilityScript.<anonymous> (<anonymous>:1:44)
+        at C:\Projects\sandbox\test_kiro\DKH-RTS-Game-Nesus-Of-Mind\tests\e2e\game-smoke.spec.ts:84:38
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-Mobile-Chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-Mobile-Chrome\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-Mobile-Chrome\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-Mobile-Chrome\test-failed-1.png]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-Mobile-Chrome\video.webm]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Tests-should-have-working-3D-scene-Mobile-Chrome\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Game Smoke Tests › should maintain 60fps performance" classname="game-smoke.spec.ts" time="14.817">
+<failure message="game-smoke.spec.ts:92:7 should maintain 60fps performance" type="FAILURE">
+<![CDATA[  [Mobile Chrome] › game-smoke.spec.ts:92:7 › Game Smoke Tests › should maintain 60fps performance ─
+
+    Error: expect(received).toBeGreaterThan(expected)
+
+    Expected: > 30
+    Received:   0
+
+      107 |     
+      108 |     // Should maintain good FPS (allow some variance for CI)
+    > 109 |     expect(fps).toBeGreaterThan(30);
+          |                 ^
+      110 |   });
+      111 |   
+      112 |   test('should have responsive UI layout', async ({ page }) => {
+        at C:\Projects\sandbox\test_kiro\DKH-RTS-Game-Nesus-Of-Mind\tests\e2e\game-smoke.spec.ts:109:17
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-Mobile-Chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\test-results\game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-Mobile-Chrome\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\test-results\game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-Mobile-Chrome\error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-Mobile-Chrome\test-failed-1.png]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-Mobile-Chrome\video.webm]]
+
+[[ATTACHMENT|game-smoke-Game-Smoke-Test-75e7f--maintain-60fps-performance-Mobile-Chrome\error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Game Smoke Tests › should have responsive UI layout" classname="game-smoke.spec.ts" time="7.594">
+</testcase>
+</testsuite>
+</testsuites>

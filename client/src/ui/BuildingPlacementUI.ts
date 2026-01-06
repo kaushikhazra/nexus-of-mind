@@ -5,7 +5,7 @@
  * Handles preview visualization, energy cost validation, and placement confirmation.
  */
 
-import { Scene, Vector3, Mesh, MeshBuilder, StandardMaterial, Color3, PointerEventTypes } from '@babylonjs/core';
+import { Scene, Vector3, Mesh, MeshBuilder, StandardMaterial, Color3, PointerEventTypes, Animation } from '@babylonjs/core';
 import { GameEngine } from '../game/GameEngine';
 import { BuildingManager } from '../game/BuildingManager';
 import { EnergyManager } from '../game/EnergyManager';
@@ -293,9 +293,43 @@ export class BuildingPlacementUI {
 
         if (this.previewMesh && this.previewMaterial) {
             this.previewMesh.material = this.previewMaterial;
-            this.previewMesh.position.y = 1.5; // Hover above ground
+            this.previewMesh.position.y = this.getPreviewHeight();
             this.previewMesh.isPickable = false; // Don't interfere with mouse picking
+            
+            // Add subtle animation to make preview more visible
+            this.animatePreview();
         }
+    }
+
+    /**
+     * Add subtle animation to preview mesh
+     */
+    private animatePreview(): void {
+        if (!this.previewMesh || !this.scene) return;
+
+        // Create subtle floating animation
+        const frameRate = 30;
+        
+        // Create animation for Y position (floating effect)
+        const animationY = new Animation(
+            'previewFloat',
+            'position.y',
+            frameRate,
+            Animation.ANIMATIONTYPE_FLOAT,
+            Animation.ANIMATIONLOOPMODE_CYCLE
+        );
+
+        const baseY = this.getPreviewHeight();
+        const animationKeys = [];
+        animationKeys.push({ frame: 0, value: baseY });
+        animationKeys.push({ frame: frameRate, value: baseY + 0.2 });
+        animationKeys.push({ frame: frameRate * 2, value: baseY });
+
+        animationY.setKeys(animationKeys);
+        this.previewMesh.animations = [animationY];
+        
+        // Start animation
+        this.scene.beginAnimation(this.previewMesh, 0, frameRate * 2, true);
     }
 
     /**
@@ -306,8 +340,39 @@ export class BuildingPlacementUI {
 
         this.previewMaterial = new StandardMaterial('building_preview_material', this.scene);
         this.previewMaterial.diffuseColor = new Color3(0, 1, 1); // Cyan
-        this.previewMaterial.alpha = 0.5;
-        this.previewMaterial.wireframe = true;
+        this.previewMaterial.alpha = 0.6;
+        this.previewMaterial.wireframe = false;
+        this.previewMaterial.emissiveColor = new Color3(0, 0.3, 0.3); // Subtle glow
+    }
+
+    /**
+     * Get preview height based on building type
+     */
+    private getPreviewHeight(): number {
+        if (!this.currentBuildingType) return 1.5;
+        
+        switch (this.currentBuildingType) {
+            case 'base': return 1.5; // Half of building height (3)
+            case 'power_plant': return 2.0; // Half of building height (4)
+            default: return 1.5;
+        }
+    }
+
+    /**
+     * Update preview color based on validity
+     */
+    private updatePreviewColor(isValid: boolean): void {
+        if (!this.previewMaterial) return;
+        
+        if (isValid) {
+            // Green for valid placement
+            this.previewMaterial.diffuseColor = new Color3(0, 1, 0);
+            this.previewMaterial.emissiveColor = new Color3(0, 0.3, 0);
+        } else {
+            // Red for invalid placement
+            this.previewMaterial.diffuseColor = new Color3(1, 0, 0);
+            this.previewMaterial.emissiveColor = new Color3(0.3, 0, 0);
+        }
     }
 
     /**
@@ -344,12 +409,19 @@ export class BuildingPlacementUI {
             this.previewMesh.position.x = this.currentMousePosition.x;
             this.previewMesh.position.z = this.currentMousePosition.z;
             
-            // Check if position is valid
+            // Keep preview slightly above ground
+            this.previewMesh.position.y = this.getPreviewHeight();
+            
+            // Check if position is valid and update preview color
             const isValid = this.isValidBuildingPosition(this.currentMousePosition);
-            if (this.previewMaterial) {
-                this.previewMaterial.diffuseColor = isValid ? 
-                    new Color3(0, 1, 0) : // Green for valid
-                    new Color3(1, 0, 0);  // Red for invalid
+            this.updatePreviewColor(isValid);
+            
+            // Update status message based on validity
+            if (isValid) {
+                const cost = this.getBuildingCost(this.currentBuildingType!);
+                this.updateStatus(`Click to place ${this.currentBuildingType?.toUpperCase()} (${cost}J)`, '#00ff00');
+            } else {
+                this.updateStatus('Invalid placement location - too close to other buildings', '#ff4444');
             }
         }
     }
@@ -381,10 +453,34 @@ export class BuildingPlacementUI {
      * Check if building position is valid
      */
     private isValidBuildingPosition(position: Vector3): boolean {
-        // Basic validation - can be expanded
-        // Check if position is not too close to other buildings
-        // Check if position is on valid terrain
-        return true; // For now, allow all positions
+        // Basic validation rules
+        
+        // 1. Check if position is within reasonable bounds
+        const maxDistance = 100; // Maximum distance from origin
+        if (position.length() > maxDistance) {
+            return false;
+        }
+        
+        // 2. Check minimum distance from other buildings
+        const minBuildingDistance = 8; // Minimum 8 units between buildings
+        const gameEngine = GameEngine.getInstance();
+        const gameState = gameEngine?.getGameState();
+        
+        if (gameState) {
+            const allBuildings = gameState.getAllBuildings();
+            for (const building of allBuildings) {
+                const distance = Vector3.Distance(position, building.position);
+                if (distance < minBuildingDistance) {
+                    return false;
+                }
+            }
+        }
+        
+        // 3. Check if position is not on steep terrain (basic check)
+        // For now, we'll assume all positions are valid terrain-wise
+        // This can be enhanced with actual terrain analysis
+        
+        return true;
     }
 
     /**
