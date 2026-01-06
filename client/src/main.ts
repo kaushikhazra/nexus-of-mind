@@ -419,10 +419,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log(`  - Average per Deposit: ${avgCapacity} E`);
         
         console.log('🎮 UI Features:');
-        console.log('  - Mineral Reserve panel appears below energy bar (top-right)');
-        console.log('  - Shows visible deposits, total capacity, and average per deposit');
+        console.log('  - Linear mineral reserve bar below energy bar (top-right)');
+        console.log('  - Format: "MINERALS VIS 92 CAP 5490E AVG 60E"');
+        console.log('  - Matches energy bar styling and layout');
         console.log('  - Updates automatically every 2 seconds');
-        console.log('  - Clean SciFi styling matching energy display');
         
         console.log('💡 The Mineral Reserve UI shows your available mineral resources for strategic planning');
     };
