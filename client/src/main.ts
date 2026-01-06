@@ -102,9 +102,42 @@ class Application {
     }
 
     /**
+     * Initialize building placement UI
+     */
+    private initializeBuildingPlacementUI(): void {
+        if (!this.gameEngine) {
+            console.error('❌ Cannot initialize building placement UI: GameEngine not available');
+            return;
+        }
+
+        const scene = this.gameEngine.getScene();
+        const buildingManager = this.gameEngine.getBuildingManager();
+        const energyManager = this.gameEngine.getEnergyManager();
+
+        if (!scene || !buildingManager || !energyManager) {
+            console.error('❌ Cannot initialize building placement UI: Required components not available');
+            return;
+        }
+
+        this.buildingPlacementUI = new BuildingPlacementUI({
+            containerId: 'building-placement-ui',
+            scene: scene,
+            buildingManager: buildingManager,
+            energyManager: energyManager
+        });
+
+        console.log('🏗️ Building placement UI initialized');
+    }
+
+    /**
      * Cleanup on page unload
      */
     public dispose(): void {
+        if (this.buildingPlacementUI) {
+            this.buildingPlacementUI.dispose();
+            this.buildingPlacementUI = null;
+        }
+        
         if (this.gameEngine) {
             this.gameEngine.dispose();
             this.gameEngine = null;
