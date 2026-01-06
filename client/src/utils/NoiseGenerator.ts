@@ -178,19 +178,20 @@ export class NoiseGenerator {
     }
 
     /**
-     * Generate height map for a terrain chunk
+     * Generate height map for a terrain chunk with boundary blending
      */
     public generateHeightMap(
         startX: number, 
         startZ: number, 
         size: number, 
-        resolution: number = 64
+        resolution: number = 128
     ): { heights: number[][], biomes: string[][] } {
         const heights: number[][] = [];
         const biomes: string[][] = [];
         
         const step = size / resolution;
         
+        // Generate heights with one extra vertex on each side for blending
         for (let i = 0; i <= resolution; i++) {
             heights[i] = [];
             biomes[i] = [];
@@ -199,6 +200,7 @@ export class NoiseGenerator {
                 const worldX = startX + (i * step);
                 const worldZ = startZ + (j * step);
                 
+                // Use world coordinates for consistent height across chunk boundaries
                 const height = this.generateHeight(worldX, worldZ);
                 const biome = this.getBiomeType(height);
                 

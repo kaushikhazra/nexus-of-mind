@@ -76,7 +76,7 @@ export class TerrainChunk {
     }
 
     /**
-     * Generate vertex data from height and biome information
+     * Generate vertex data from height and biome information with boundary blending
      */
     private generateVertexData(chunkData: ChunkData): VertexData {
         const { heights, biomes } = chunkData;
@@ -89,22 +89,27 @@ export class TerrainChunk {
 
         const step = this.size / this.resolution;
 
-        // Generate vertices
+        // Generate vertices - use world coordinates for consistent positioning
         for (let i = 0; i <= this.resolution; i++) {
             for (let j = 0; j <= this.resolution; j++) {
+                // World position for this vertex
+                const worldX = this.chunkX * this.size + (i * step);
+                const worldZ = this.chunkZ * this.size + (j * step);
+                
+                // Local position within chunk
                 const x = i * step;
                 const z = j * step;
                 const y = heights[i][j];
 
-                // Position
+                // Position (local to chunk)
                 positions.push(x, y, z);
 
-                // Color based on biome
+                // Color based on biome with blending for boundaries
                 const biome = biomes[i][j];
-                const color = this.getBiomeColor(biome);
+                const color = this.getBiomeColorWithBlending(biome, i, j, biomes);
                 colors.push(color.r, color.g, color.b, 1.0);
 
-                // Calculate normal (flat shading - will be recalculated)
+                // Calculate normal (will be recalculated for flat shading)
                 normals.push(0, 1, 0);
             }
         }
@@ -170,6 +175,66 @@ export class TerrainChunk {
             default:
                 return { r: 0.5, g: 0.5, b: 0.5 }; // Gray fallback
         }
+    }
+
+    /**
+     * Get biome color with boundary blending for seamless chunk transitions
+     */
+    private getBiomeColorWithBlending(
+        biome: string, 
+        i: number, 
+        j: number, 
+        biomes: string[][]
+    ): { r: number; g: number; b: number } {
+        const baseColor = this.getBiomeColor(biome);
+        
+        // Check if we're near chunk boundaries (first/last few vertices)
+        const blendDistance = 3; // Blend over 3 vertices at boundaries
+        const maxIndex = this.resolution;
+        
+        const nearLeftEdge = i < blendDistance;
+        const nearRightEdge = i > maxIndex - blendDistance;
+        const nearTopEdge = j < blendDistance;
+        const nearBottomEdge = j > maxIndex - blendDistance;
+        
+        // If not near any boundary, return base color
+        if (!nearLeftEdge && !nearRightEdge && !nearTopEdge && !nearBottomEdge) {
+            return baseColor;
+        }
+        
+        // Blend with neighboring biomes for smooth transitions
+        let blendedColor = { ...baseColor };
+        let blendCount = 1;
+        
+        // Sample neighboring biomes and blend colors
+        const sampleRadius = 2;
+        for (let di = -sampleRadius; di <= sampleRadius; di++) {
+            for (let dj = -sampleRadius; dj <= sampleRadius; dj++) {
+                const ni = i + di;
+                const nj = j + dj;
+                
+                if (ni >= 0 && ni <= maxIndex && nj >= 0 && nj <= maxIndex) {
+                    const neighborBiome = biomes[ni][nj];
+                    if (neighborBiome !== biome) {
+                        const neighborColor = this.getBiomeColor(neighborBiome);
+                        const distance = Math.sqrt(di * di + dj * dj);
+                        const weight = 1.0 / (1.0 + distance);
+                        
+                        blendedColor.r += neighborColor.r * weight;
+                        blendedColor.g += neighborColor.g * weight;
+                        blendedColor.b += neighborColor.b * weight;
+                        blendCount += weight;
+                    }
+                }
+            }
+        }
+        
+        // Normalize blended color
+        blendedColor.r /= blendCount;
+        blendedColor.g /= blendCount;
+        blendedColor.b /= blendCount;
+        
+        return blendedColor;
     }
 
     /**
