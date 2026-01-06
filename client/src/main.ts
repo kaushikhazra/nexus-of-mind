@@ -6,6 +6,7 @@
  */
 
 import { GameEngine } from './game/GameEngine';
+import { GameState } from './game/GameState';
 import { BuildingAction } from './game/actions/BuildingAction';
 import { MovementAction } from './game/actions/MovementAction';
 import { BuildingPlacementUI } from './ui/BuildingPlacementUI';
@@ -513,6 +514,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     };
     
+    // Reset game state function
+    (window as any).resetGameState = () => {
+        const gameEngine = (app as any).gameEngine;
+        if (!gameEngine) {
+            console.log('❌ Game engine not available');
+            return;
+        }
+        
+        const gameState = gameEngine.gameState || GameState.getInstance();
+        if (gameState) {
+            console.log('🔄 Resetting game state...');
+            gameState.reset();
+            console.log('✅ Game state reset complete - refresh page to see new units with updated energy capacity');
+        } else {
+            console.log('❌ Game state not available');
+        }
+    };
+    
     console.log('🧪 Test functions available:');
     console.log('  - testEnergySystem() - Test energy generation and consumption');
     console.log('  - testBuildingSystem() - Test building creation and energy costs');
@@ -520,6 +539,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('  - testUnitSystem() - Test unit creation and management');
     console.log('  - testMiningWorkflow() - Test complete worker creation → mining → energy loop');
     console.log('  - showTerrainStats() - Show terrain and mineral deposit information');
+    console.log('  - resetGameState() - Reset game state to clear old units and apply new energy capacity');
 });
 
 // Handle window resize

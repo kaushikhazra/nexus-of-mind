@@ -24,8 +24,6 @@ export class WorkerCreationUI {
     private container: HTMLElement | null = null;
     private creationPanel: HTMLElement | null = null;
     private createButton: HTMLElement | null = null;
-    private workerCountElement: HTMLElement | null = null;
-    private energyCostElement: HTMLElement | null = null;
     private workerSpawner: WorkerSpawner;
     
     // Configuration
@@ -54,10 +52,20 @@ export class WorkerCreationUI {
         // Get or create container
         this.container = document.getElementById(this.config.containerId);
         if (!this.container) {
+            console.warn(`⚠️ Container ${this.config.containerId} not found, creating dynamically`);
             this.container = document.createElement('div');
             this.container.id = this.config.containerId;
+            this.container.style.cssText = `
+                position: fixed;
+                top: 200px;
+                left: 20px;
+                z-index: 1000;
+            `;
             document.body.appendChild(this.container);
         }
+
+        // Clear existing content
+        this.container.innerHTML = '';
 
         // Create worker creation panel
         this.creationPanel = document.createElement('div');
@@ -67,16 +75,6 @@ export class WorkerCreationUI {
                 <span class="creation-title">◊ WORKFORCE ◊</span>
             </div>
             <div class="creation-content">
-                <div class="worker-stats">
-                    <div class="stat-row">
-                        <span>Active Workers:</span>
-                        <span id="worker-count">0</span>
-                    </div>
-                    <div class="stat-row">
-                        <span>Creation Cost:</span>
-                        <span id="energy-cost">${this.WORKER_ENERGY_COST}E</span>
-                    </div>
-                </div>
                 <button id="create-worker-btn" class="create-worker-button">
                     <span class="button-text">CREATE WORKER</span>
                     <span class="button-cost">${this.WORKER_ENERGY_COST}E</span>
@@ -88,38 +86,39 @@ export class WorkerCreationUI {
         
         // Get references to interactive elements
         this.createButton = document.getElementById('create-worker-btn');
-        this.workerCountElement = document.getElementById('worker-count');
-        this.energyCostElement = document.getElementById('energy-cost');
         
         this.applyStyles();
+        
+        console.log('👷 Worker Creation UI elements created and attached');
     }
 
     /**
-     * Apply SciFi styling to UI elements
+     * Apply SciFi styling to UI elements - MATCHES CONSTRUCTION PANEL
      */
     private applyStyles(): void {
         const style = document.createElement('style');
         style.textContent = `
             .worker-creation-panel {
-                position: fixed;
-                top: 120px;
-                right: 20px;
-                width: 280px;
-                background: linear-gradient(135deg, rgba(0, 20, 40, 0.95), rgba(0, 40, 80, 0.95));
-                border: 2px solid #00ffff;
+                background: rgba(0, 10, 20, 0.3);
+                border: 1px solid rgba(0, 255, 255, 0.4);
                 border-radius: 8px;
+                padding: 12px;
                 font-family: 'Orbitron', monospace;
                 color: #00ffff;
-                box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
-                backdrop-filter: blur(10px);
-                z-index: 1000;
+                backdrop-filter: blur(8px);
+                box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+                min-width: 200px;
+                font-size: 12px;
             }
 
             .creation-header {
-                background: linear-gradient(90deg, rgba(0, 255, 255, 0.2), rgba(0, 150, 255, 0.2));
-                padding: 12px;
-                border-bottom: 1px solid #00ffff;
+                font-size: 14px;
+                font-weight: 700;
                 text-align: center;
+                margin-bottom: 12px;
+                color: #00ffff;
+                text-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
+                letter-spacing: 1px;
             }
 
             .creation-title {
@@ -131,57 +130,32 @@ export class WorkerCreationUI {
             }
 
             .creation-content {
-                padding: 15px;
-            }
-
-            .worker-stats {
-                margin-bottom: 15px;
-                font-size: 11px;
-            }
-
-            .stat-row {
                 display: flex;
-                justify-content: space-between;
-                margin: 8px 0;
-                line-height: 1.3;
-            }
-
-            .stat-row span:first-child {
-                opacity: 0.8;
-            }
-
-            .stat-row span:last-child {
-                color: #00ff88;
-                font-weight: bold;
-                text-shadow: 0 0 5px rgba(0, 255, 136, 0.6);
+                flex-direction: column;
+                gap: 8px;
             }
 
             .create-worker-button {
-                width: 100%;
-                height: 45px;
-                background: linear-gradient(135deg, rgba(0, 150, 0, 0.3), rgba(0, 255, 100, 0.3));
-                border: 2px solid #00ff88;
-                border-radius: 6px;
+                background: rgba(0, 20, 40, 0.4);
+                border: 1px solid #00ff88;
+                border-radius: 4px;
                 color: #00ff88;
+                padding: 10px 12px;
                 font-family: 'Orbitron', monospace;
-                font-size: 12px;
+                font-size: 11px;
                 font-weight: bold;
                 text-transform: uppercase;
                 letter-spacing: 1px;
                 cursor: pointer;
                 transition: all 0.3s ease;
                 display: flex;
-                flex-direction: column;
+                justify-content: space-between;
                 align-items: center;
-                justify-content: center;
-                gap: 2px;
-                box-shadow: 0 0 15px rgba(0, 255, 136, 0.2);
             }
 
             .create-worker-button:hover:not(:disabled) {
-                background: linear-gradient(135deg, rgba(0, 200, 0, 0.4), rgba(0, 255, 150, 0.4));
-                box-shadow: 0 0 25px rgba(0, 255, 136, 0.4);
-                transform: translateY(-1px);
+                background: rgba(0, 40, 80, 0.6);
+                box-shadow: 0 0 10px #00ff8840;
             }
 
             .create-worker-button:active:not(:disabled) {
@@ -190,7 +164,7 @@ export class WorkerCreationUI {
             }
 
             .create-worker-button:disabled {
-                background: linear-gradient(135deg, rgba(100, 0, 0, 0.3), rgba(150, 0, 0, 0.3));
+                background: rgba(100, 0, 0, 0.3);
                 border-color: #ff4444;
                 color: #ff4444;
                 cursor: not-allowed;
@@ -207,6 +181,7 @@ export class WorkerCreationUI {
                 font-size: 10px;
                 opacity: 0.8;
                 line-height: 1;
+                font-weight: 600;
             }
 
             .create-worker-button:disabled .button-cost {
@@ -267,11 +242,26 @@ export class WorkerCreationUI {
             return;
         }
 
+        console.log(`✅ Energy consumed: ${this.WORKER_ENERGY_COST}E`);
+
         // Create worker (will be implemented in Phase 2)
         this.createWorker();
         
         // Update UI immediately
         this.updateUI();
+        
+        // Ensure UI remains visible after worker creation
+        this.ensureUIVisible();
+    }
+
+    /**
+     * Ensure UI remains visible (debugging helper)
+     */
+    private ensureUIVisible(): void {
+        if (this.container) {
+            this.container.style.display = 'block';
+            console.log('👷 UI visibility ensured after worker creation');
+        }
     }
 
     /**
@@ -354,12 +344,6 @@ export class WorkerCreationUI {
      * Update UI state based on current game state
      */
     private updateUI(): void {
-        // Update worker count
-        if (this.workerCountElement) {
-            const workers = this.config.unitManager.getUnitsByType('worker');
-            this.workerCountElement.textContent = workers.length.toString();
-        }
-
         // Update button state based on energy availability
         if (this.createButton) {
             const currentEnergy = this.config.energyManager.getTotalEnergy();

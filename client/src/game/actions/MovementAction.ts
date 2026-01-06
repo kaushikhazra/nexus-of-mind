@@ -36,7 +36,7 @@ export class MovementAction extends EnergyConsumer {
     
     // Unit type energy costs
     public static readonly UNIT_MOVEMENT_COSTS: { [key: string]: number } = {
-        worker: 0.5,    // 0.5 energy per unit distance
+        worker: 0,      // No energy cost for movement (testing configuration)
         scout: 0.3,     // Scouts are more energy efficient
         protector: 0.8  // Protectors consume more energy due to weight
     };
@@ -45,7 +45,7 @@ export class MovementAction extends EnergyConsumer {
         const energyPerUnit = MovementAction.UNIT_MOVEMENT_COSTS[unitType] || 0.5;
         
         const movementConfig: MovementActionConfig = {
-            baseCost: 0.1, // Small startup cost
+            baseCost: 0,    // No startup cost for movement (testing configuration)
             energyPerUnit,
             maxSpeed: 5.0, // 5 units per second default
             unitType,
@@ -99,15 +99,17 @@ export class MovementAction extends EnergyConsumer {
 
         // Check if we have enough energy for the journey
         const totalEnergyCost = this.movementPath.estimatedEnergyCost;
-        if (!this.canExecute()) {
-            return this.createResult(false, 0, totalEnergyCost, 'Insufficient energy for movement');
-        }
+        // TEMPORARILY DISABLED: Energy check bypass for testing
+        // if (!this.canExecute()) {
+        //     return this.createResult(false, 0, totalEnergyCost, 'Insufficient energy for movement');
+        // }
 
         // Consume startup energy
         const startupCost = this.config.baseCost;
-        if (!this.consumeEnergy(startupCost, 'movement_startup')) {
-            return this.createResult(false, 0, startupCost, 'Failed to consume startup energy');
-        }
+        // TEMPORARILY DISABLED: Startup energy consumption bypass for testing
+        // if (!this.consumeEnergy(startupCost, 'movement_startup')) {
+        //     return this.createResult(false, 0, startupCost, 'Failed to consume startup energy');
+        // }
 
         // Start movement
         this.isMoving = true;
@@ -118,6 +120,8 @@ export class MovementAction extends EnergyConsumer {
 
         console.log(`🚶 Started movement from ${this.currentPosition.toString()} to ${targetPosition.toString()}`);
         console.log(`📏 Distance: ${this.movementPath.totalDistance.toFixed(2)} units, Estimated cost: ${totalEnergyCost.toFixed(2)} energy`);
+        console.log(`⚡ Energy breakdown: ${this.movementPath.totalDistance.toFixed(2)} units × ${this.movementConfig.energyPerUnit} energy/unit = ${totalEnergyCost.toFixed(2)} energy`);
+        console.log(`💰 Current energy: ${this.energyStorage?.getCurrentEnergy().toFixed(2)} energy available`);
 
         return this.createResult(true, startupCost, totalEnergyCost);
     }

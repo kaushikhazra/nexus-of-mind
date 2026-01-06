@@ -257,26 +257,18 @@ export class BuildingRenderer {
     }
 
     /**
-     * Update construction progress visualization
+     * Update construction progress visualization - INSTANT BUILDING PLACEMENT
      */
     private updateConstructionVisualization(buildingVisual: BuildingVisual): void {
-        const progress = buildingVisual.building.getConstructionProgress();
+        // Buildings appear instantly at full size - no construction animation
+        buildingVisual.mesh.scaling = new Vector3(1, 1, 1); // Always full size
         
-        // Scale main mesh based on construction progress
-        const scale = Math.max(0.1, progress); // Minimum 10% scale
-        buildingVisual.mesh.scaling = new Vector3(scale, scale, scale);
+        // Always hide construction indicator for instant placement
+        buildingVisual.constructionIndicator.setEnabled(false);
         
-        // Show/hide construction indicator
-        if (progress < 1.0) {
-            buildingVisual.constructionIndicator.setEnabled(true);
-            buildingVisual.constructionIndicator.scaling = new Vector3(1.1, 1.1, 1.1);
-        } else {
-            buildingVisual.constructionIndicator.setEnabled(false);
-        }
-        
-        // Adjust material opacity based on construction
+        // Always full opacity for instant placement
         if (buildingVisual.material) {
-            buildingVisual.material.alpha = 0.5 + (progress * 0.5); // 0.5 to 1.0 alpha
+            buildingVisual.material.alpha = 1.0; // Full opacity
         }
     }
 

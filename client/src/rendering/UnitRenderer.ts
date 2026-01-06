@@ -18,6 +18,7 @@ import {
 } from '@babylonjs/core';
 import { MaterialManager } from './MaterialManager';
 import { Unit } from '../game/entities/Unit';
+import { GameEngine } from '../game/GameEngine';
 import { Worker } from '../game/entities/Worker';
 import { Scout } from '../game/entities/Scout';
 import { Protector } from '../game/entities/Protector';
@@ -28,6 +29,7 @@ export interface UnitVisual {
     material: StandardMaterial;
     energyIndicator: Mesh;
     selectionIndicator: Mesh;
+    miningConnectionLine: Mesh | null; // Visual line to mining target
     rootNode: TransformNode;
 }
 
@@ -49,17 +51,17 @@ export class UnitRenderer {
     private readonly unitConfigs = {
         worker: {
             color: new Color3(0.2, 0.8, 0.2), // Green
-            radius: 1.0,
+            radius: 0.3, // Much smaller - more realistic scale
             segments: 8 // Low poly
         },
         scout: {
             color: new Color3(0.2, 0.2, 0.8), // Blue
-            radius: 0.8,
+            radius: 0.25, // Smaller and faster
             segments: 6 // Lower poly for speed appearance
         },
         protector: {
             color: new Color3(0.8, 0.2, 0.2), // Red
-            radius: 1.2,
+            radius: 0.4, // Slightly larger than worker
             segments: 10 // Slightly higher poly for imposing appearance
         }
     };
@@ -148,7 +150,7 @@ export class UnitRenderer {
                 mesh.material = material;
             }
 
-            // Create energy indicator (small sphere above unit)
+            // Create energy indicator (small sphere above unit) - HIDDEN for cleaner visuals
             const energyIndicator = MeshBuilder.CreateSphere(`energy_${unitId}`, {
                 diameter: 0.3,
                 segments: 4
@@ -157,6 +159,7 @@ export class UnitRenderer {
             energyIndicator.parent = rootNode;
             energyIndicator.position.y = config.radius * 2 + 0.5;
             energyIndicator.material = this.energyIndicatorMaterial;
+            energyIndicator.setEnabled(false); // Hide energy indicator for cleaner appearance
 
             // Create selection indicator (wireframe sphere)
             const selectionIndicator = MeshBuilder.CreateSphere(`selection_${unitId}`, {
@@ -176,6 +179,7 @@ export class UnitRenderer {
                 material: material!,
                 energyIndicator,
                 selectionIndicator,
+                miningConnectionLine: null, // Will be created when mining starts
                 rootNode
             };
 
@@ -226,6 +230,9 @@ export class UnitRenderer {
         
         // Update action feedback
         this.updateActionVisualization(unitVisual);
+        
+        // Update mining connection visualization
+        this.updateMiningConnectionVisualization(unitVisual);
     }
 
     /**
@@ -334,13 +341,14 @@ export class UnitRenderer {
     }
 
     /**
-     * Animate mining action
+     * Animate mining action with enhanced visual feedback
      */
     private animateMining(unitVisual: UnitVisual): void {
         // Subtle bobbing animation for mining
         const mesh = unitVisual.mesh;
         const originalY = mesh.position.y;
         
+        // Create mining bobbing animation
         Animation.CreateAndStartAnimation(
             'miningBob',
             mesh,
@@ -349,6 +357,35 @@ export class UnitRenderer {
             30,
             originalY,
             originalY + 0.1,
+            Animation.ANIMATIONLOOPMODE_CYCLE
+        );
+
+        // Add mining glow effect to material
+        if (unitVisual.material) {
+            const originalEmissive = unitVisual.material.emissiveColor.clone();
+            const miningGlow = originalEmissive.scale(2.0); // Brighter glow while mining
+            
+            Animation.CreateAndStartAnimation(
+                'miningGlow',
+                unitVisual.material,
+                'emissiveColor',
+                30,
+                60,
+                originalEmissive,
+                miningGlow,
+                Animation.ANIMATIONLOOPMODE_CYCLE
+            );
+        }
+
+        // Add subtle rotation to indicate activity
+        Animation.CreateAndStartAnimation(
+            'miningRotate',
+            mesh,
+            'rotation.y',
+            30,
+            120, // Slower rotation than building
+            mesh.rotation.y,
+            mesh.rotation.y + Math.PI * 2,
             Animation.ANIMATIONLOOPMODE_CYCLE
         );
     }
@@ -392,6 +429,129 @@ export class UnitRenderer {
     }
 
     /**
+     * Update mining connection visualization
+     */
+    private updateMiningConnectionVisualization(unitVisual: UnitVisual): void {
+        const currentAction = unitVisual.unit.getCurrentAction();
+        
+        if (currentAction === 'mining') {
+            // Get the mining target from the unit
+            const miningTarget = this.getMiningTarget(unitVisual.unit);
+            
+            if (miningTarget && !unitVisual.miningConnectionLine) {
+                // Create mining connection line
+                this.createMiningConnectionLine(unitVisual, miningTarget);
+            } else if (miningTarget && unitVisual.miningConnectionLine) {
+                // Update existing connection line
+                this.updateMiningConnectionLine(unitVisual, miningTarget);
+            }
+        } else {
+            // Remove mining connection line if not mining
+            if (unitVisual.miningConnectionLine) {
+                unitVisual.miningConnectionLine.dispose();
+                unitVisual.miningConnectionLine = null;
+            }
+        }
+    }
+
+    /**
+     * Get mining target from unit (helper method)
+     */
+    private getMiningTarget(unit: Unit): any {
+        // Try to get the mining target from the unit's current mining action
+        // This is a simplified approach - in a full implementation, 
+        // the Unit class would expose the current mining target
+        const stats = unit.getStats();
+        if (stats.currentAction === 'mining') {
+            // For now, we'll find the nearest mineral deposit as a proxy
+            // In a full implementation, the unit would track its mining target
+            const gameEngine = GameEngine.getInstance();
+            const terrainGenerator = gameEngine?.getTerrainGenerator();
+            
+            if (terrainGenerator) {
+                const nearbyDeposits = terrainGenerator.getMineralDepositsNear(unit.getPosition(), 5);
+                return nearbyDeposits.length > 0 ? nearbyDeposits[0] : null;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Create mining connection line with energy generation feedback
+     */
+    private createMiningConnectionLine(unitVisual: UnitVisual, miningTarget: any): void {
+        if (!miningTarget) return;
+
+        const unitPos = unitVisual.unit.getPosition();
+        const targetPos = miningTarget.getPosition();
+        
+        // Create a simple line mesh between unit and target
+        const points = [
+            unitPos.add(new Vector3(0, 0.5, 0)), // Start slightly above unit
+            targetPos.add(new Vector3(0, 0.5, 0))  // End slightly above target
+        ];
+
+        const connectionLine = MeshBuilder.CreateLines(`mining_line_${unitVisual.unit.getId()}`, {
+            points: points
+        }, this.scene);
+
+        // Style the connection line
+        const lineMaterial = new StandardMaterial(`mining_line_mat_${unitVisual.unit.getId()}`, this.scene);
+        lineMaterial.emissiveColor = new Color3(0, 1, 0.5); // Green-cyan mining beam
+        lineMaterial.disableLighting = true;
+        connectionLine.material = lineMaterial;
+        connectionLine.alpha = 0.6;
+
+        // Add pulsing animation to the line to show energy flow
+        Animation.CreateAndStartAnimation(
+            'miningLinePulse',
+            lineMaterial,
+            'emissiveColor',
+            30,
+            60,
+            new Color3(0, 1, 0.5),
+            new Color3(0, 1.5, 1),
+            Animation.ANIMATIONLOOPMODE_CYCLE
+        );
+
+        // Add alpha pulsing for energy flow effect
+        Animation.CreateAndStartAnimation(
+            'miningLineFlow',
+            connectionLine,
+            'alpha',
+            30,
+            45,
+            0.3,
+            0.8,
+            Animation.ANIMATIONLOOPMODE_CYCLE
+        );
+
+        unitVisual.miningConnectionLine = connectionLine;
+        
+        console.log(`⚡ Created mining connection line for worker ${unitVisual.unit.getId()}`);
+    }
+
+    /**
+     * Update mining connection line position
+     */
+    private updateMiningConnectionLine(unitVisual: UnitVisual, miningTarget: any): void {
+        if (!unitVisual.miningConnectionLine || !miningTarget) return;
+
+        const unitPos = unitVisual.unit.getPosition();
+        const targetPos = miningTarget.getPosition();
+        
+        // Update line points
+        const points = [
+            unitPos.add(new Vector3(0, 0.5, 0)),
+            targetPos.add(new Vector3(0, 0.5, 0))
+        ];
+
+        // Recreate the line with new points (Babylon.js lines need to be recreated to update)
+        unitVisual.miningConnectionLine.dispose();
+        this.createMiningConnectionLine(unitVisual, miningTarget);
+    }
+
+    /**
      * Update all unit visuals
      */
     public updateAllVisuals(): void {
@@ -415,6 +575,9 @@ export class UnitRenderer {
         unitVisual.mesh.dispose();
         unitVisual.energyIndicator.dispose();
         unitVisual.selectionIndicator.dispose();
+        if (unitVisual.miningConnectionLine) {
+            unitVisual.miningConnectionLine.dispose();
+        }
         unitVisual.rootNode.dispose();
 
         // Remove from map

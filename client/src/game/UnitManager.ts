@@ -12,6 +12,7 @@ import { Scout } from './entities/Scout';
 import { Protector } from './entities/Protector';
 import { GameState } from './GameState';
 import { UnitRenderer, UnitVisual } from '../rendering/UnitRenderer';
+import { GameEngine } from './GameEngine';
 
 export interface UnitCommand {
     id: string;
@@ -261,7 +262,7 @@ export class UnitManager {
     /**
      * Process command queue
      */
-    public processCommands(): void {
+    public async processCommands(): Promise<void> {
         if (this.commandQueue.length === 0) {
             return;
         }
@@ -281,7 +282,8 @@ export class UnitManager {
                 continue;
             }
 
-            if (this.executeCommand(unit, command)) {
+            const executed = await this.executeCommand(unit, command);
+            if (executed) {
                 commandsToRemove.push(i);
                 this.commandsExecuted++;
             }
@@ -296,7 +298,7 @@ export class UnitManager {
     /**
      * Execute a command on a unit
      */
-    private executeCommand(unit: Unit, command: UnitCommand): boolean {
+    private async executeCommand(unit: Unit, command: UnitCommand): Promise<boolean> {
         try {
             switch (command.commandType) {
                 case 'move':
@@ -307,13 +309,27 @@ export class UnitManager {
                     break;
 
                 case 'mine':
+                    console.log(`🔄 Processing mining command for unit ${unit.getId()} with target ${command.targetId}`);
                     if (command.targetId) {
-                        // TODO: Get mineral deposit by ID
-                        const target = this.gameState.getMineralDeposit(command.targetId);
-                        if (target) {
-                            unit.startMining(target);
-                            return true;
+                        // Get mineral deposit from terrain generator via GameEngine
+                        const gameEngine = GameEngine.getInstance();
+                        const terrainGenerator = gameEngine?.getTerrainGenerator();
+                        
+                        if (terrainGenerator) {
+                            const target = terrainGenerator.getMineralDepositById(command.targetId);
+                            if (target) {
+                                console.log(`💎 Found mining target at ${target.getPosition().toString()}`);
+                                const success = await unit.startMining(target);
+                                console.log(`⛏️ Mining command result for ${unit.getId()}: ${success}`);
+                                return true;
+                            } else {
+                                console.warn(`⚠️ Mineral deposit not found: ${command.targetId}`);
+                            }
+                        } else {
+                            console.error('❌ Terrain generator not available for mining command');
                         }
+                    } else {
+                        console.warn(`⚠️ Mining command missing target ID`);
                     }
                     break;
 
@@ -380,7 +396,7 @@ export class UnitManager {
     /**
      * Update all units
      */
-    public update(deltaTime: number): void {
+    public async update(deltaTime: number): Promise<void> {
         // Update all units
         for (const unit of this.units.values()) {
             if (unit.isActiveUnit()) {
@@ -389,7 +405,7 @@ export class UnitManager {
         }
 
         // Process command queue
-        this.processCommands();
+        await this.processCommands();
 
         // Update unit renderer
         this.unitRenderer.updateAllVisuals();

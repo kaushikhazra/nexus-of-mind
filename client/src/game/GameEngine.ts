@@ -5,7 +5,7 @@
  * Implements singleton pattern for centralized game engine management.
  */
 
-import { Engine, Scene } from '@babylonjs/core';
+import { Engine, Scene, PointerEventTypes } from '@babylonjs/core';
 import { SceneManager } from '../rendering/SceneManager';
 import { CameraController } from '../rendering/CameraController';
 import { LightingSetup } from '../rendering/LightingSetup';
@@ -135,6 +135,9 @@ export class GameEngine {
             // Setup terrain integration with game state
             this.setupTerrainIntegration();
             
+            // Setup mouse interaction for unit selection and mining assignment
+            this.setupMouseInteraction();
+            
             // Handle window resize
             window.addEventListener('resize', () => {
                 this.engine?.resize();
@@ -173,7 +176,7 @@ export class GameEngine {
             this.performanceMonitor?.startMonitoring();
 
             // Start render loop
-            this.engine.runRenderLoop(() => {
+            this.engine.runRenderLoop(async () => {
                 if (this.scene && this.engine) {
                     // Calculate delta time
                     const deltaTime = this.engine.getDeltaTime() / 1000; // Convert to seconds
@@ -183,9 +186,9 @@ export class GameEngine {
                         this.gameState.update(deltaTime);
                     }
                     
-                    // Update unit system
+                    // Update unit system (async for command processing)
                     if (this.unitManager) {
-                        this.unitManager.update(deltaTime);
+                        await this.unitManager.update(deltaTime);
                     }
                     
                     // Update building system
@@ -340,6 +343,142 @@ export class GameEngine {
      */
     public getBuildingManager(): BuildingManager | null {
         return this.buildingManager;
+    }
+
+    /**
+     * Setup mouse interaction for unit selection and mining assignment
+     */
+    private setupMouseInteraction(): void {
+        if (!this.scene || !this.unitManager) {
+            console.error('❌ Cannot setup mouse interaction: Scene or UnitManager not available');
+            return;
+        }
+
+        console.log('🖱️ Setting up mouse interaction for unit selection and mining assignment');
+
+        // Add pointer observable for mouse clicks
+        this.scene.onPointerObservable.add((pointerInfo) => {
+            if (pointerInfo.type === PointerEventTypes.POINTERDOWN) {
+                this.handleMouseClick(pointerInfo);
+            }
+        });
+    }
+
+    /**
+     * Handle mouse click for unit selection and mining assignment
+     */
+    private handleMouseClick(pointerInfo: any): void {
+        if (!this.scene || !this.unitManager) return;
+
+        // Get the pick result
+        const pickInfo = this.scene.pick(this.scene.pointerX, this.scene.pointerY);
+        
+        if (!pickInfo || !pickInfo.hit) {
+            // Clicked on empty space - clear selection
+            this.unitManager.clearSelection();
+            console.log('🖱️ Clicked empty space - cleared selection');
+            return;
+        }
+
+        const pickedMesh = pickInfo.pickedMesh;
+        if (!pickedMesh) return;
+
+        console.log(`🖱️ Clicked on mesh: ${pickedMesh.name}`);
+
+        // Check if clicked on a unit
+        if (pickedMesh.name.startsWith('unit_')) {
+            this.handleUnitClick(pickedMesh);
+        }
+        // Check if clicked on a mineral deposit (chunk)
+        else if (pickedMesh.name.startsWith('mineral_chunk_')) {
+            this.handleMineralDepositClick(pickedMesh);
+        }
+        // Clicked on something else - clear selection
+        else {
+            this.unitManager.clearSelection();
+            console.log('🖱️ Clicked on non-interactive object - cleared selection');
+        }
+    }
+
+    /**
+     * Handle clicking on a unit
+     */
+    private handleUnitClick(unitMesh: any): void {
+        if (!this.unitManager) return;
+
+        // Extract unit ID from mesh name (format: "unit_<unitId>")
+        const unitId = unitMesh.name.replace('unit_', '');
+        const unit = this.unitManager.getUnit(unitId);
+
+        if (!unit) {
+            console.warn(`⚠️ Unit not found for mesh: ${unitMesh.name}`);
+            return;
+        }
+
+        // Select the clicked unit (single selection for now)
+        this.unitManager.selectUnits([unitId]);
+        console.log(`👆 Selected ${unit.getUnitType()} unit: ${unitId}`);
+    }
+
+    /**
+     * Handle clicking on a mineral deposit
+     */
+    private handleMineralDepositClick(mineralMesh: any): void {
+        if (!this.unitManager) return;
+
+        const selectedUnits = this.unitManager.getSelectedUnits();
+        
+        if (selectedUnits.length === 0) {
+            console.log('🖱️ Clicked mineral deposit but no units selected');
+            return;
+        }
+
+        // Extract mineral deposit ID from mesh name (format: "mineral_chunk_<depositId>_<chunkIndex>")
+        const nameParts = mineralMesh.name.split('_');
+        if (nameParts.length < 4) {
+            console.warn(`⚠️ Invalid mineral chunk name format: ${mineralMesh.name}`);
+            return;
+        }
+        
+        // Reconstruct the deposit ID (everything between "mineral_chunk_" and the last "_<chunkIndex>")
+        const depositId = nameParts.slice(2, -1).join('_');
+        
+        console.log(`🖱️ Clicked mineral chunk: ${mineralMesh.name}, extracted deposit ID: ${depositId} with ${selectedUnits.length} selected units`);
+        
+        // Get the mineral deposit from terrain generator
+        const terrainGenerator = this.getTerrainGenerator();
+        if (!terrainGenerator) {
+            console.error('❌ Terrain generator not available for mineral deposit lookup');
+            return;
+        }
+
+        const mineralDeposit = terrainGenerator.getMineralDepositById(depositId);
+        if (!mineralDeposit) {
+            console.warn(`⚠️ Mineral deposit not found: ${depositId}`);
+            return;
+        }
+
+        console.log(`💎 Found mineral deposit at ${mineralDeposit.getPosition().toString()}`);
+
+        // Assign selected workers to mine this deposit
+        let assignedCount = 0;
+        for (const unit of selectedUnits) {
+            if (unit.getUnitType() === 'worker') {
+                console.log(`⛏️ Issuing mining command to worker ${unit.getId()}`);
+                // Issue mining command
+                this.unitManager.issueCommand('mine', undefined, depositId);
+                assignedCount++;
+                console.log(`⛏️ Assigned worker ${unit.getId()} to mine deposit ${depositId}`);
+            } else {
+                console.log(`⚠️ Unit ${unit.getId()} is not a worker (${unit.getUnitType()}), skipping mining assignment`);
+            }
+        }
+
+        if (assignedCount > 0) {
+            console.log(`✅ Assigned ${assignedCount} workers to mineral deposit`);
+        } else {
+            console.log('⚠️ No workers selected for mining assignment');
+        }
     }
 
     /**

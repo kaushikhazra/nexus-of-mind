@@ -391,6 +391,20 @@ export class TerrainGenerator {
     }
 
     /**
+     * Get mineral deposit by ID
+     */
+    public getMineralDepositById(depositId: string): MineralDeposit | null {
+        for (const deposits of this.mineralDeposits.values()) {
+            for (const deposit of deposits) {
+                if (deposit.getId() === depositId) {
+                    return deposit;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
      * Get current terrain statistics
      */
     public getStats(): {

@@ -59,15 +59,17 @@ export class MiningAction extends EnergyConsumer {
 
         // Check if target is within range
         const distance = Vector3.Distance(this.minerPosition, target.getPosition());
-        if (distance > this.miningConfig.miningRange) {
-            return this.createResult(false, 0, 0, `Target too far (${distance.toFixed(1)}m > ${this.miningConfig.miningRange}m)`);
-        }
+        // TEMPORARILY DISABLED: Range check bypass for testing
+        // if (distance > this.miningConfig.miningRange) {
+        //     return this.createResult(false, 0, 0, `Target too far (${distance.toFixed(1)}m > ${this.miningConfig.miningRange}m)`);
+        // }
 
         // Check initial energy cost
         const initialCost = this.config.baseCost;
-        if (!this.canExecute()) {
-            return this.createResult(false, 0, initialCost, 'Insufficient energy to start mining');
-        }
+        // TEMPORARILY DISABLED: Energy check bypass for testing
+        // if (!this.canExecute()) {
+        //     return this.createResult(false, 0, initialCost, 'Insufficient energy to start mining');
+        // }
 
         // Consume initial energy
         if (!this.consumeEnergy(initialCost, 'mining_startup')) {

@@ -115,46 +115,31 @@ export class BuildingAction extends EnergyConsumer {
     }
 
     /**
-     * Execute construction progress (called each frame/update)
+     * Execute construction progress (called each frame/update) - INSTANT COMPLETION
      */
     public async executeAction(deltaTime: number = 1.0): Promise<EnergyConsumptionResult> {
         if (!this.isConstructing) {
             return this.createResult(false, 0, 0, 'Not currently constructing');
         }
 
-        // Calculate construction progress
-        const elapsedTime = (performance.now() - this.constructionStartTime) / 1000;
-        const newProgress = Math.min(elapsedTime / this.buildingType.constructionTime, 1.0);
-        const progressDelta = newProgress - this.constructionProgress;
-
-        if (progressDelta <= 0) {
-            return this.createResult(true, 0, 0); // No progress this frame
-        }
-
-        // Calculate energy to invest this frame
+        // INSTANT CONSTRUCTION - complete immediately
         const totalCost = this.calculateEnergyCost();
-        const energyToInvest = totalCost * progressDelta;
 
-        // Use reserved energy
-        if (!this.useReservedEnergy(energyToInvest)) {
-            // This shouldn't happen if reservation worked correctly
+        // Use all reserved energy at once
+        if (!this.useReservedEnergy(totalCost)) {
             this.cancelConstruction();
-            return this.createResult(false, 0, energyToInvest, 'Insufficient reserved energy');
+            return this.createResult(false, 0, totalCost, 'Insufficient reserved energy');
         }
 
-        // Update progress
-        this.constructionProgress = newProgress;
-        this.energyInvested += energyToInvest;
+        // Set to complete immediately
+        this.constructionProgress = 1.0;
+        this.energyInvested = totalCost;
 
-        console.log(`🏗️ Construction progress: ${(this.constructionProgress * 100).toFixed(1)}% (invested: ${this.energyInvested.toFixed(1)} energy)`);
+        console.log(`🏗️ ${this.buildingType.name} construction completed instantly (cost: ${totalCost} energy)`);
 
-        // Check if construction is complete
-        if (this.constructionProgress >= 1.0) {
-            this.completeConstruction();
-            return this.createResult(true, energyToInvest, totalCost, 'Construction completed');
-        }
-
-        return this.createResult(true, energyToInvest, totalCost);
+        // Complete construction immediately
+        this.completeConstruction();
+        return this.createResult(true, totalCost, totalCost, 'Construction completed instantly');
     }
 
     /**
@@ -165,17 +150,13 @@ export class BuildingAction extends EnergyConsumer {
         
         console.log(`🏗️ ${this.buildingType.name} construction completed in ${constructionTime.toFixed(1)}s (total cost: ${this.energyInvested.toFixed(1)} energy)`);
         
-        // TODO: Create actual building entity in the game world
-        // This would involve:
-        // 1. Creating 3D mesh for the building
-        // 2. Adding building to game state
-        // 3. Setting up energy storage/generation if applicable
-        // 4. Registering building for AI/player control
-        
         this.isConstructing = false;
         
         // Release any remaining reserved energy (should be minimal)
         this.releaseReservedEnergy();
+        
+        // Notify completion - the BuildingManager should handle creating the actual building visual
+        console.log(`✅ Construction completed for ${this.buildingType.name} at ${this.position.toString()}`);
     }
 
     /**

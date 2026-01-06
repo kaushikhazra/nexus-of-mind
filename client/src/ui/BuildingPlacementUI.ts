@@ -554,6 +554,13 @@ export class BuildingPlacementUI {
 
         console.log(`✅ Energy consumed: ${cost}J`);
 
+        // IMMEDIATELY remove preview mesh to prevent visual issues
+        if (this.previewMesh) {
+            console.log(`🗑️ Removing preview mesh before building creation`);
+            this.previewMesh.dispose();
+            this.previewMesh = null;
+        }
+
         // Create the building through GameState and BuildingManager
         const gameEngine = GameEngine.getInstance();
         const gameState = gameEngine?.getGameState();
@@ -569,7 +576,7 @@ export class BuildingPlacementUI {
             // Start construction through BuildingManager
             buildingManager.startConstruction(buildingType, position, 'player').then(building => {
                 if (building) {
-                    console.log(`✅ BuildingManager construction started:`, building.getId());
+                    console.log(`✅ BuildingManager construction completed instantly:`, building.getId());
                 } else {
                     console.warn(`⚠️ BuildingManager construction failed`);
                 }
@@ -581,7 +588,7 @@ export class BuildingPlacementUI {
             this.updateStatus('Failed to create building!', '#ff4444');
         }
 
-        // Exit placement mode
+        // Exit placement mode (this will clean up any remaining UI state)
         this.cancelPlacement();
     }
 

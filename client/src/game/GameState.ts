@@ -199,7 +199,7 @@ export class GameState {
         const storageCapacity = this.getUnitStorageCapacity(unitType);
         const energyStorage = new EnergyStorage(unitId, {
             capacity: storageCapacity,
-            initialEnergy: storageCapacity * 0.5 // Start with 50% energy
+            initialEnergy: storageCapacity // Start with full energy for immediate use
         });
 
         const unit: GameUnit = {
@@ -293,7 +293,7 @@ export class GameState {
      */
     private getUnitStorageCapacity(unitType: 'worker' | 'scout' | 'protector'): number {
         const capacities: { [key in 'worker' | 'scout' | 'protector']: number } = {
-            worker: 10,
+            worker: 5000, // Large energy pool for testing - will be adjusted later
             scout: 8,
             protector: 12
         };

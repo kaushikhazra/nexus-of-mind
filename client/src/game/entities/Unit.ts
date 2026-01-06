@@ -57,6 +57,9 @@ export abstract class Unit {
     protected currentMovementAction: MovementAction | null = null;
     protected currentBuildingAction: BuildingAction | null = null;
     
+    // Pending actions (for chaining movement -> action)
+    protected pendingMiningTarget: any = null;
+    
     // Event callbacks
     protected onDestroyedCallbacks: ((unit: Unit) => void)[] = [];
     protected onEnergyDepletedCallbacks: ((unit: Unit) => void)[] = [];
@@ -150,6 +153,17 @@ export abstract class Unit {
                     this.position = this.currentMovementAction.getCurrentPosition();
                     this.currentMovementAction.dispose();
                     this.currentMovementAction = null;
+                    
+                    // Check if there's a pending mining target
+                    if (this.pendingMiningTarget) {
+                        console.log(`⛏️ ${this.id} starting mining after reaching target`);
+                        const miningTarget = this.pendingMiningTarget;
+                        this.pendingMiningTarget = null;
+                        
+                        // Start mining now that we're in position
+                        this.startMiningImmediate(miningTarget);
+                    }
+                    
                     this.onActionCompleteCallbacks.forEach(callback => callback(this, 'movement'));
                 }
             } catch (error) {
@@ -176,6 +190,35 @@ export abstract class Unit {
     }
 
     /**
+     * Start mining immediately (used after movement to target)
+     */
+    private async startMiningImmediate(target: any): Promise<boolean> {
+        try {
+            this.currentMiningAction = new MiningAction(this.id, this.position, {
+                miningRange: this.getMiningRange(),
+                energyPerSecond: this.getMiningEnergyCost()
+            });
+            
+            this.currentMiningAction.setEnergyStorage(this.energyStorage);
+            const result = await this.currentMiningAction.startMining(target);
+            
+            if (result.success) {
+                this.lastActionTime = performance.now();
+                console.log(`⛏️ ${this.id} started mining after movement`);
+                return true;
+            } else {
+                console.warn(`⚠️ ${this.id} mining failed after movement: ${result.reason}`);
+                this.currentMiningAction.dispose();
+                this.currentMiningAction = null;
+                return false;
+            }
+        } catch (error) {
+            console.error(`❌ Failed to start immediate mining for ${this.id}:`, error);
+            return false;
+        }
+    }
+
+    /**
      * Check if unit can perform an action (cooldown and energy check)
      */
     protected canPerformAction(): boolean {
@@ -189,10 +232,22 @@ export abstract class Unit {
     }
 
     /**
-     * Start mining action (if unit supports it)
+     * Check if unit can move (basic movement capability without cooldown)
+     */
+    public canMove(): boolean {
+        return this.isActive && 
+               this.health > 0 && 
+               this.energyStorage.getCurrentEnergy() > 0;
+    }
+
+    /**
+     * Start mining action (if unit supports it) - includes movement to target
      */
     public async startMining(target: any): Promise<boolean> {
-        if (!this.canPerformAction() || !this.canMine()) {
+        console.log(`⛏️ ${this.id} startMining called with target at ${target.getPosition().toString()}`);
+        
+        if (!this.canMine()) {
+            console.warn(`⚠️ ${this.id} cannot mine - canMine: ${this.canMine()}`);
             return false;
         }
 
@@ -200,6 +255,51 @@ export abstract class Unit {
         this.stopMining();
 
         try {
+            // Check if target is within mining range
+            const distance = Vector3.Distance(this.position, target.getPosition());
+            const miningRange = this.getMiningRange();
+            
+            // Calculate energy cost for the journey
+            const energyCostPerUnit = 0; // No energy cost for movement (testing configuration)
+            const estimatedEnergyCost = distance * energyCostPerUnit;
+            const currentEnergy = this.energyStorage.getCurrentEnergy();
+            
+            console.log(`📏 ${this.id} distance to target: ${distance.toFixed(1)}m, mining range: ${miningRange}m`);
+            console.log(`⚡ ${this.id} energy cost: ${estimatedEnergyCost.toFixed(1)} energy needed (FREE MOVEMENT), ${currentEnergy.toFixed(1)} available`);
+            
+            if (distance > miningRange) {
+                // Target is too far - move closer first
+                console.log(`🚶 ${this.id} moving to mining target (${distance.toFixed(1)}m > ${miningRange}m)`);
+                
+                // Calculate position near the target (within mining range)
+                const targetPos = target.getPosition();
+                const direction = this.position.subtract(targetPos).normalize();
+                const moveToPosition = targetPos.add(direction.scale(miningRange * 0.8)); // Move to 80% of mining range
+                
+                // Recalculate energy cost for actual movement distance
+                const actualDistance = Vector3.Distance(this.position, moveToPosition);
+                const actualEnergyCost = actualDistance * energyCostPerUnit;
+                
+                console.log(`📍 ${this.id} calculated move position: ${moveToPosition.toString()}`);
+                console.log(`⚡ ${this.id} actual movement cost: ${actualEnergyCost.toFixed(1)} energy for ${actualDistance.toFixed(1)}m journey (FREE MOVEMENT)`);
+                
+                // Start movement to target (bypass cooldown for mining movement)
+                const moveSuccess = await this.startMovementForMining(moveToPosition);
+                console.log(`🚶 ${this.id} movement start result: ${moveSuccess}`);
+                
+                if (!moveSuccess) {
+                    console.warn(`⚠️ ${this.id} failed to start movement to mining target`);
+                    return false;
+                }
+                
+                // Set a flag to start mining when movement completes
+                this.pendingMiningTarget = target;
+                console.log(`📍 ${this.id} will start mining when reaching target position`);
+                return true;
+            }
+
+            // Target is within range - start mining immediately
+            console.log(`⛏️ ${this.id} target within range, starting mining immediately`);
             this.currentMiningAction = new MiningAction(this.id, this.position, {
                 miningRange: this.getMiningRange(),
                 energyPerSecond: this.getMiningEnergyCost()
@@ -210,15 +310,57 @@ export abstract class Unit {
             
             if (result.success) {
                 this.lastActionTime = performance.now();
-                console.log(`⛏️ ${this.id} started mining`);
+                console.log(`⛏️ ${this.id} started mining immediately (within range)`);
                 return true;
             } else {
+                console.warn(`⚠️ ${this.id} mining failed: ${result.reason}`);
                 this.currentMiningAction.dispose();
                 this.currentMiningAction = null;
                 return false;
             }
         } catch (error) {
             console.error(`❌ Failed to start mining for ${this.id}:`, error);
+            return false;
+        }
+    }
+
+    /**
+     * Start movement action for mining (bypasses cooldown)
+     */
+    public async startMovementForMining(targetPosition: Vector3): Promise<boolean> {
+        // Only check if unit can move, skip cooldown check for mining movement
+        if (!this.canMove()) {
+            console.warn(`⚠️ ${this.id} cannot move - canMove: ${this.canMove()}`);
+            return false;
+        }
+
+        // Stop current movement if active
+        this.stopMovement();
+
+        try {
+            this.currentMovementAction = new MovementAction(
+                this.id, 
+                this.unitType, 
+                this.position, 
+                {
+                    maxSpeed: this.movementSpeed
+                }
+            );
+            
+            this.currentMovementAction.setEnergyStorage(this.energyStorage);
+            const result = await this.currentMovementAction.startMovement(targetPosition);
+            
+            if (result.success) {
+                console.log(`🚶 ${this.id} started movement for mining to ${targetPosition.toString()}`);
+                return true;
+            } else {
+                console.warn(`⚠️ ${this.id} movement for mining failed: ${result.reason}`);
+                this.currentMovementAction.dispose();
+                this.currentMovementAction = null;
+                return false;
+            }
+        } catch (error) {
+            console.error(`❌ Failed to start movement for mining for ${this.id}:`, error);
             return false;
         }
     }
@@ -300,6 +442,12 @@ export abstract class Unit {
             this.currentMiningAction.dispose();
             this.currentMiningAction = null;
             console.log(`⛏️ ${this.id} stopped mining`);
+        }
+        
+        // Clear pending mining target
+        if (this.pendingMiningTarget) {
+            this.pendingMiningTarget = null;
+            console.log(`📍 ${this.id} cleared pending mining target`);
         }
     }
 
