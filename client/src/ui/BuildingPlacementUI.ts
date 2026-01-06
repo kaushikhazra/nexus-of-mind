@@ -5,12 +5,12 @@
  * Handles preview visualization, energy cost validation, and placement confirmation.
  */
 
-import { Scene, Vector3, Mesh, MeshBuilder, StandardMaterial, Color3, PointerEventTypes, Animation } from '@babylonjs/core';
+import { Scene, Vector3, Mesh, MeshBuilder, StandardMaterial, Color3, PointerEventTypes, Animation, VertexData } from '@babylonjs/core';
 import { GameEngine } from '../game/GameEngine';
 import { BuildingManager } from '../game/BuildingManager';
 import { EnergyManager } from '../game/EnergyManager';
 
-export type BuildingType = 'base' | 'power_plant';
+export type BuildingType = 'base' | 'powerPlant';
 
 export interface BuildingPlacementConfig {
     containerId: string;
@@ -118,9 +118,9 @@ export class BuildingPlacementUI {
         this.buildingButtons.set('base', baseButton);
         buttonsContainer.appendChild(baseButton);
 
-        // Power plant building button
-        const powerPlantButton = this.createBuildingButton('power_plant', 'BUILD POWER PLANT', '75J', '#ff8800');
-        this.buildingButtons.set('power_plant', powerPlantButton);
+        // Create power plant building button
+        const powerPlantButton = this.createBuildingButton('powerPlant', 'BUILD POWER PLANT', '30J', '#ff8800');
+        this.buildingButtons.set('powerPlant', powerPlantButton);
         buttonsContainer.appendChild(powerPlantButton);
 
         // Cancel button (initially hidden)
@@ -278,12 +278,41 @@ export class BuildingPlacementUI {
 
         // Create preview mesh based on building type
         if (buildingType === 'base') {
-            this.previewMesh = MeshBuilder.CreateBox('building_preview', {
-                width: 4,
-                height: 3,
-                depth: 4
-            }, this.scene);
-        } else if (buildingType === 'power_plant') {
+            // Create pyramid preview for base
+            const positions = [
+                // Base vertices (bottom face)
+                -2, 0, -2,  // 0: back-left
+                 2, 0, -2,  // 1: back-right
+                 2, 0,  2,  // 2: front-right
+                -2, 0,  2,  // 3: front-left
+                // Apex vertex (top)
+                 0, 3, 0    // 4: apex
+            ];
+            
+            const indices = [
+                // Base (bottom face) - two triangles
+                0, 2, 1,  0, 3, 2,
+                // Side faces
+                0, 1, 4,  // back face
+                1, 2, 4,  // right face
+                2, 3, 4,  // front face
+                3, 0, 4   // left face
+            ];
+            
+            // Calculate normals for proper lighting
+            const normals = [];
+            for (let i = 0; i < positions.length; i += 3) {
+                normals.push(0, 1, 0); // Simple upward normals
+            }
+            
+            this.previewMesh = new Mesh('building_preview', this.scene);
+            const vertexData = new VertexData();
+            vertexData.positions = positions;
+            vertexData.indices = indices;
+            vertexData.normals = normals;
+            vertexData.applyToMesh(this.previewMesh);
+            
+        } else if (buildingType === 'powerPlant') {
             this.previewMesh = MeshBuilder.CreateCylinder('building_preview', {
                 diameter: 3,
                 height: 4,
@@ -358,8 +387,8 @@ export class BuildingPlacementUI {
         if (!this.currentBuildingType) return 3.0;
         
         switch (this.currentBuildingType) {
-            case 'base': return 3.0; // Position well above terrain
-            case 'power_plant': return 4.0; // Position well above terrain
+            case 'base': return 0; // Pyramid sits on ground (base at y=0)
+            case 'powerPlant': return 2.0; // Cylinder center positioned above terrain
             default: return 3.0;
         }
     }
@@ -439,10 +468,21 @@ export class BuildingPlacementUI {
      * Handle mouse click for building placement
      */
     private handleMouseClick(pointerInfo: any): void {
-        if (!this.currentMousePosition || !this.currentBuildingType) return;
+        console.log(`🖱️ Mouse click detected in placement mode`);
+        
+        if (!this.currentMousePosition || !this.currentBuildingType) {
+            console.warn(`⚠️ Missing position or building type:`, {
+                position: this.currentMousePosition,
+                buildingType: this.currentBuildingType
+            });
+            return;
+        }
+
+        console.log(`🖱️ Click at position: ${this.currentMousePosition.toString()}`);
 
         // Validate placement
         if (!this.isValidBuildingPosition(this.currentMousePosition)) {
+            console.warn(`❌ Invalid placement position`);
             this.updateStatus('Invalid placement location!', '#ff4444');
             return;
         }
@@ -450,9 +490,12 @@ export class BuildingPlacementUI {
         // Check energy cost again
         const cost = this.getBuildingCost(this.currentBuildingType);
         if (this.energyManager.getTotalEnergy() < cost) {
+            console.warn(`❌ Insufficient energy: need ${cost}, have ${this.energyManager.getTotalEnergy()}`);
             this.updateStatus('Insufficient energy!', '#ff4444');
             return;
         }
+
+        console.log(`✅ Placement validation passed, proceeding with building placement`);
 
         // Place the building
         this.placeBuilding(this.currentBuildingType, this.currentMousePosition);
@@ -498,22 +541,44 @@ export class BuildingPlacementUI {
     private placeBuilding(buildingType: BuildingType, position: Vector3): void {
         const cost = this.getBuildingCost(buildingType);
         
+        console.log(`🏗️ Attempting to place ${buildingType} at ${position.toString()} for ${cost}J`);
+        
         // Consume energy
         const success = this.energyManager.consumeEnergy('building_construction', cost, `build_${buildingType}`);
         
         if (!success) {
+            console.error(`❌ Energy consumption failed for ${buildingType}`);
             this.updateStatus('Energy consumption failed!', '#ff4444');
             return;
         }
 
-        // Create the building through BuildingManager
+        console.log(`✅ Energy consumed: ${cost}J`);
+
+        // Create the building through GameState and BuildingManager
         const gameEngine = GameEngine.getInstance();
         const gameState = gameEngine?.getGameState();
+        const buildingManager = gameEngine?.getBuildingManager();
         
-        if (gameState) {
-            const building = gameState.createBuilding(buildingType, position, 'player');
-            console.log(`🏗️ Placed ${buildingType} at ${position.toString()}`);
+        if (gameState && buildingManager) {
+            console.log(`🏗️ Creating building through GameState and BuildingManager...`);
+            
+            // Create building in GameState
+            const gameBuilding = gameState.createBuilding(buildingType, position, 'player');
+            console.log(`✅ GameState building created:`, gameBuilding);
+            
+            // Start construction through BuildingManager
+            buildingManager.startConstruction(buildingType, position, 'player').then(building => {
+                if (building) {
+                    console.log(`✅ BuildingManager construction started:`, building.getId());
+                } else {
+                    console.warn(`⚠️ BuildingManager construction failed`);
+                }
+            });
+            
             this.updateStatus(`${buildingType.toUpperCase()} constructed!`, '#00ff00');
+        } else {
+            console.error(`❌ GameState or BuildingManager not available`);
+            this.updateStatus('Failed to create building!', '#ff4444');
         }
 
         // Exit placement mode
@@ -526,7 +591,7 @@ export class BuildingPlacementUI {
     private getBuildingCost(buildingType: BuildingType): number {
         switch (buildingType) {
             case 'base': return 50;
-            case 'power_plant': return 75;
+            case 'powerPlant': return 30;
             default: return 0;
         }
     }

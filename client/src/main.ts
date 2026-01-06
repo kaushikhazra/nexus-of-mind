@@ -9,6 +9,7 @@ import { GameEngine } from './game/GameEngine';
 import { BuildingAction } from './game/actions/BuildingAction';
 import { MovementAction } from './game/actions/MovementAction';
 import { BuildingPlacementUI } from './ui/BuildingPlacementUI';
+import { MiningUI } from './ui/MiningUI';
 import { Vector3 } from '@babylonjs/core';
 
 /**
@@ -19,6 +20,7 @@ class Application {
     private canvas: HTMLCanvasElement | null = null;
     private loadingScreen: HTMLElement | null = null;
     private buildingPlacementUI: BuildingPlacementUI | null = null;
+    private miningUI: MiningUI | null = null;
 
     /**
      * Initialize the application
@@ -51,6 +53,9 @@ class Application {
 
             // Initialize building placement UI
             this.initializeBuildingPlacementUI();
+
+            // Initialize mining UI
+            this.initializeMiningUI();
 
             // Hide loading screen after a brief delay
             setTimeout(() => {
@@ -102,8 +107,32 @@ class Application {
     }
 
     /**
-     * Initialize building placement UI
+     * Initialize mining UI
      */
+    private initializeMiningUI(): void {
+        if (!this.gameEngine) {
+            console.error('❌ Cannot initialize mining UI: GameEngine not available');
+            return;
+        }
+
+        const scene = this.gameEngine.getScene();
+        const unitManager = this.gameEngine.getUnitManager();
+        const terrainGenerator = this.gameEngine.getTerrainGenerator();
+
+        if (!scene || !unitManager || !terrainGenerator) {
+            console.error('❌ Cannot initialize mining UI: Required components not available');
+            return;
+        }
+
+        this.miningUI = new MiningUI({
+            containerId: 'mining-ui',
+            scene: scene,
+            unitManager: unitManager,
+            terrainGenerator: terrainGenerator
+        });
+
+        console.log('⛏️ Mining UI initialized');
+    }
     private initializeBuildingPlacementUI(): void {
         if (!this.gameEngine) {
             console.error('❌ Cannot initialize building placement UI: GameEngine not available');
@@ -133,6 +162,11 @@ class Application {
      * Cleanup on page unload
      */
     public dispose(): void {
+        if (this.miningUI) {
+            this.miningUI.dispose();
+            this.miningUI = null;
+        }
+        
         if (this.buildingPlacementUI) {
             this.buildingPlacementUI.dispose();
             this.buildingPlacementUI = null;
@@ -338,8 +372,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('📊 Unit Manager Stats:', stats);
     };
     
-    // Test unit actions
-    (window as any).testUnitActions = () => {
+    // Test mining system
+    (window as any).testMiningSystem = () => {
         const gameEngine = (app as any).gameEngine;
         if (!gameEngine) {
             console.log('❌ Game engine not available');
@@ -348,45 +382,84 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const unitManager = gameEngine.getUnitManager();
         const terrainGenerator = gameEngine.getTerrainGenerator();
+        const energyManager = gameEngine.getEnergyManager();
         
-        if (!unitManager || !terrainGenerator) {
-            console.log('❌ Unit manager or terrain generator not available');
+        if (!unitManager || !terrainGenerator || !energyManager) {
+            console.log('❌ Required managers not available');
             return;
         }
         
-        console.log('⚡ Testing Unit Actions...');
+        console.log('⛏️ Testing Complete Mining System...');
         
-        // Get all units
-        const units = unitManager.getAllUnits();
-        console.log(`👥 Found ${units.length} units`);
+        // Show current energy
+        const initialEnergy = energyManager.getTotalEnergy();
+        console.log(`⚡ Initial energy: ${initialEnergy}`);
         
-        // Test mining with workers
+        // Show mineral deposits
+        const deposits = terrainGenerator.getVisibleMineralDeposits();
+        console.log(`💎 Found ${deposits.length} visible mineral deposits`);
+        
+        if (deposits.length === 0) {
+            console.log('❌ No mineral deposits found - check terrain generation');
+            return;
+        }
+        
+        // Show first deposit details
+        const deposit = deposits[0];
+        const depositStats = deposit.getStats();
+        console.log('💎 First deposit stats:', depositStats);
+        
+        // Create a test worker if none exist
         const workers = unitManager.getUnitsByType('worker');
-        if (workers.length > 0) {
-            const worker = workers[0];
-            const deposits = terrainGenerator.getVisibleMineralDeposits();
-            
-            if (deposits.length > 0) {
-                console.log(`⛏️ Testing mining with worker ${worker.getId()}`);
-                worker.startMining(deposits[0]);
+        let testWorker;
+        
+        if (workers.length === 0) {
+            console.log('👷 Creating test worker...');
+            testWorker = unitManager.createUnit('worker', new (window as any).Vector3(0, 0, 0));
+        } else {
+            testWorker = workers[0];
+        }
+        
+        if (!testWorker) {
+            console.log('❌ Failed to create or find worker');
+            return;
+        }
+        
+        console.log(`👷 Using worker ${testWorker.getId()}`);
+        
+        // Test mining assignment
+        console.log('⛏️ Testing mining assignment...');
+        testWorker.startMining(deposit).then((success: boolean) => {
+            if (success) {
+                console.log('✅ Mining started successfully!');
+                console.log('💡 Watch the energy display - it should increase over time');
+                console.log('💡 Check mining UI panel on the right side of screen');
+                
+                // Show mining stats after a few seconds
+                setTimeout(() => {
+                    const currentEnergy = energyManager.getTotalEnergy();
+                    const energyGain = currentEnergy - initialEnergy;
+                    console.log(`⚡ Energy after mining: ${currentEnergy} (+${energyGain})`);
+                    
+                    const updatedDepositStats = deposit.getStats();
+                    console.log('💎 Updated deposit stats:', updatedDepositStats);
+                    
+                    const workerStats = testWorker.getStats();
+                    console.log('👷 Worker stats:', workerStats);
+                }, 3000);
+            } else {
+                console.log('❌ Failed to start mining');
             }
-        }
+        }).catch((error: any) => {
+            console.error('❌ Mining assignment error:', error);
+        });
         
-        // Test exploration with scouts
-        const scouts = unitManager.getUnitsByType('scout');
-        if (scouts.length > 0) {
-            const scout = scouts[0];
-            console.log(`🔍 Testing exploration with scout ${scout.getId()}`);
-            scout.discoverMinerals(terrainGenerator);
-        }
-        
-        // Test shield with protectors
-        const protectors = unitManager.getUnitsByType('protector');
-        if (protectors.length > 0) {
-            const protector = protectors[0];
-            console.log(`🛡️ Testing shield with protector ${protector.getId()}`);
-            protector.activateShield();
-        }
+        // Show UI instructions
+        console.log('🎮 Mining UI Instructions:');
+        console.log('  1. Click on workers to select them (green spheres)');
+        console.log('  2. Click on mineral deposits to assign mining (blue crystals)');
+        console.log('  3. Watch the Mining Operations panel on the right');
+        console.log('  4. Energy should increase over time from mining');
     };
     
     // Expose terrain stats function
@@ -419,7 +492,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('  - testBuildingSystem() - Test building creation and energy costs');
     console.log('  - testMovementSystem() - Test unit movement and energy consumption');
     console.log('  - testUnitSystem() - Test unit creation and management');
-    console.log('  - testUnitActions() - Test unit-specific actions (mining, exploration, combat)');
+    console.log('  - testMiningSystem() - Test complete mining system with worker assignment');
     console.log('  - showTerrainStats() - Show terrain and mineral deposit information');
 });
 

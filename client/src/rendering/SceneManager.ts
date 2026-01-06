@@ -38,9 +38,6 @@ export class SceneManager {
             // Configure scene for low poly aesthetic
             this.configureScene();
 
-            // Add test objects to verify scene is working
-            this.addTestObjects();
-
             // Setup scene optimization
             this.optimizeScene();
 
@@ -112,39 +109,6 @@ export class SceneManager {
         // this.scene.enablePhysics(new Vector3(0, -9.81, 0), new CannonJSPlugin());
 
         console.log('⚙️ Scene configured for low poly SciFi aesthetic');
-    }
-
-    /**
-     * Add test objects to verify the scene is working
-     * Note: Objects positioned above terrain height
-     */
-    private addTestObjects(): void {
-        if (!this.scene) return;
-
-        console.log('🧪 Adding test objects...');
-
-        // Create a test sphere (representing a unit) - positioned high above terrain
-        const testSphere = MeshBuilder.CreateSphere('testSphere', { diameter: 2 }, this.scene);
-        testSphere.position = new Vector3(0, 15, 0); // Much higher to be above terrain
-
-        // Create material for the test sphere
-        const testMaterial = new StandardMaterial('testMaterial', this.scene);
-        testMaterial.diffuseColor = new Color3(0.2, 0.8, 0.2); // Green like worker unit
-        testMaterial.specularColor = new Color3(0.1, 0.1, 0.1);
-        testSphere.material = testMaterial;
-
-        // Create a test pyramid (representing a base) - positioned high above terrain
-        const testPyramid = MeshBuilder.CreateBox('testPyramid', { size: 2 }, this.scene);
-        testPyramid.position = new Vector3(10, 15, 0); // Much higher to be above terrain
-        testPyramid.scaling = new Vector3(1, 1.5, 1); // Make it more pyramid-like
-
-        // Create material for the pyramid
-        const pyramidMaterial = new StandardMaterial('pyramidMaterial', this.scene);
-        pyramidMaterial.diffuseColor = new Color3(1.0, 0.9, 0.2); // Yellow like base
-        pyramidMaterial.specularColor = new Color3(0.1, 0.1, 0.1);
-        testPyramid.material = pyramidMaterial;
-
-        console.log('✅ Test objects added - sphere and pyramid positioned above terrain');
     }
 
     /**
