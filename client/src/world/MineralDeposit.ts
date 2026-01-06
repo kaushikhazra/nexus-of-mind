@@ -100,29 +100,49 @@ export class MineralDeposit {
             const sizeVariation = 0.6 + Math.random() * 0.8;
             const chunkSize = this.size * sizeVariation;
             
-            // Create irregular mineral chunk using sphere as base, then deform it
-            const chunk = MeshBuilder.CreateSphere(`mineral_chunk_${this.id}_${i}`, {
-                diameter: chunkSize,
-                segments: 8 // Low poly sphere
-            }, this.scene);
+            // Create irregular mineral chunk using low-poly polyhedron shapes
+            let chunk: Mesh;
+            
+            // Randomly choose between different low-poly shapes for variety
+            const shapeType = Math.floor(Math.random() * 3);
+            
+            if (shapeType === 0) {
+                // Octahedron - 8 triangular faces
+                chunk = MeshBuilder.CreatePolyhedron(`mineral_chunk_${this.id}_${i}`, {
+                    type: 1, // Octahedron
+                    size: chunkSize * 0.8
+                }, this.scene);
+            } else if (shapeType === 1) {
+                // Icosahedron - 20 triangular faces  
+                chunk = MeshBuilder.CreatePolyhedron(`mineral_chunk_${this.id}_${i}`, {
+                    type: 2, // Icosahedron
+                    size: chunkSize * 0.7
+                }, this.scene);
+            } else {
+                // Dodecahedron - 12 pentagonal faces
+                chunk = MeshBuilder.CreatePolyhedron(`mineral_chunk_${this.id}_${i}`, {
+                    type: 3, // Dodecahedron
+                    size: chunkSize * 0.6
+                }, this.scene);
+            }
 
-            // Make chunks very irregular by scaling dramatically on different axes
-            chunk.scaling.x = 0.4 + Math.random() * 1.2; // 0.4-1.6 (very uneven)
-            chunk.scaling.y = 0.3 + Math.random() * 1.0; // 0.3-1.3 (flatter or taller)
-            chunk.scaling.z = 0.4 + Math.random() * 1.2; // 0.4-1.6 (very uneven)
+            // Make chunks irregular by scaling dramatically on different axes
+            chunk.scaling.x = 0.5 + Math.random() * 1.0; // 0.5-1.5 (uneven)
+            chunk.scaling.y = 0.4 + Math.random() * 0.8; // 0.4-1.2 (flatter or taller)
+            chunk.scaling.z = 0.5 + Math.random() * 1.0; // 0.5-1.5 (uneven)
 
             // Position chunks in cluster formation
             const angle = (i / chunkCount) * Math.PI * 2 + Math.random() * 0.8;
-            const distance = this.size * 0.5 * Math.random(); // Random clustering
+            const distance = this.size * 0.4 * Math.random(); // Random clustering
             
             chunk.position.x = Math.cos(angle) * distance;
             chunk.position.z = Math.sin(angle) * distance;
             chunk.position.y = (chunk.scaling.y * chunkSize) / 2; // Sit on ground
             
-            // Random rotation for each chunk (very dramatic for irregular look)
+            // Random rotation for each chunk (dramatic for irregular look)
             chunk.rotation.y = Math.random() * Math.PI * 2;
-            chunk.rotation.x = (Math.random() - 0.5) * 0.6; // More dramatic tilt
-            chunk.rotation.z = (Math.random() - 0.5) * 0.6; // More dramatic tilt
+            chunk.rotation.x = (Math.random() - 0.5) * 0.8; // More dramatic tilt
+            chunk.rotation.z = (Math.random() - 0.5) * 0.8; // More dramatic tilt
             
             // Parent to cluster
             chunk.parent = clusterNode;
@@ -141,7 +161,7 @@ export class MineralDeposit {
             });
         }
 
-        console.log(`💎 Irregular mineral cluster created for deposit ${this.id} (${chunkCount} chunks)`);
+        console.log(`💎 Low-poly mineral cluster created for deposit ${this.id} (${chunkCount} chunks)`);
     }
 
     /**

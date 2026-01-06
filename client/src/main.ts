@@ -406,15 +406,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         
         console.log('🎮 Visual Changes:');
-        console.log('  - Mineral deposits now have very irregular, uneven shapes');
+        console.log('  - Mineral deposits now use low-poly angular shapes (octahedron, icosahedron, dodecahedron)');
         console.log('  - Bright blue color with glowing emission');
-        console.log('  - Using deformed low-poly spheres for organic, uneven appearance');
-        console.log('  - 3-5 chunks per cluster with dramatic size variations');
-        console.log('  - Random scaling (0.3-1.6x) on all axes for maximum irregularity');
-        console.log('  - Blue-tinted reflections and emissive glow');
+        console.log('  - Sharp edges and flat faces for true low-poly aesthetic');
+        console.log('  - 3-5 chunks per cluster with different polyhedron types for variety');
+        console.log('  - Random scaling (0.4-1.5x) on all axes for irregular appearance');
+        console.log('  - Angular, faceted surfaces instead of smooth rounded shapes');
         
         console.log('💡 Note: Worker creation and mining actions will be implemented later');
-        console.log('💡 For now, you can see the new irregular blue mineral deposits scattered across the terrain');
+        console.log('💡 For now, you can see the new low-poly angular blue mineral deposits scattered across the terrain');
     };
     
     // Expose terrain stats function
