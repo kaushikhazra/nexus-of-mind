@@ -115,6 +115,84 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Start the application
     await app.init();
+    
+    // Expose testing functions to global scope for browser console
+    (window as any).testEnergySystem = () => {
+        const gameEngine = (app as any).gameEngine;
+        if (!gameEngine) {
+            console.log('❌ Game engine not available');
+            return;
+        }
+        
+        const energyManager = gameEngine.getEnergyManager();
+        const terrainGenerator = gameEngine.getTerrainGenerator();
+        
+        if (!energyManager || !terrainGenerator) {
+            console.log('❌ Energy system or terrain not available');
+            return;
+        }
+        
+        console.log('⚡ Testing Energy System...');
+        
+        // Show current energy stats
+        const stats = energyManager.getEnergyStats();
+        console.log('📊 Current Energy Stats:', stats);
+        
+        // Show mineral deposits
+        const deposits = terrainGenerator.getVisibleMineralDeposits();
+        console.log(`💎 Found ${deposits.length} visible mineral deposits`);
+        
+        if (deposits.length > 0) {
+            const deposit = deposits[0];
+            console.log('💎 First deposit stats:', deposit.getStats());
+            
+            // Test mining
+            console.log('⛏️ Testing mining...');
+            const miningEnergy = deposit.mine(1.0); // Mine for 1 second
+            if (miningEnergy > 0) {
+                energyManager.generateEnergy('test_miner', miningEnergy, 'test_mining');
+                console.log(`✅ Mined ${miningEnergy} energy!`);
+            }
+        }
+        
+        // Test energy consumption
+        console.log('⚡ Testing energy consumption...');
+        const consumed = energyManager.consumeEnergy('test_consumer', 10, 'test_action');
+        console.log(`${consumed ? '✅' : '❌'} Energy consumption test: ${consumed}`);
+        
+        // Show final stats
+        const finalStats = energyManager.getEnergyStats();
+        console.log('📊 Final Energy Stats:', finalStats);
+    };
+    
+    // Expose terrain stats function
+    (window as any).showTerrainStats = () => {
+        const gameEngine = (app as any).gameEngine;
+        if (!gameEngine) {
+            console.log('❌ Game engine not available');
+            return;
+        }
+        
+        const terrainGenerator = gameEngine.getTerrainGenerator();
+        if (!terrainGenerator) {
+            console.log('❌ Terrain generator not available');
+            return;
+        }
+        
+        const stats = terrainGenerator.getStats();
+        console.log('🌍 Terrain Stats:', stats);
+        
+        const deposits = terrainGenerator.getAllMineralDeposits();
+        console.log(`💎 Total mineral deposits: ${deposits.length}`);
+        
+        deposits.slice(0, 5).forEach((deposit, index) => {
+            console.log(`💎 Deposit ${index + 1}:`, deposit.getStats());
+        });
+    };
+    
+    console.log('🧪 Test functions available:');
+    console.log('  - testEnergySystem() - Test energy generation and consumption');
+    console.log('  - showTerrainStats() - Show terrain and mineral deposit information');
 });
 
 // Handle window resize

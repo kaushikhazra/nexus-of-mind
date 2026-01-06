@@ -10,6 +10,7 @@ import { MaterialManager } from './MaterialManager';
 import { CameraController } from './CameraController';
 import { NoiseGenerator } from '../utils/NoiseGenerator';
 import { TerrainChunk, ChunkData } from './TerrainChunk';
+import { MineralDeposit, MineralDepositConfig } from '../world/MineralDeposit';
 
 export interface TerrainConfig {
     chunkSize: number;
@@ -17,6 +18,8 @@ export interface TerrainConfig {
     loadRadius: number;
     unloadRadius: number;
     seed: number;
+    mineralDensity: number; // Minerals per chunk (average)
+    mineralCapacityRange: [number, number]; // Min/max energy per deposit
 }
 
 export class TerrainGenerator {
@@ -27,6 +30,7 @@ export class TerrainGenerator {
     
     // Chunk management
     private chunks: Map<string, TerrainChunk> = new Map();
+    private mineralDeposits: Map<string, MineralDeposit[]> = new Map(); // Deposits per chunk
     private config: TerrainConfig;
     private lastCameraPosition: Vector3 = Vector3.Zero();
     private updateThreshold: number = 10; // Update when camera moves 10 units
@@ -48,6 +52,8 @@ export class TerrainGenerator {
             loadRadius: 3, // Load 7x7 grid of chunks
             unloadRadius: 5, // Unload chunks beyond this distance
             seed: 12345,
+            mineralDensity: 2.5, // Average 2-3 deposits per chunk
+            mineralCapacityRange: [20, 80], // 20-80 energy per deposit
             ...config
         };
 
@@ -160,6 +166,9 @@ export class TerrainGenerator {
             // Create mesh
             chunk.create(chunkData);
 
+            // Generate mineral deposits for this chunk
+            this.generateMineralDeposits(chunkX, chunkZ);
+
             // Store chunk
             this.chunks.set(chunkKey, chunk);
 
@@ -168,6 +177,90 @@ export class TerrainGenerator {
         } catch (error) {
             console.error(`❌ Failed to load chunk at (${chunkX}, ${chunkZ}):`, error);
         }
+    }
+
+    /**
+     * Generate mineral deposits for a chunk
+     */
+    private generateMineralDeposits(chunkX: number, chunkZ: number): void {
+        const chunkKey = this.getChunkKey(chunkX, chunkZ);
+        const deposits: MineralDeposit[] = [];
+
+        // Use seeded random for consistent generation
+        const chunkSeed = this.config.seed + chunkX * 1000 + chunkZ;
+        const random = this.createSeededRandom(chunkSeed);
+
+        // Determine number of deposits (Poisson-like distribution)
+        const baseCount = Math.floor(this.config.mineralDensity);
+        const extraChance = this.config.mineralDensity - baseCount;
+        const depositCount = baseCount + (random() < extraChance ? 1 : 0);
+
+        const worldStartX = chunkX * this.config.chunkSize;
+        const worldStartZ = chunkZ * this.config.chunkSize;
+
+        for (let i = 0; i < depositCount; i++) {
+            // Random position within chunk (with some margin from edges)
+            const margin = 5;
+            const localX = margin + random() * (this.config.chunkSize - 2 * margin);
+            const localZ = margin + random() * (this.config.chunkSize - 2 * margin);
+            
+            const worldX = worldStartX + localX;
+            const worldZ = worldStartZ + localZ;
+            const worldY = this.getHeightAtPosition(worldX, worldZ);
+
+            // Get biome for this position
+            const biome = this.getBiomeAtPosition(worldX, worldZ);
+
+            // Adjust mineral properties based on biome
+            const biomeMultiplier = this.getBiomeMineralMultiplier(biome);
+            const [minCapacity, maxCapacity] = this.config.mineralCapacityRange;
+            const capacity = (minCapacity + random() * (maxCapacity - minCapacity)) * biomeMultiplier;
+
+            // Some deposits are hidden (require scouting)
+            const isVisible = random() > 0.3; // 70% visible, 30% hidden
+
+            // Create mineral deposit
+            const depositConfig: MineralDepositConfig = {
+                position: new Vector3(worldX, worldY, worldZ),
+                capacity: Math.round(capacity),
+                extractionRate: 1.5 + random() * 1.0, // 1.5-2.5 energy/second
+                biome,
+                visible: isVisible,
+                size: 0.8 + random() * 0.4 // 0.8-1.2 size variation
+            };
+
+            const deposit = new MineralDeposit(depositConfig);
+            deposit.initializeVisual(this.scene, this.materialManager);
+            deposits.push(deposit);
+        }
+
+        // Store deposits for this chunk
+        this.mineralDeposits.set(chunkKey, deposits);
+
+        console.log(`💎 Generated ${deposits.length} mineral deposits for chunk (${chunkX}, ${chunkZ})`);
+    }
+
+    /**
+     * Get mineral capacity multiplier based on biome
+     */
+    private getBiomeMineralMultiplier(biome: string): number {
+        switch (biome) {
+            case 'rocky': return 1.5; // Rocky areas have richer deposits
+            case 'desert': return 1.2; // Desert has moderate deposits
+            case 'vegetation': return 0.8; // Vegetation areas have fewer minerals
+            default: return 1.0;
+        }
+    }
+
+    /**
+     * Create seeded random number generator
+     */
+    private createSeededRandom(seed: number): () => number {
+        let state = seed;
+        return () => {
+            state = (state * 1664525 + 1013904223) % 4294967296;
+            return state / 4294967296;
+        };
     }
 
     /**
@@ -217,6 +310,14 @@ export class TerrainGenerator {
             
             console.log(`🗑️ Unloaded terrain chunk at (${coords.x}, ${coords.z})`);
         }
+
+        // Dispose mineral deposits for this chunk
+        const deposits = this.mineralDeposits.get(chunkKey);
+        if (deposits) {
+            deposits.forEach(deposit => deposit.dispose());
+            this.mineralDeposits.delete(chunkKey);
+            console.log(`💎 Disposed mineral deposits for chunk ${chunkKey}`);
+        }
     }
 
     /**
@@ -242,15 +343,70 @@ export class TerrainGenerator {
     }
 
     /**
+     * Get all mineral deposits within a radius of a position
+     */
+    public getMineralDepositsNear(position: Vector3, radius: number): MineralDeposit[] {
+        const nearbyDeposits: MineralDeposit[] = [];
+
+        for (const deposits of this.mineralDeposits.values()) {
+            for (const deposit of deposits) {
+                const distance = Vector3.Distance(position, deposit.getPosition());
+                if (distance <= radius) {
+                    nearbyDeposits.push(deposit);
+                }
+            }
+        }
+
+        return nearbyDeposits;
+    }
+
+    /**
+     * Get all visible mineral deposits
+     */
+    public getVisibleMineralDeposits(): MineralDeposit[] {
+        const visibleDeposits: MineralDeposit[] = [];
+
+        for (const deposits of this.mineralDeposits.values()) {
+            for (const deposit of deposits) {
+                if (deposit.isVisible()) {
+                    visibleDeposits.push(deposit);
+                }
+            }
+        }
+
+        return visibleDeposits;
+    }
+
+    /**
+     * Get all mineral deposits (including hidden ones)
+     */
+    public getAllMineralDeposits(): MineralDeposit[] {
+        const allDeposits: MineralDeposit[] = [];
+
+        for (const deposits of this.mineralDeposits.values()) {
+            allDeposits.push(...deposits);
+        }
+
+        return allDeposits;
+    }
+
+    /**
      * Get current terrain statistics
      */
     public getStats(): {
         loadedChunks: number;
+        totalMineralDeposits: number;
+        visibleMineralDeposits: number;
         seed: number;
         config: TerrainConfig;
     } {
+        const allDeposits = this.getAllMineralDeposits();
+        const visibleDeposits = allDeposits.filter(d => d.isVisible());
+
         return {
             loadedChunks: this.chunks.size,
+            totalMineralDeposits: allDeposits.length,
+            visibleMineralDeposits: visibleDeposits.length,
             seed: this.noiseGenerator.getSeed(),
             config: { ...this.config }
         };
@@ -296,6 +452,12 @@ export class TerrainGenerator {
             chunk.dispose();
         }
         this.chunks.clear();
+
+        // Dispose all mineral deposits
+        for (const deposits of this.mineralDeposits.values()) {
+            deposits.forEach(deposit => deposit.dispose());
+        }
+        this.mineralDeposits.clear();
 
         console.log('✅ Terrain system disposed');
     }
