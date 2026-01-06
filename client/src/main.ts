@@ -9,7 +9,7 @@ import { GameEngine } from './game/GameEngine';
 import { BuildingAction } from './game/actions/BuildingAction';
 import { MovementAction } from './game/actions/MovementAction';
 import { BuildingPlacementUI } from './ui/BuildingPlacementUI';
-import { MiningUI } from './ui/MiningUI';
+import { MineralReserveUI } from './ui/MiningUI';
 import { Vector3 } from '@babylonjs/core';
 
 /**
@@ -20,7 +20,7 @@ class Application {
     private canvas: HTMLCanvasElement | null = null;
     private loadingScreen: HTMLElement | null = null;
     private buildingPlacementUI: BuildingPlacementUI | null = null;
-    private miningUI: MiningUI | null = null;
+    private mineralReserveUI: MineralReserveUI | null = null;
 
     /**
      * Initialize the application
@@ -54,8 +54,8 @@ class Application {
             // Initialize building placement UI
             this.initializeBuildingPlacementUI();
 
-            // Initialize mining UI
-            this.initializeMiningUI();
+            // Initialize mineral reserve UI
+            this.initializeMineralReserveUI();
 
             // Hide loading screen after a brief delay
             setTimeout(() => {
@@ -107,31 +107,27 @@ class Application {
     }
 
     /**
-     * Initialize mining UI
+     * Initialize mineral reserve UI
      */
-    private initializeMiningUI(): void {
+    private initializeMineralReserveUI(): void {
         if (!this.gameEngine) {
-            console.error('❌ Cannot initialize mining UI: GameEngine not available');
+            console.error('❌ Cannot initialize mineral reserve UI: GameEngine not available');
             return;
         }
 
-        const scene = this.gameEngine.getScene();
-        const unitManager = this.gameEngine.getUnitManager();
         const terrainGenerator = this.gameEngine.getTerrainGenerator();
 
-        if (!scene || !unitManager || !terrainGenerator) {
-            console.error('❌ Cannot initialize mining UI: Required components not available');
+        if (!terrainGenerator) {
+            console.error('❌ Cannot initialize mineral reserve UI: TerrainGenerator not available');
             return;
         }
 
-        this.miningUI = new MiningUI({
-            containerId: 'mining-ui',
-            scene: scene,
-            unitManager: unitManager,
+        this.mineralReserveUI = new MineralReserveUI({
+            containerId: 'mineral-reserve-ui',
             terrainGenerator: terrainGenerator
         });
 
-        console.log('⛏️ Mining UI initialized');
+        console.log('💎 Mineral Reserve UI initialized');
     }
     private initializeBuildingPlacementUI(): void {
         if (!this.gameEngine) {
@@ -162,9 +158,9 @@ class Application {
      * Cleanup on page unload
      */
     public dispose(): void {
-        if (this.miningUI) {
-            this.miningUI.dispose();
-            this.miningUI = null;
+        if (this.mineralReserveUI) {
+            this.mineralReserveUI.dispose();
+            this.mineralReserveUI = null;
         }
         
         if (this.buildingPlacementUI) {
@@ -372,8 +368,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('📊 Unit Manager Stats:', stats);
     };
     
-    // Test mineral deposits display
-    (window as any).testMineralDeposits = () => {
+    // Test mineral reserve display
+    (window as any).testMineralReserves = () => {
         const gameEngine = (app as any).gameEngine;
         if (!gameEngine) {
             console.log('❌ Game engine not available');
@@ -387,34 +383,48 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         
-        console.log('💎 Testing Mineral Deposits Display...');
+        console.log('💎 Testing Mineral Reserve Display...');
         
         // Show mineral deposits
-        const deposits = terrainGenerator.getVisibleMineralDeposits();
-        console.log(`💎 Found ${deposits.length} visible mineral deposits`);
+        const visibleDeposits = terrainGenerator.getVisibleMineralDeposits();
+        const allDeposits = terrainGenerator.getAllMineralDeposits();
         
-        if (deposits.length === 0) {
+        console.log(`💎 Found ${visibleDeposits.length} visible deposits out of ${allDeposits.length} total`);
+        
+        if (visibleDeposits.length === 0) {
             console.log('❌ No mineral deposits found - check terrain generation');
             return;
         }
         
-        // Show deposit details
-        deposits.slice(0, 5).forEach((deposit: any, index: number) => {
+        // Calculate reserve statistics
+        let totalCapacity = 0;
+        let totalRemaining = 0;
+        
+        visibleDeposits.forEach((deposit: any, index: number) => {
             const stats = deposit.getStats();
             const pos = deposit.getPosition();
-            console.log(`💎 Deposit ${index + 1}: ${stats.capacity} energy at (${pos.x.toFixed(1)}, ${pos.z.toFixed(1)}) - ${stats.biome} biome`);
+            totalCapacity += stats.capacity;
+            totalRemaining += stats.remaining;
+            
+            if (index < 3) { // Show first 3 deposits
+                console.log(`💎 Deposit ${index + 1}: ${stats.remaining}/${stats.capacity} E at (${pos.x.toFixed(1)}, ${pos.z.toFixed(1)}) - ${stats.biome} biome`);
+            }
         });
         
-        console.log('🎮 Visual Changes:');
-        console.log('  - Mineral deposits now use low-poly angular shapes (octahedron, icosahedron, dodecahedron)');
-        console.log('  - Bright blue color with glowing emission');
-        console.log('  - Sharp edges and flat faces for true low-poly aesthetic');
-        console.log('  - 3-5 chunks per cluster with different polyhedron types for variety');
-        console.log('  - Random scaling (0.4-1.5x) on all axes for irregular appearance');
-        console.log('  - Angular, faceted surfaces instead of smooth rounded shapes');
+        const avgCapacity = Math.round(totalCapacity / visibleDeposits.length);
         
-        console.log('💡 Note: Worker creation and mining actions will be implemented later');
-        console.log('💡 For now, you can see the new low-poly angular blue mineral deposits scattered across the terrain');
+        console.log(`📊 Reserve Summary:`);
+        console.log(`  - Visible Deposits: ${visibleDeposits.length}`);
+        console.log(`  - Total Remaining: ${Math.round(totalRemaining)} E`);
+        console.log(`  - Average per Deposit: ${avgCapacity} E`);
+        
+        console.log('🎮 UI Features:');
+        console.log('  - Mineral Reserve panel appears below energy bar (top-left)');
+        console.log('  - Shows visible deposits, total capacity, and average per deposit');
+        console.log('  - Updates automatically every 2 seconds');
+        console.log('  - Clean SciFi styling matching energy display');
+        
+        console.log('💡 The Mineral Reserve UI shows your available mineral resources for strategic planning');
     };
     
     // Expose terrain stats function
@@ -447,7 +457,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('  - testBuildingSystem() - Test building creation and energy costs');
     console.log('  - testMovementSystem() - Test unit movement and energy consumption');
     console.log('  - testUnitSystem() - Test unit creation and management');
-    console.log('  - testMineralDeposits() - View new rock-like mineral deposits');
+    console.log('  - testMineralReserves() - View mineral reserve display and statistics');
     console.log('  - showTerrainStats() - Show terrain and mineral deposit information');
 });
 
