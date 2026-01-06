@@ -27,6 +27,7 @@ export class EnergyDisplay {
     private consumptionRateElement: HTMLElement | null = null;
     private efficiencyElement: HTMLElement | null = null;
     private transactionHistoryElement: HTMLElement | null = null;
+    private netRateElement: HTMLElement | null = null;
     
     // Update management
     private updateInterval: number | null = null;
@@ -72,297 +73,184 @@ export class EnergyDisplay {
         // Clear existing content
         this.container.innerHTML = '';
         
-        // Main energy display with advanced SciFi styling
-        const energyPanel = document.createElement('div');
-        energyPanel.className = 'energy-panel';
-        energyPanel.style.cssText = `
-            background: linear-gradient(135deg, rgba(0, 10, 30, 0.95) 0%, rgba(0, 30, 60, 0.95) 100%);
-            border: 2px solid #00ffff;
-            border-radius: 12px;
-            padding: 16px;
-            font-family: 'Orbitron', 'Courier New', monospace;
-            color: #00ffff;
-            min-width: 240px;
-            box-shadow: 
-                0 0 20px rgba(0, 255, 255, 0.4),
-                inset 0 0 20px rgba(0, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            position: relative;
-            overflow: hidden;
-        `;
-
-        // Add animated background pattern
-        const bgPattern = document.createElement('div');
-        bgPattern.style.cssText = `
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: 
-                repeating-linear-gradient(
-                    90deg,
-                    transparent,
-                    transparent 2px,
-                    rgba(0, 255, 255, 0.03) 2px,
-                    rgba(0, 255, 255, 0.03) 4px
-                );
-            pointer-events: none;
-            z-index: 0;
-        `;
-        energyPanel.appendChild(bgPattern);
-
-        // Content container
-        const contentContainer = document.createElement('div');
-        contentContainer.style.cssText = 'position: relative; z-index: 1;';
-
-        // Energy header with SciFi styling
-        const energyHeader = document.createElement('div');
-        energyHeader.style.cssText = `
-            font-size: 14px;
-            font-weight: 700;
-            margin-bottom: 12px;
-            text-align: center;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            color: #00ffff;
-            text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
-            border-bottom: 1px solid rgba(0, 255, 255, 0.3);
-            padding-bottom: 8px;
-        `;
-        energyHeader.innerHTML = '◊ ENERGY CORE ◊';
-
-        // Energy value display with holographic effect
-        this.energyValueElement = document.createElement('div');
-        this.energyValueElement.style.cssText = `
-            font-size: 28px;
-            font-weight: 900;
-            text-align: center;
-            margin: 16px 0;
-            color: #00ff00;
-            text-shadow: 
-                0 0 10px rgba(0, 255, 0, 0.8),
-                0 0 20px rgba(0, 255, 0, 0.4);
+        // Compact HUD overlay with minimal transparent design
+        const energyHUD = document.createElement('div');
+        energyHUD.className = 'energy-hud';
+        energyHUD.style.cssText = `
+            background: rgba(0, 10, 20, 0.3);
+            border: 1px solid rgba(0, 255, 255, 0.6);
+            border-radius: 8px;
+            padding: 8px 12px;
             font-family: 'Orbitron', monospace;
-            letter-spacing: 1px;
+            color: #00ffff;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+            min-width: 160px;
+            font-size: 11px;
+            letter-spacing: 0.5px;
         `;
-        this.energyValueElement.textContent = '0 J';
 
-        // Energy bar with advanced styling
+        // Energy bar at the top
         const energyBarContainer = document.createElement('div');
         energyBarContainer.style.cssText = `
             width: 100%;
-            height: 24px;
-            background: rgba(0, 0, 0, 0.6);
-            border: 2px solid #00ffff;
-            border-radius: 12px;
+            height: 6px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(0, 255, 255, 0.4);
+            border-radius: 3px;
             overflow: hidden;
-            margin: 16px 0;
+            margin-bottom: 8px;
             position: relative;
-            box-shadow: inset 0 0 10px rgba(0, 255, 255, 0.2);
         `;
-
-        // Energy bar background glow
-        const energyBarGlow = document.createElement('div');
-        energyBarGlow.style.cssText = `
-            position: absolute;
-            top: -2px;
-            left: -2px;
-            right: -2px;
-            bottom: -2px;
-            background: linear-gradient(90deg, #00ffff, #00ff00, #ffff00, #ff0000);
-            border-radius: 12px;
-            opacity: 0.3;
-            z-index: 0;
-        `;
-        energyBarContainer.appendChild(energyBarGlow);
 
         this.energyBarFillElement = document.createElement('div');
         this.energyBarFillElement.style.cssText = `
             height: 100%;
             background: linear-gradient(90deg, 
-                rgba(0, 255, 0, 0.9) 0%, 
-                rgba(0, 255, 255, 0.9) 50%, 
-                rgba(255, 255, 0, 0.9) 80%, 
-                rgba(255, 0, 0, 0.9) 100%);
+                rgba(0, 255, 0, 0.8) 0%, 
+                rgba(0, 255, 255, 0.8) 50%, 
+                rgba(255, 255, 0, 0.8) 80%, 
+                rgba(255, 0, 0, 0.8) 100%);
             width: 100%;
-            transition: width 0.5s ease;
-            position: relative;
-            z-index: 1;
-            box-shadow: 0 0 15px rgba(0, 255, 0, 0.6);
+            transition: width 0.3s ease;
+            box-shadow: 0 0 8px rgba(0, 255, 0, 0.4);
         `;
-
-        // Add animated energy flow effect
-        const energyFlow = document.createElement('div');
-        energyFlow.style.cssText = `
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, 
-                transparent 0%, 
-                rgba(255, 255, 255, 0.4) 50%, 
-                transparent 100%);
-            animation: energyFlow 2s infinite linear;
-            z-index: 2;
-        `;
-        this.energyBarFillElement.appendChild(energyFlow);
 
         energyBarContainer.appendChild(this.energyBarFillElement);
 
-        // Details section with SciFi styling
-        let detailsSection: HTMLElement | null = null;
-        if (this.config.showDetails) {
-            detailsSection = document.createElement('div');
-            detailsSection.style.cssText = `
-                font-size: 11px;
-                margin-top: 12px;
-                border-top: 1px solid rgba(0, 255, 255, 0.4);
-                padding-top: 12px;
-                font-family: 'Orbitron', monospace;
-                letter-spacing: 0.5px;
-            `;
+        // Compact stats grid - 2x2 layout
+        const statsGrid = document.createElement('div');
+        statsGrid.style.cssText = `
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px 8px;
+            font-size: 10px;
+        `;
 
-            // Generation rate
-            const generationRow = document.createElement('div');
-            generationRow.style.cssText = `
-                display: flex; 
-                justify-content: space-between; 
-                margin-bottom: 6px;
-                padding: 4px 0;
-                border-left: 2px solid rgba(0, 255, 0, 0.6);
-                padding-left: 8px;
-            `;
-            generationRow.innerHTML = '<span>⚡ GENERATION:</span><span id="generation-rate" style="color: #00ff00; font-weight: bold;">0 J/s</span>';
-            this.generationRateElement = generationRow.querySelector('#generation-rate');
-
-            // Consumption rate
-            const consumptionRow = document.createElement('div');
-            consumptionRow.style.cssText = `
-                display: flex; 
-                justify-content: space-between; 
-                margin-bottom: 6px;
-                padding: 4px 0;
-                border-left: 2px solid rgba(255, 165, 0, 0.6);
-                padding-left: 8px;
-            `;
-            consumptionRow.innerHTML = '<span>⚡ CONSUMPTION:</span><span id="consumption-rate" style="color: #ffaa00; font-weight: bold;">0 J/s</span>';
-            this.consumptionRateElement = consumptionRow.querySelector('#consumption-rate');
-
-            // Efficiency
-            const efficiencyRow = document.createElement('div');
-            efficiencyRow.style.cssText = `
-                display: flex; 
-                justify-content: space-between; 
-                margin-bottom: 6px;
-                padding: 4px 0;
-                border-left: 2px solid rgba(0, 255, 255, 0.6);
-                padding-left: 8px;
-            `;
-            efficiencyRow.innerHTML = '<span>◊ EFFICIENCY:</span><span id="efficiency" style="color: #00ffff; font-weight: bold;">100%</span>';
-            this.efficiencyElement = efficiencyRow.querySelector('#efficiency');
-
-            detailsSection.appendChild(generationRow);
-            detailsSection.appendChild(consumptionRow);
-            detailsSection.appendChild(efficiencyRow);
-        }
-
-        // Transaction history with SciFi styling
-        if (this.config.showHistory) {
-            this.transactionHistoryElement = document.createElement('div');
-            this.transactionHistoryElement.style.cssText = `
-                font-size: 9px;
-                margin-top: 12px;
-                border-top: 1px solid rgba(0, 255, 255, 0.4);
-                padding-top: 8px;
-                max-height: 120px;
-                overflow-y: auto;
-                font-family: 'Orbitron', monospace;
-            `;
-            
-            const historyTitle = document.createElement('div');
-            historyTitle.textContent = '◊ TRANSACTION LOG ◊';
-            historyTitle.style.cssText = `
-                font-weight: bold; 
-                margin-bottom: 6px; 
-                color: #00ffff;
-                text-align: center;
-                letter-spacing: 1px;
-            `;
-            this.transactionHistoryElement.appendChild(historyTitle);
-        }
-
-        // Assemble UI
-        contentContainer.appendChild(energyHeader);
-        contentContainer.appendChild(this.energyValueElement);
-        contentContainer.appendChild(energyBarContainer);
+        // Energy value (main display)
+        const energyRow = document.createElement('div');
+        energyRow.style.cssText = `
+            grid-column: 1 / -1;
+            text-align: center;
+            margin-bottom: 4px;
+        `;
+        this.energyValueElement = document.createElement('span');
+        this.energyValueElement.style.cssText = `
+            font-size: 16px;
+            font-weight: 700;
+            color: #00ff00;
+            text-shadow: 0 0 8px rgba(0, 255, 0, 0.6);
+        `;
+        this.energyValueElement.textContent = '0';
         
-        if (detailsSection) {
-            contentContainer.appendChild(detailsSection);
-        }
+        const energyUnit = document.createElement('span');
+        energyUnit.style.cssText = `
+            font-size: 10px;
+            color: #00ccff;
+            margin-left: 2px;
+        `;
+        energyUnit.textContent = 'J';
         
-        if (this.transactionHistoryElement) {
-            contentContainer.appendChild(this.transactionHistoryElement);
-        }
+        energyRow.appendChild(this.energyValueElement);
+        energyRow.appendChild(energyUnit);
 
-        energyPanel.appendChild(contentContainer);
-        this.container.appendChild(energyPanel);
+        // Generation rate
+        const genLabel = document.createElement('div');
+        genLabel.style.cssText = 'color: #00ff88; font-size: 9px;';
+        genLabel.textContent = '+GEN';
+        
+        this.generationRateElement = document.createElement('div');
+        this.generationRateElement.style.cssText = `
+            color: #00ff88;
+            font-weight: 600;
+            text-align: right;
+        `;
+        this.generationRateElement.textContent = '0.0';
 
-        // Add CSS animations
-        this.addSciFiAnimations();
+        // Consumption rate
+        const consLabel = document.createElement('div');
+        consLabel.style.cssText = 'color: #ffaa00; font-size: 9px;';
+        consLabel.textContent = '-CON';
+        
+        this.consumptionRateElement = document.createElement('div');
+        this.consumptionRateElement.style.cssText = `
+            color: #ffaa00;
+            font-weight: 600;
+            text-align: right;
+        `;
+        this.consumptionRateElement.textContent = '0.0';
+
+        // Efficiency
+        const effLabel = document.createElement('div');
+        effLabel.style.cssText = 'color: #00ccff; font-size: 9px;';
+        effLabel.textContent = 'EFF';
+        
+        this.efficiencyElement = document.createElement('div');
+        this.efficiencyElement.style.cssText = `
+            color: #00ccff;
+            font-weight: 600;
+            text-align: right;
+        `;
+        this.efficiencyElement.textContent = '100%';
+
+        // Net rate (generation - consumption)
+        const netLabel = document.createElement('div');
+        netLabel.style.cssText = 'color: #ffffff; font-size: 9px;';
+        netLabel.textContent = 'NET';
+        
+        const netRateElement = document.createElement('div');
+        netRateElement.id = 'net-rate';
+        netRateElement.style.cssText = `
+            color: #ffffff;
+            font-weight: 600;
+            text-align: right;
+        `;
+        netRateElement.textContent = '0.0';
+
+        // Assemble grid
+        statsGrid.appendChild(genLabel);
+        statsGrid.appendChild(this.generationRateElement);
+        statsGrid.appendChild(consLabel);
+        statsGrid.appendChild(this.consumptionRateElement);
+        statsGrid.appendChild(effLabel);
+        statsGrid.appendChild(this.efficiencyElement);
+        statsGrid.appendChild(netLabel);
+        statsGrid.appendChild(netRateElement);
+
+        // Assemble HUD
+        energyHUD.appendChild(energyBarContainer);
+        energyHUD.appendChild(energyRow);
+        energyHUD.appendChild(statsGrid);
+
+        this.container.appendChild(energyHUD);
+
+        // Store reference to net rate element
+        this.netRateElement = netRateElement;
+
+        // Add minimal CSS animations
+        this.addMinimalAnimations();
     }
 
     /**
-     * Add SciFi CSS animations
+     * Add minimal CSS animations for HUD
      */
-    private addSciFiAnimations(): void {
-        if (!document.querySelector('#scifi-energy-animations')) {
+    private addMinimalAnimations(): void {
+        if (!document.querySelector('#minimal-hud-animations')) {
             const style = document.createElement('style');
-            style.id = 'scifi-energy-animations';
+            style.id = 'minimal-hud-animations';
             style.textContent = `
-                @keyframes energyFlow {
-                    0% { left: -100%; }
-                    100% { left: 100%; }
-                }
-                
-                @keyframes energyPulse {
-                    0%, 100% { 
-                        box-shadow: 
-                            0 0 20px rgba(0, 255, 255, 0.4),
-                            inset 0 0 20px rgba(0, 255, 255, 0.1);
-                    }
-                    50% { 
-                        box-shadow: 
-                            0 0 30px rgba(0, 255, 255, 0.6),
-                            inset 0 0 30px rgba(0, 255, 255, 0.2);
-                    }
-                }
-                
-                @keyframes textGlow {
-                    0%, 100% { 
-                        text-shadow: 
-                            0 0 10px rgba(0, 255, 255, 0.8),
-                            0 0 20px rgba(0, 255, 255, 0.4);
-                    }
-                    50% { 
-                        text-shadow: 
-                            0 0 15px rgba(0, 255, 255, 1),
-                            0 0 30px rgba(0, 255, 255, 0.6);
-                    }
-                }
-                
                 @keyframes blink {
                     0%, 50% { opacity: 1; }
                     51%, 100% { opacity: 0.3; }
                 }
                 
-                .energy-panel {
-                    animation: energyPulse 3s infinite ease-in-out;
+                .energy-hud {
+                    transition: all 0.3s ease;
                 }
                 
-                .energy-panel:hover {
-                    animation: energyPulse 1s infinite ease-in-out;
+                .energy-hud:hover {
+                    background: rgba(0, 15, 30, 0.5);
+                    box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
                 }
             `;
             document.head.appendChild(style);
@@ -413,13 +301,13 @@ export class EnergyDisplay {
      * Update display with provided stats
      */
     private updateDisplayWithStats(stats: EnergyStats): void {
-        // Update energy value
+        // Update energy value (just the number, no unit)
         if (this.energyValueElement) {
-            this.energyValueElement.textContent = `${Math.round(stats.totalEnergy)} J`;
+            this.energyValueElement.textContent = `${Math.round(stats.totalEnergy)}`;
             
             // Color based on energy level
             if (stats.totalEnergy < 20) {
-                this.energyValueElement.style.color = '#ff0000'; // Red for low energy
+                this.energyValueElement.style.color = '#ff4444'; // Red for low energy
             } else if (stats.totalEnergy < 50) {
                 this.energyValueElement.style.color = '#ffff00'; // Yellow for medium energy
             } else {
@@ -434,28 +322,41 @@ export class EnergyDisplay {
             this.energyBarFillElement.style.width = `${percentage}%`;
         }
 
-        // Update details
-        if (this.config.showDetails) {
-            if (this.generationRateElement) {
-                this.generationRateElement.textContent = `${stats.totalGeneration.toFixed(1)} J/s`;
-            }
+        // Update compact stats
+        if (this.generationRateElement) {
+            this.generationRateElement.textContent = `${stats.totalGeneration.toFixed(1)}`;
+        }
+        
+        if (this.consumptionRateElement) {
+            this.consumptionRateElement.textContent = `${stats.totalConsumption.toFixed(1)}`;
+        }
+        
+        if (this.efficiencyElement) {
+            const efficiency = (stats.energyEfficiency * 100).toFixed(0);
+            this.efficiencyElement.textContent = `${efficiency}%`;
             
-            if (this.consumptionRateElement) {
-                this.consumptionRateElement.textContent = `${stats.totalConsumption.toFixed(1)} J/s`;
+            // Color based on efficiency
+            if (stats.energyEfficiency < 0.5) {
+                this.efficiencyElement.style.color = '#ff4444';
+            } else if (stats.energyEfficiency < 0.8) {
+                this.efficiencyElement.style.color = '#ffaa00';
+            } else {
+                this.efficiencyElement.style.color = '#00ccff';
             }
+        }
+
+        // Update net rate (generation - consumption)
+        if (this.netRateElement) {
+            const netRate = stats.totalGeneration - stats.totalConsumption;
+            this.netRateElement.textContent = `${netRate.toFixed(1)}`;
             
-            if (this.efficiencyElement) {
-                const efficiency = (stats.energyEfficiency * 100).toFixed(1);
-                this.efficiencyElement.textContent = `${efficiency}%`;
-                
-                // Color based on efficiency
-                if (stats.energyEfficiency < 0.5) {
-                    this.efficiencyElement.style.color = '#ff0000';
-                } else if (stats.energyEfficiency < 0.8) {
-                    this.efficiencyElement.style.color = '#ffff00';
-                } else {
-                    this.efficiencyElement.style.color = '#00ff00';
-                }
+            // Color based on net rate
+            if (netRate > 0) {
+                this.netRateElement.style.color = '#00ff88'; // Green for positive
+            } else if (netRate < 0) {
+                this.netRateElement.style.color = '#ff6644'; // Red for negative
+            } else {
+                this.netRateElement.style.color = '#ffffff'; // White for neutral
             }
         }
 
