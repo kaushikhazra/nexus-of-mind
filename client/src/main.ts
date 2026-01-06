@@ -406,14 +406,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         
         console.log('🎮 Visual Changes:');
-        console.log('  - Mineral deposits now look like rocky clusters instead of crystals');
-        console.log('  - Brown-gray rocky color instead of light blue');
-        console.log('  - Irregular box shapes with random scaling for natural rock appearance');
-        console.log('  - 2-4 rocks per cluster with varied sizes and rotations');
-        console.log('  - Subtle warm glow instead of bright blue emission');
+        console.log('  - Mineral deposits now have very irregular, uneven shapes');
+        console.log('  - Bright blue color with glowing emission');
+        console.log('  - Using deformed low-poly spheres for organic, uneven appearance');
+        console.log('  - 3-5 chunks per cluster with dramatic size variations');
+        console.log('  - Random scaling (0.3-1.6x) on all axes for maximum irregularity');
+        console.log('  - Blue-tinted reflections and emissive glow');
         
         console.log('💡 Note: Worker creation and mining actions will be implemented later');
-        console.log('💡 For now, you can see the new rock-like mineral deposits scattered across the terrain');
+        console.log('💡 For now, you can see the new irregular blue mineral deposits scattered across the terrain');
     };
     
     // Expose terrain stats function

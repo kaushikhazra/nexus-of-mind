@@ -25,7 +25,7 @@ export interface ColorPalette {
     };
     
     // Resource colors
-    mineral: Color3;     // Rocky brown-gray
+    mineral: Color3;     // Bright blue
     flora: Color3;       // Green vegetation
     stem: Color3;        // Brown stems
     
@@ -55,7 +55,7 @@ export class MaterialManager {
         },
         
         // Resource colors
-        mineral: new Color3(0.5, 0.4, 0.3),     // Rocky brown-gray color
+        mineral: new Color3(0.2, 0.6, 1.0),     // Bright blue minerals
         flora: new Color3(0.2, 0.7, 0.3),       // Vegetation green
         stem: new Color3(0.4, 0.2, 0.1),        // Brown stems
         
@@ -177,8 +177,8 @@ export class MaterialManager {
      */
     public getMineralMaterial(): StandardMaterial {
         return this.createLowPolyMaterial('mineral', this.colorPalette.mineral, {
-            emissive: new Color3(0.05, 0.04, 0.03), // Subtle warm glow
-            specular: new Color3(0.1, 0.1, 0.1)     // Less reflective, more matte
+            emissive: new Color3(0.1, 0.3, 0.5), // Blue glow
+            specular: new Color3(0.2, 0.4, 0.6)  // Blue-tinted reflections
         });
     }
 

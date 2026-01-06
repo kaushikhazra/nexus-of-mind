@@ -87,62 +87,61 @@ export class MineralDeposit {
     private createMesh(materialManager: MaterialManager): void {
         if (!this.scene) return;
 
-        // Create a parent node for the rock cluster
+        // Create a parent node for the mineral cluster
         const clusterNode = new TransformNode(`mineral_cluster_${this.id}`, this.scene);
         clusterNode.position = this.position.clone();
 
-        // Create multiple rocks in a cluster (2-4 rocks)
-        const rockCount = 2 + Math.floor(Math.random() * 3); // 2-4 rocks
-        const rocks: Mesh[] = [];
+        // Create multiple irregular mineral chunks in a cluster (3-5 chunks)
+        const chunkCount = 3 + Math.floor(Math.random() * 3); // 3-5 chunks
+        const chunks: Mesh[] = [];
 
-        for (let i = 0; i < rockCount; i++) {
-            // Vary rock size (70% to 130% of base size)
-            const sizeVariation = 0.7 + Math.random() * 0.6;
-            const rockSize = this.size * sizeVariation;
+        for (let i = 0; i < chunkCount; i++) {
+            // Vary chunk size (60% to 140% of base size)
+            const sizeVariation = 0.6 + Math.random() * 0.8;
+            const chunkSize = this.size * sizeVariation;
             
-            // Create individual rock using irregular box shape
-            const rock = MeshBuilder.CreateBox(`mineral_rock_${this.id}_${i}`, {
-                width: rockSize * (0.8 + Math.random() * 0.4),   // Width variation
-                height: rockSize * (0.6 + Math.random() * 0.8),  // Height variation  
-                depth: rockSize * (0.8 + Math.random() * 0.4),   // Depth variation
+            // Create irregular mineral chunk using sphere as base, then deform it
+            const chunk = MeshBuilder.CreateSphere(`mineral_chunk_${this.id}_${i}`, {
+                diameter: chunkSize,
+                segments: 8 // Low poly sphere
             }, this.scene);
 
-            // Make rocks look more irregular by scaling on different axes
-            rock.scaling.x *= 0.8 + Math.random() * 0.4; // 0.8-1.2
-            rock.scaling.y *= 0.6 + Math.random() * 0.8; // 0.6-1.4
-            rock.scaling.z *= 0.8 + Math.random() * 0.4; // 0.8-1.2
+            // Make chunks very irregular by scaling dramatically on different axes
+            chunk.scaling.x = 0.4 + Math.random() * 1.2; // 0.4-1.6 (very uneven)
+            chunk.scaling.y = 0.3 + Math.random() * 1.0; // 0.3-1.3 (flatter or taller)
+            chunk.scaling.z = 0.4 + Math.random() * 1.2; // 0.4-1.6 (very uneven)
 
-            // Position rocks in cluster formation
-            const angle = (i / rockCount) * Math.PI * 2 + Math.random() * 0.8;
-            const distance = this.size * 0.4 * Math.random(); // Random clustering
+            // Position chunks in cluster formation
+            const angle = (i / chunkCount) * Math.PI * 2 + Math.random() * 0.8;
+            const distance = this.size * 0.5 * Math.random(); // Random clustering
             
-            rock.position.x = Math.cos(angle) * distance;
-            rock.position.z = Math.sin(angle) * distance;
-            rock.position.y = (rock.scaling.y * rockSize * 0.6) / 2; // Sit on ground
+            chunk.position.x = Math.cos(angle) * distance;
+            chunk.position.z = Math.sin(angle) * distance;
+            chunk.position.y = (chunk.scaling.y * chunkSize) / 2; // Sit on ground
             
-            // Random rotation for each rock (more dramatic than crystals)
-            rock.rotation.y = Math.random() * Math.PI * 2;
-            rock.rotation.x = (Math.random() - 0.5) * 0.4; // More tilt
-            rock.rotation.z = (Math.random() - 0.5) * 0.4; // More tilt
+            // Random rotation for each chunk (very dramatic for irregular look)
+            chunk.rotation.y = Math.random() * Math.PI * 2;
+            chunk.rotation.x = (Math.random() - 0.5) * 0.6; // More dramatic tilt
+            chunk.rotation.z = (Math.random() - 0.5) * 0.6; // More dramatic tilt
             
             // Parent to cluster
-            rock.parent = clusterNode;
-            rocks.push(rock);
+            chunk.parent = clusterNode;
+            chunks.push(chunk);
         }
 
         // Store the cluster node as the main mesh
         this.mesh = clusterNode as any; // TransformNode acts as container
-        this.crystals = rocks; // Store individual rocks for material application
+        this.crystals = chunks; // Store individual chunks for material application
 
-        // Apply material to all rocks
+        // Apply material to all chunks
         this.material = materialManager.getMineralMaterial();
         if (this.material) {
-            rocks.forEach(rock => {
-                rock.material = this.material;
+            chunks.forEach(chunk => {
+                chunk.material = this.material;
             });
         }
 
-        console.log(`💎 Rock cluster created for mineral deposit ${this.id} (${rockCount} rocks)`);
+        console.log(`💎 Irregular mineral cluster created for deposit ${this.id} (${chunkCount} chunks)`);
     }
 
     /**
