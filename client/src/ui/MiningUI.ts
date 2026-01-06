@@ -76,7 +76,7 @@ export class MineralReserveUI {
         style.textContent = `
             .mineral-reserve-panel {
                 position: fixed;
-                top: 80px;
+                top: 68px;
                 right: 20px;
                 height: 40px;
                 min-width: 250px;
