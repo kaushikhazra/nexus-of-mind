@@ -182,22 +182,28 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         
-        const gameState = gameEngine.getGameState();
+        const buildingManager = gameEngine.getBuildingManager();
         const energyManager = gameEngine.getEnergyManager();
         
-        if (!gameState || !energyManager) {
-            console.log('❌ Game state or energy manager not available');
+        if (!buildingManager || !energyManager) {
+            console.log('❌ Building manager or energy manager not available');
             return;
         }
         
         console.log('🏗️ Testing Building System...');
         
         // Show available building types
-        const buildingTypes = (window as any).BuildingAction?.getAvailableBuildingTypes() || [];
+        const buildingTypes = buildingManager.getAvailableBuildingTypes();
         console.log('🏗️ Available building types:', buildingTypes);
         
         // Show current energy
         console.log(`⚡ Current energy: ${energyManager.getTotalEnergy()}`);
+        
+        const gameState = gameEngine.getGameState();
+        if (!gameState) {
+            console.log('❌ Game state not available');
+            return;
+        }
         
         // Create a test unit
         const testUnit = gameState.createUnit('worker', new (window as any).Vector3(0, 0, 0));
