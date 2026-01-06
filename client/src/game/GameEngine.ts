@@ -13,6 +13,7 @@ import { MaterialManager } from '../rendering/MaterialManager';
 import { PerformanceMonitor } from '../utils/PerformanceMonitor';
 import { EnergyManager } from './EnergyManager';
 import { EnergyDisplay } from '../ui/EnergyDisplay';
+import { GameState } from './GameState';
 
 export class GameEngine {
     private static instance: GameEngine | null = null;
@@ -31,6 +32,9 @@ export class GameEngine {
     // Energy system
     private energyManager: EnergyManager | null = null;
     private energyDisplay: EnergyDisplay | null = null;
+    
+    // Game state
+    private gameState: GameState | null = null;
     
     private isInitialized: boolean = false;
     private isRunning: boolean = false;
@@ -94,6 +98,10 @@ export class GameEngine {
             this.energyManager = EnergyManager.getInstance();
             this.energyManager.initialize(100); // Start with 100 energy
 
+            // Initialize game state
+            this.gameState = GameState.getInstance();
+            this.gameState.initialize();
+
             // Setup components
             this.cameraController.setupCamera();
             this.lightingSetup.setupLighting();
@@ -103,6 +111,9 @@ export class GameEngine {
             
             // Initialize energy UI
             this.initializeEnergyUI();
+            
+            // Setup terrain integration with game state
+            this.setupTerrainIntegration();
             
             // Handle window resize
             window.addEventListener('resize', () => {
@@ -143,7 +154,15 @@ export class GameEngine {
 
             // Start render loop
             this.engine.runRenderLoop(() => {
-                if (this.scene) {
+                if (this.scene && this.engine) {
+                    // Calculate delta time
+                    const deltaTime = this.engine.getDeltaTime() / 1000; // Convert to seconds
+                    
+                    // Update game state
+                    if (this.gameState) {
+                        this.gameState.update(deltaTime);
+                    }
+                    
                     // Update energy system
                     if (this.energyManager) {
                         this.energyManager.update();
@@ -180,6 +199,26 @@ export class GameEngine {
         this.isRunning = false;
 
         console.log('✅ Game engine stopped');
+    }
+
+    /**
+     * Setup terrain integration with game state
+     */
+    private setupTerrainIntegration(): void {
+        const terrainGenerator = this.sceneManager?.getTerrainGenerator();
+        if (!terrainGenerator || !this.gameState) {
+            return;
+        }
+
+        // Add existing mineral deposits to game state
+        const deposits = terrainGenerator.getAllMineralDeposits();
+        if (this.gameState) {
+            deposits.forEach(deposit => {
+                this.gameState!.addMineralDeposit(deposit);
+            });
+        }
+
+        console.log(`🌍 Integrated ${deposits.length} mineral deposits with game state`);
     }
 
     /**
@@ -253,6 +292,13 @@ export class GameEngine {
     }
 
     /**
+     * Get game state
+     */
+    public getGameState(): GameState | null {
+        return this.gameState;
+    }
+
+    /**
      * Dispose of all resources
      */
     public dispose(): void {
@@ -261,6 +307,7 @@ export class GameEngine {
         this.stop();
 
         // Dispose components in reverse order
+        this.gameState?.dispose();
         this.energyDisplay?.dispose();
         this.energyManager?.dispose();
         this.performanceMonitor?.dispose();

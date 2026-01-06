@@ -6,6 +6,9 @@
  */
 
 import { GameEngine } from './game/GameEngine';
+import { BuildingAction } from './game/actions/BuildingAction';
+import { MovementAction } from './game/actions/MovementAction';
+import { Vector3 } from '@babylonjs/core';
 
 /**
  * Application initialization and startup
@@ -116,6 +119,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Start the application
     await app.init();
     
+    // Expose classes to global scope for testing
+    (window as any).BuildingAction = BuildingAction;
+    (window as any).MovementAction = MovementAction;
+    (window as any).Vector3 = Vector3;
+    
     // Expose testing functions to global scope for browser console
     (window as any).testEnergySystem = () => {
         const gameEngine = (app as any).gameEngine;
@@ -126,9 +134,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const energyManager = gameEngine.getEnergyManager();
         const terrainGenerator = gameEngine.getTerrainGenerator();
+        const gameState = gameEngine.getGameState();
         
-        if (!energyManager || !terrainGenerator) {
-            console.log('❌ Energy system or terrain not available');
+        if (!energyManager || !terrainGenerator || !gameState) {
+            console.log('❌ Energy system, terrain, or game state not available');
             return;
         }
         
@@ -165,6 +174,78 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('📊 Final Energy Stats:', finalStats);
     };
     
+    // Test building system
+    (window as any).testBuildingSystem = () => {
+        const gameEngine = (app as any).gameEngine;
+        if (!gameEngine) {
+            console.log('❌ Game engine not available');
+            return;
+        }
+        
+        const gameState = gameEngine.getGameState();
+        const energyManager = gameEngine.getEnergyManager();
+        
+        if (!gameState || !energyManager) {
+            console.log('❌ Game state or energy manager not available');
+            return;
+        }
+        
+        console.log('🏗️ Testing Building System...');
+        
+        // Show available building types
+        const buildingTypes = (window as any).BuildingAction?.getAvailableBuildingTypes() || [];
+        console.log('🏗️ Available building types:', buildingTypes);
+        
+        // Show current energy
+        console.log(`⚡ Current energy: ${energyManager.getTotalEnergy()}`);
+        
+        // Create a test unit
+        const testUnit = gameState.createUnit('worker', new (window as any).Vector3(0, 0, 0));
+        console.log('👤 Created test worker unit:', testUnit.id);
+        
+        // Create a test building
+        const testBuilding = gameState.createBuilding('base', new (window as any).Vector3(10, 0, 10), testUnit.id);
+        console.log('🏗️ Created test base building:', testBuilding.id);
+        
+        // Show game stats
+        const gameStats = gameState.getGameStats();
+        console.log('📊 Game Stats:', gameStats);
+    };
+    
+    // Test movement system
+    (window as any).testMovementSystem = () => {
+        const gameEngine = (app as any).gameEngine;
+        if (!gameEngine) {
+            console.log('❌ Game engine not available');
+            return;
+        }
+        
+        const gameState = gameEngine.getGameState();
+        const energyManager = gameEngine.getEnergyManager();
+        
+        if (!gameState || !energyManager) {
+            console.log('❌ Game state or energy manager not available');
+            return;
+        }
+        
+        console.log('🚶 Testing Movement System...');
+        
+        // Show movement costs
+        const movementCosts = (window as any).MovementAction?.getUnitMovementCosts() || {};
+        console.log('🚶 Unit movement costs:', movementCosts);
+        
+        // Show current energy
+        console.log(`⚡ Current energy: ${energyManager.getTotalEnergy()}`);
+        
+        // Show all units
+        const units = gameState.getAllUnits();
+        console.log(`👥 Total units: ${units.length}`);
+        
+        units.forEach((unit: any, index: number) => {
+            console.log(`👤 Unit ${index + 1}: ${unit.unitType} at ${unit.position.toString()}`);
+        });
+    };
+    
     // Expose terrain stats function
     (window as any).showTerrainStats = () => {
         const gameEngine = (app as any).gameEngine;
@@ -185,13 +266,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         const deposits = terrainGenerator.getAllMineralDeposits();
         console.log(`💎 Total mineral deposits: ${deposits.length}`);
         
-        deposits.slice(0, 5).forEach((deposit, index) => {
+        deposits.slice(0, 5).forEach((deposit: any, index: number) => {
             console.log(`💎 Deposit ${index + 1}:`, deposit.getStats());
         });
     };
     
     console.log('🧪 Test functions available:');
     console.log('  - testEnergySystem() - Test energy generation and consumption');
+    console.log('  - testBuildingSystem() - Test building creation and energy costs');
+    console.log('  - testMovementSystem() - Test unit movement and energy consumption');
     console.log('  - showTerrainStats() - Show terrain and mineral deposit information');
 });
 
