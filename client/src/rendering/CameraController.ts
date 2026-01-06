@@ -14,11 +14,11 @@ export class CameraController {
     private camera: ArcRotateCamera | null = null;
 
     // Camera configuration
-    private readonly INITIAL_RADIUS = 15;
-    private readonly INITIAL_ALPHA = -Math.PI / 2; // Side view
-    private readonly INITIAL_BETA = Math.PI / 3;   // 60 degrees from horizontal
-    private readonly MIN_RADIUS = 5;
-    private readonly MAX_RADIUS = 50;
+    private readonly INITIAL_RADIUS = 25;
+    private readonly INITIAL_ALPHA = -Math.PI / 4; // 45 degrees from side
+    private readonly INITIAL_BETA = Math.PI / 4;   // 45 degrees from horizontal (better RTS view)
+    private readonly MIN_RADIUS = 8;
+    private readonly MAX_RADIUS = 60;
     private readonly MIN_BETA = 0.1;
     private readonly MAX_BETA = Math.PI / 2 - 0.1;
 
@@ -56,6 +56,9 @@ export class CameraController {
 
             // Set as active camera
             this.scene.activeCamera = this.camera;
+
+            // Set camera target to a better position (slightly above ground)
+            this.setCameraTarget(new Vector3(0, 2, 0));
 
             console.log('✅ RTS camera setup complete');
 
@@ -128,6 +131,16 @@ export class CameraController {
     }
 
     /**
+     * Set camera target position
+     */
+    public setCameraTarget(target: Vector3): void {
+        if (this.camera) {
+            this.camera.setTarget(target);
+            console.log(`📷 Camera target set to: ${target.toString()}`);
+        }
+    }
+
+    /**
      * Setup edge scrolling for RTS-style camera movement
      */
     private setupEdgeScrolling(): void {
@@ -177,14 +190,7 @@ export class CameraController {
         return this.camera;
     }
 
-    /**
-     * Set camera target position
-     */
-    public setCameraTarget(position: Vector3): void {
-        if (this.camera) {
-            this.camera.setTarget(position);
-        }
-    }
+
 
     /**
      * Smoothly move camera to a new position

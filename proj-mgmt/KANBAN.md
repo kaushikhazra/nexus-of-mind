@@ -8,20 +8,17 @@
 ## 📋 Backlog
 
 ### Epic 1: Core Game Engine
-- [ ] **[US-002]** Procedural terrain generation (green/yellow/brown zones)
-- [ ] **[US-003]** Energy economy system implementation
-- [ ] **[US-004]** Unit types: Workers (green spheres), Scouts (blue spheres), Protectors (red spheres)
-- [ ] **[US-005]** Building types: Base (yellow pyramid), Power Plant (orange semi-cylinder)
-- [ ] **[US-006]** Mineral deposits (light blue crystals) and mining mechanics
-- [ ] **[US-007]** Infinite world generation with flora (low poly vegetation)
+- [ ] **[US-006]** Interactive building placement system (bases and power plants)
+- [ ] **[US-007]** Mineral deposits (light blue crystals) and mining mechanics
+- [ ] **[US-008]** Infinite world generation with flora (low poly vegetation)
 
 ### Epic 2: Basic AI Opponent & Combat System
-- [ ] **[US-008]** Energy-based combat system with variable costs per target
-- [ ] **[US-009]** AI energy allocation and decision making
-- [ ] **[US-010]** Looting mechanics for bases, resources, and energy
-- [ ] **[US-011]** Shield system for bases with energy consumption
-- [ ] **[US-012]** AI base discovery mechanics (hidden until scouted)
-- [ ] **[US-013]** Combat targeting system (units, bases, power plants)
+- [ ] **[US-009]** Energy-based combat system with variable costs per target
+- [ ] **[US-010]** AI energy allocation and decision making
+- [ ] **[US-011]** Looting mechanics for bases, resources, and energy
+- [ ] **[US-012]** Shield system for bases with energy consumption
+- [ ] **[US-013]** AI base discovery mechanics (hidden until scouted)
+- [ ] **[US-014]** Combat targeting system (units, bases, power plants)
 
 ### Epic 3: Self-Learning AI System
 - [ ] **[US-014]** Player behavior classification (aggressive, defensive, economic)
@@ -57,13 +54,13 @@
 
 ## 🚀 Ready (Planned for Current Sprint)
 
-### Week 2 Focus Items - AI Opponent & Combat System
-- [ ] **[US-008]** Energy-based combat system with variable costs per target
-  - *Estimate*: 8 hours
+### Week 2 Focus Items - Interactive Gameplay
+- [ ] **[US-006]** Interactive building placement system (bases and power plants)
+  - *Estimate*: 6 hours
   - *Priority*: P0 (Must Have)
-  - *Dependencies*: Week 1 complete
-  - *Acceptance Criteria*: Combat mechanics with energy consumption, unit vs unit combat
-  - *Status*: Ready for implementation after Week 1 completion
+  - *Dependencies*: US-001, US-003, US-005 (all complete)
+  - *Acceptance Criteria*: Interactive 3D building placement with energy cost validation
+  - *Status*: Ready for implementation - all dependencies complete
 
 ---
 
