@@ -319,10 +319,11 @@ export class BuildingPlacementUI {
             Animation.ANIMATIONLOOPMODE_CYCLE
         );
 
-        const baseY = this.getPreviewHeight();
+        // Start with current Y position (will be updated by mouse move)
+        const baseY = this.previewMesh.position.y;
         const animationKeys = [];
         animationKeys.push({ frame: 0, value: baseY });
-        animationKeys.push({ frame: frameRate, value: baseY + 0.2 });
+        animationKeys.push({ frame: frameRate, value: baseY + 0.3 });
         animationKeys.push({ frame: frameRate * 2, value: baseY });
 
         animationY.setKeys(animationKeys);
@@ -409,8 +410,10 @@ export class BuildingPlacementUI {
             this.previewMesh.position.x = this.currentMousePosition.x;
             this.previewMesh.position.z = this.currentMousePosition.z;
             
-            // Keep preview slightly above ground
-            this.previewMesh.position.y = this.getPreviewHeight();
+            // Position preview above the actual terrain height
+            const terrainHeight = this.currentMousePosition.y;
+            const buildingHeight = this.getPreviewHeight();
+            this.previewMesh.position.y = terrainHeight + buildingHeight;
             
             // Check if position is valid and update preview color
             const isValid = this.isValidBuildingPosition(this.currentMousePosition);

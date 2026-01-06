@@ -14,11 +14,11 @@ export class LightingSetup {
     private ambientLight: HemisphericLight | null = null;
 
     // Lighting configuration
-    private readonly DIRECTIONAL_INTENSITY = 0.8;
-    private readonly AMBIENT_INTENSITY = 0.4;
-    private readonly DIRECTIONAL_COLOR = new Color3(0.9, 0.95, 1.0); // Cool white
-    private readonly AMBIENT_COLOR = new Color3(0.3, 0.4, 0.6); // Cool blue ambient
-    private readonly GROUND_COLOR = new Color3(0.1, 0.1, 0.2); // Dark blue ground reflection
+    private readonly DIRECTIONAL_INTENSITY = 1.2;
+    private readonly AMBIENT_INTENSITY = 0.8;
+    private readonly DIRECTIONAL_COLOR = new Color3(1.0, 1.0, 1.0); // Bright white
+    private readonly AMBIENT_COLOR = new Color3(0.4, 0.5, 0.7); // Brighter blue ambient
+    private readonly GROUND_COLOR = new Color3(0.2, 0.2, 0.3); // Lighter ground reflection
 
     constructor(scene: Scene) {
         this.scene = scene;
