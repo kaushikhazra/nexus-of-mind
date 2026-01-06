@@ -8,9 +8,20 @@
     "build": "webpack --mode production",
     "build:dev": "webpack --mode development",
     "type-check": "tsc --noEmit",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:report": "playwright show-report"
   },
-  "keywords": ["game", "rts", "ai", "babylon.js", "typescript"],
+  "keywords": [
+    "game",
+    "rts",
+    "ai",
+    "babylon.js",
+    "typescript"
+  ],
   "author": "Nexus of Mind Team",
   "license": "MIT",
   "dependencies": {
@@ -18,8 +29,10 @@
     "@babylonjs/loaders": "^7.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@types/node": "^20.0.0",
     "html-webpack-plugin": "^5.5.0",
+    "playwright": "^1.57.0",
     "rimraf": "^5.0.0",
     "ts-loader": "^9.4.0",
     "typescript": "^5.0.0",
