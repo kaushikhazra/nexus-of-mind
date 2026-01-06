@@ -88,6 +88,9 @@ export class GameEngine {
             this.cameraController.setupCamera();
             this.lightingSetup.setupLighting();
             
+            // Initialize procedural terrain system
+            this.sceneManager.initializeTerrain(this.materialManager, this.cameraController);
+            
             // Handle window resize
             window.addEventListener('resize', () => {
                 this.engine?.resize();

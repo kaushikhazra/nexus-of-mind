@@ -6,10 +6,14 @@
  */
 
 import { Scene, Engine, Vector3, Color3, Color4, MeshBuilder, StandardMaterial } from '@babylonjs/core';
+import { TerrainGenerator } from './TerrainGenerator';
+import { MaterialManager } from './MaterialManager';
+import { CameraController } from './CameraController';
 
 export class SceneManager {
     private engine: Engine;
     private scene: Scene | null = null;
+    private terrainGenerator: TerrainGenerator | null = null;
 
     constructor(engine: Engine) {
         this.engine = engine;
@@ -50,6 +54,43 @@ export class SceneManager {
     }
 
     /**
+     * Initialize procedural terrain system
+     */
+    public initializeTerrain(materialManager: MaterialManager, cameraController: CameraController): void {
+        if (!this.scene) {
+            console.error('❌ Cannot initialize terrain: Scene not created');
+            return;
+        }
+
+        try {
+            console.log('🌍 Initializing procedural terrain...');
+
+            // Create terrain generator
+            this.terrainGenerator = new TerrainGenerator(
+                this.scene,
+                materialManager,
+                cameraController,
+                {
+                    chunkSize: 64,
+                    chunkResolution: 64,
+                    loadRadius: 3,
+                    unloadRadius: 5,
+                    seed: 12345
+                }
+            );
+
+            // Initialize terrain system
+            this.terrainGenerator.initialize();
+
+            console.log('✅ Procedural terrain initialized');
+
+        } catch (error) {
+            console.error('❌ Failed to initialize terrain:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Configure scene settings for low poly SciFi aesthetic
      */
     private configureScene(): void {
@@ -75,6 +116,7 @@ export class SceneManager {
 
     /**
      * Add test objects to verify the scene is working
+     * Note: Ground plane replaced by procedural terrain system
      */
     private addTestObjects(): void {
         if (!this.scene) return;
@@ -83,7 +125,7 @@ export class SceneManager {
 
         // Create a test sphere (representing a unit)
         const testSphere = MeshBuilder.CreateSphere('testSphere', { diameter: 2 }, this.scene);
-        testSphere.position = new Vector3(0, 1, 0);
+        testSphere.position = new Vector3(0, 5, 0); // Raised higher for terrain
 
         // Create material for the test sphere
         const testMaterial = new StandardMaterial('testMaterial', this.scene);
@@ -91,19 +133,9 @@ export class SceneManager {
         testMaterial.specularColor = new Color3(0.1, 0.1, 0.1);
         testSphere.material = testMaterial;
 
-        // Create a test ground plane
-        const ground = MeshBuilder.CreateGround('ground', { width: 20, height: 20 }, this.scene);
-        ground.position = new Vector3(0, 0, 0);
-
-        // Create material for the ground
-        const groundMaterial = new StandardMaterial('groundMaterial', this.scene);
-        groundMaterial.diffuseColor = new Color3(0.3, 0.6, 0.2); // Green terrain
-        groundMaterial.specularColor = new Color3(0.1, 0.1, 0.1);
-        ground.material = groundMaterial;
-
         // Create a test pyramid (representing a base)
         const testPyramid = MeshBuilder.CreateBox('testPyramid', { size: 2 }, this.scene);
-        testPyramid.position = new Vector3(5, 1, 0);
+        testPyramid.position = new Vector3(10, 5, 0); // Positioned on terrain
         testPyramid.scaling = new Vector3(1, 1.5, 1); // Make it more pyramid-like
 
         // Create material for the pyramid
@@ -112,7 +144,7 @@ export class SceneManager {
         pyramidMaterial.specularColor = new Color3(0.1, 0.1, 0.1);
         testPyramid.material = pyramidMaterial;
 
-        console.log('✅ Test objects added - sphere, ground, and pyramid');
+        console.log('✅ Test objects added - sphere and pyramid (terrain replaces ground)');
     }
 
     /**
@@ -153,11 +185,24 @@ export class SceneManager {
     }
 
     /**
+     * Get the terrain generator
+     */
+    public getTerrainGenerator(): TerrainGenerator | null {
+        return this.terrainGenerator;
+    }
+
+    /**
      * Dispose of the scene and cleanup resources
      */
     public dispose(): void {
         if (this.scene) {
             console.log('🗑️ Disposing scene...');
+            
+            // Dispose terrain system first
+            if (this.terrainGenerator) {
+                this.terrainGenerator.dispose();
+                this.terrainGenerator = null;
+            }
             
             // Dispose all scene resources
             this.scene.dispose();
