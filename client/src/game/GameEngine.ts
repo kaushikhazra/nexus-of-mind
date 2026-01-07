@@ -18,6 +18,7 @@ import { UnitManager } from './UnitManager';
 import { UnitRenderer } from '../rendering/UnitRenderer';
 import { BuildingManager } from './BuildingManager';
 import { BuildingRenderer } from '../rendering/BuildingRenderer';
+import { MiningAnalysisTooltip } from '../ui/MiningAnalysisTooltip';
 
 export class GameEngine {
     private static instance: GameEngine | null = null;
@@ -47,6 +48,9 @@ export class GameEngine {
     // Building system
     private buildingManager: BuildingManager | null = null;
     private buildingRenderer: BuildingRenderer | null = null;
+    
+    // UI systems
+    private miningAnalysisTooltip: MiningAnalysisTooltip | null = null;
     
     private isInitialized: boolean = false;
     private isRunning: boolean = false;
@@ -131,6 +135,9 @@ export class GameEngine {
             
             // Initialize energy UI
             this.initializeEnergyUI();
+            
+            // Initialize mining analysis tooltip
+            this.initializeMiningAnalysisTooltip();
             
             // Setup terrain integration with game state
             this.setupTerrainIntegration();
@@ -280,6 +287,19 @@ export class GameEngine {
         });
 
         console.log('⚡ Energy UI initialized');
+    }
+
+    /**
+     * Initialize mining analysis tooltip
+     */
+    private initializeMiningAnalysisTooltip(): void {
+        if (!this.scene) {
+            console.error('❌ Cannot initialize mining analysis tooltip: Scene not available');
+            return;
+        }
+
+        this.miningAnalysisTooltip = new MiningAnalysisTooltip(this.scene);
+        console.log('🔍 Mining analysis tooltip initialized');
     }
 
     /**
@@ -496,6 +516,7 @@ export class GameEngine {
         this.unitRenderer?.dispose();
         this.gameState?.dispose();
         this.energyDisplay?.dispose();
+        this.miningAnalysisTooltip?.dispose();
         this.energyManager?.dispose();
         this.performanceMonitor?.dispose();
         this.materialManager?.dispose();

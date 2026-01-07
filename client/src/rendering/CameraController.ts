@@ -14,7 +14,7 @@ export class CameraController {
     private camera: ArcRotateCamera | null = null;
 
     // Camera configuration
-    private readonly INITIAL_RADIUS = 25;
+    private readonly INITIAL_RADIUS = 75; // Increased 3x for better overview (was 25)
     private readonly INITIAL_ALPHA = -Math.PI / 4; // 45 degrees from side
     private readonly INITIAL_BETA = Math.PI / 4;   // 45 degrees from horizontal (better RTS view)
     private readonly MIN_RADIUS = 8;
