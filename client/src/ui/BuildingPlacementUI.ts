@@ -826,6 +826,9 @@ export class BuildingPlacementUI {
             this.previewMesh = null;
         }
 
+        // Clear mining range indicators
+        this.clearMiningRangeIndicators();
+
         // Create the building through GameState and BuildingManager
         const gameEngine = GameEngine.getInstance();
         const gameState = gameEngine?.getGameState();
@@ -842,6 +845,11 @@ export class BuildingPlacementUI {
             buildingManager.startConstruction(buildingType, position, 'player').then(building => {
                 if (building) {
                     console.log(`✅ BuildingManager construction completed instantly:`, building.getId());
+                    
+                    // If this is a base, spawn 10 workers
+                    if (buildingType === 'base') {
+                        this.spawnWorkersForBase(position);
+                    }
                 } else {
                     console.warn(`⚠️ BuildingManager construction failed`);
                 }
@@ -855,6 +863,105 @@ export class BuildingPlacementUI {
 
         // Exit placement mode (this will clean up any remaining UI state)
         this.cancelPlacement();
+    }
+
+    /**
+     * Spawn 10 workers for a newly placed base
+     */
+    private spawnWorkersForBase(basePosition: Vector3): void {
+        console.log(`👥 Spawning 10 workers for base at ${basePosition.toString()}`);
+        
+        const gameEngine = GameEngine.getInstance();
+        const gameState = gameEngine?.getGameState();
+        const unitManager = gameEngine?.getUnitManager();
+        
+        if (!gameState || !unitManager) {
+            console.error(`❌ Cannot spawn workers: GameState or UnitManager not available`);
+            return;
+        }
+
+        // Calculate worker formation positions
+        const workerPositions = this.calculateWorkerFormationPositions(basePosition);
+        const spawnedWorkers: any[] = [];
+
+        // Spawn 10 workers
+        for (let i = 0; i < 10; i++) {
+            const workerPosition = workerPositions[i];
+            
+            // Create worker through GameState (this gives them proper energy capacity)
+            const worker = gameState.createUnit('worker', workerPosition);
+            spawnedWorkers.push(worker);
+            
+            console.log(`👤 Spawned worker ${i + 1}/10 at ${workerPosition.toString()}`);
+        }
+
+        console.log(`✅ Successfully spawned ${spawnedWorkers.length} workers for base`);
+
+        // Auto-assign workers to nearby mining if available
+        this.autoAssignWorkersToMining(spawnedWorkers, basePosition);
+    }
+
+    /**
+     * Auto-assign workers to nearby mineral deposits
+     */
+    private autoAssignWorkersToMining(workers: any[], basePosition: Vector3): void {
+        console.log(`⛏️ Auto-assigning ${workers.length} workers to nearby mining...`);
+        
+        const gameEngine = GameEngine.getInstance();
+        const terrainGenerator = gameEngine?.getTerrainGenerator();
+        const unitManager = gameEngine?.getUnitManager();
+        
+        if (!terrainGenerator || !unitManager) {
+            console.warn(`⚠️ Cannot auto-assign mining: TerrainGenerator or UnitManager not available`);
+            return;
+        }
+
+        // Get all mineral deposits
+        const allDeposits = terrainGenerator.getAllMineralDeposits();
+        const reachableDeposits: any[] = [];
+
+        // Find deposits within worker mining range
+        for (const worker of workers) {
+            const workerPosition = worker.position;
+            
+            for (const deposit of allDeposits) {
+                const distance = Vector3.Distance(workerPosition, deposit.getPosition());
+                if (distance <= this.WORKER_MINING_RANGE && !reachableDeposits.includes(deposit)) {
+                    reachableDeposits.push(deposit);
+                }
+            }
+        }
+
+        if (reachableDeposits.length === 0) {
+            console.log(`📍 No mineral deposits within range - workers will wait for manual assignment`);
+            return;
+        }
+
+        console.log(`💎 Found ${reachableDeposits.length} reachable mineral deposits`);
+
+        // Assign workers to deposits (distribute evenly)
+        let assignedCount = 0;
+        for (let i = 0; i < workers.length && reachableDeposits.length > 0; i++) {
+            const worker = workers[i];
+            const depositIndex = i % reachableDeposits.length; // Distribute workers across deposits
+            const targetDeposit = reachableDeposits[depositIndex];
+            
+            // Check if this worker can actually reach this deposit
+            const distance = Vector3.Distance(worker.position, targetDeposit.getPosition());
+            if (distance <= this.WORKER_MINING_RANGE) {
+                // Issue mining command through UnitManager
+                unitManager.selectUnits([worker.getId()]);
+                unitManager.issueCommand('mine', undefined, targetDeposit.getId());
+                assignedCount++;
+                
+                console.log(`⛏️ Assigned worker ${worker.getId()} to mine deposit ${targetDeposit.getId()}`);
+            }
+        }
+
+        console.log(`✅ Auto-assigned ${assignedCount}/${workers.length} workers to mining`);
+        
+        // Clear selection after auto-assignment
+        unitManager.clearSelection();
     }
 
     /**

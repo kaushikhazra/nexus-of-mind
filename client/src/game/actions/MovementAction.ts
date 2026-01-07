@@ -99,17 +99,15 @@ export class MovementAction extends EnergyConsumer {
 
         // Check if we have enough energy for the journey
         const totalEnergyCost = this.movementPath.estimatedEnergyCost;
-        // TEMPORARILY DISABLED: Energy check bypass for testing
-        // if (!this.canExecute()) {
-        //     return this.createResult(false, 0, totalEnergyCost, 'Insufficient energy for movement');
-        // }
+        if (!this.canExecute()) {
+            return this.createResult(false, 0, totalEnergyCost, 'Insufficient energy for movement');
+        }
 
         // Consume startup energy
         const startupCost = this.config.baseCost;
-        // TEMPORARILY DISABLED: Startup energy consumption bypass for testing
-        // if (!this.consumeEnergy(startupCost, 'movement_startup')) {
-        //     return this.createResult(false, 0, startupCost, 'Failed to consume startup energy');
-        // }
+        if (!this.consumeEnergy(startupCost, 'movement_startup')) {
+            return this.createResult(false, 0, startupCost, 'Failed to consume startup energy');
+        }
 
         // Start movement
         this.isMoving = true;
