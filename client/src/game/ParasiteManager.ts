@@ -18,6 +18,7 @@ import { Protector } from './entities/Protector';
 export interface ParasiteManagerConfig {
     scene: Scene;
     materialManager: MaterialManager;
+    terrainGenerator?: any; // Optional terrain generator for height detection
 }
 
 export interface ParasiteSpawnConfig {
@@ -30,6 +31,7 @@ export interface ParasiteSpawnConfig {
 export class ParasiteManager {
     private scene: Scene;
     private materialManager: MaterialManager;
+    private terrainGenerator: any = null;
     private parasites: Map<string, EnergyParasite> = new Map();
     
     // Spawning configuration
@@ -47,8 +49,23 @@ export class ParasiteManager {
     constructor(config: ParasiteManagerConfig) {
         this.scene = config.scene;
         this.materialManager = config.materialManager;
+        this.terrainGenerator = config.terrainGenerator || null;
         
         console.log('🟣 ParasiteManager initialized');
+    }
+    
+    /**
+     * Update terrain generator for existing parasites
+     */
+    public setTerrainGenerator(terrainGenerator: any): void {
+        this.terrainGenerator = terrainGenerator;
+        
+        // Update existing parasites
+        for (const parasite of this.parasites.values()) {
+            parasite.setTerrainGenerator(terrainGenerator);
+        }
+        
+        console.log('🟣 ParasiteManager terrain generator updated');
     }
     
     /**
@@ -149,6 +166,14 @@ export class ParasiteManager {
         };
         
         const parasite = new EnergyParasite(parasiteConfig);
+        
+        // Set terrain generator with fallback
+        if (this.terrainGenerator) {
+            parasite.setTerrainGenerator(this.terrainGenerator);
+        } else {
+            console.warn('⚠️ ParasiteManager: No terrain generator available for parasite');
+        }
+        
         this.parasites.set(parasite.getId(), parasite);
         
         // Update tracking

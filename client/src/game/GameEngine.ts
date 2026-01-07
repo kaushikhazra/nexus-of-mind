@@ -135,8 +135,21 @@ export class GameEngine {
             // Initialize combat system
             this.parasiteManager = new ParasiteManager({
                 scene: this.scene,
-                materialManager: this.materialManager
+                materialManager: this.materialManager,
+                terrainGenerator: this.getTerrainGenerator()
             });
+            
+            // Set terrain generator after terrain is initialized (delayed)
+            setTimeout(() => {
+                const terrainGen = this.getTerrainGenerator();
+                if (terrainGen && this.unitManager && this.parasiteManager) {
+                    this.unitManager.setTerrainGenerator(terrainGen);
+                    this.parasiteManager.setTerrainGenerator(terrainGen);
+                    console.log('🌍 Terrain generator set on UnitManager and ParasiteManager (delayed)');
+                } else {
+                    console.warn('⚠️ Terrain generator not available after delay');
+                }
+            }, 1000); // 1 second delay to ensure terrain is ready
 
             // Setup components
             this.cameraController.setupCamera();

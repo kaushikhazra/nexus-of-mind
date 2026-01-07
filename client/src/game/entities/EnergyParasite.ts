@@ -49,7 +49,7 @@ export class EnergyParasite {
     // Combat and feeding
     private health: number = 2; // Takes 2 hits to kill (Phase 1)
     private maxHealth: number = 2;
-    private drainRate: number = 1; // 1 energy/sec (Phase 1)
+    private drainRate: number = 3; // 3 energy/sec (increased for more dramatic effect)
     private feedingStartTime: number = 0;
     
     // Movement
@@ -59,6 +59,10 @@ export class EnergyParasite {
     // Visual representation
     private mesh: Mesh | null = null;
     private material: Material | null = null;
+    private drainBeam: any | null = null; // Visual effect for energy drain
+    
+    // Terrain following
+    private terrainGenerator: any = null;
     
     // Lifecycle
     private spawnTime: number;
@@ -75,6 +79,9 @@ export class EnergyParasite {
         // Set territory center to spawn position
         this.territoryCenter = this.position.clone();
         this.lastPosition = this.position.clone();
+        
+        // Get terrain generator from material manager (we'll need to pass it)
+        this.terrainGenerator = null; // Will be set by ParasiteManager
         
         // Initialize patrol target
         this.patrolTarget = this.generatePatrolTarget();
@@ -143,6 +150,9 @@ export class EnergyParasite {
                 break;
         }
         
+        // Update position to follow terrain height
+        this.updateTerrainHeight();
+        
         // Update mesh position
         if (this.mesh) {
             this.mesh.position = this.position.clone();
@@ -163,15 +173,17 @@ export class EnergyParasite {
      * Handle patrolling behavior
      */
     private updatePatrolling(deltaTime: number, nearbyWorkers: Worker[]): void {
-        // Check for workers in territory
-        const workersInTerritory = nearbyWorkers.filter(worker => 
-            Vector3.Distance(worker.getPosition(), this.territoryCenter) <= this.territoryRadius
-        );
+        // Check for workers in territory that can be targeted
+        const workersInTerritory = nearbyWorkers.filter(worker => {
+            const distance = Vector3.Distance(worker.getPosition(), this.territoryCenter);
+            return distance <= this.territoryRadius && worker.canBeTargetedByParasites();
+        });
         
         if (workersInTerritory.length > 0) {
             // Found a target - start hunting
-            this.currentTarget = workersInTerritory[0]; // Target closest worker
+            this.currentTarget = workersInTerritory[0]; // Target closest available worker
             this.setState(ParasiteState.HUNTING);
+            console.log(`🟣 Parasite ${this.id} found targetable worker: ${this.currentTarget.getId()}`);
             return;
         }
         
@@ -189,6 +201,14 @@ export class EnergyParasite {
      */
     private updateHunting(deltaTime: number, nearbyWorkers: Worker[]): void {
         if (!this.currentTarget) {
+            this.setState(ParasiteState.PATROLLING);
+            return;
+        }
+        
+        // Check if target is still valid (not immune)
+        if (!this.currentTarget.canBeTargetedByParasites()) {
+            console.log(`🟣 Parasite ${this.id} lost target - worker became immune`);
+            this.currentTarget = null;
             this.setState(ParasiteState.PATROLLING);
             return;
         }
@@ -237,18 +257,28 @@ export class EnergyParasite {
         
         // Drain energy from worker
         const energyDrained = this.drainRate * deltaTime;
+        const workerEnergyBefore = this.currentTarget.getEnergyStorage().getCurrentEnergy();
         const actualDrained = this.currentTarget.drainEnergy(energyDrained, 'parasite_feeding');
+        const workerEnergyAfter = this.currentTarget.getEnergyStorage().getCurrentEnergy();
         
         if (actualDrained > 0) {
             this.lastFeedTime = Date.now();
-            console.log(`🟣 Parasite ${this.id} drained ${actualDrained.toFixed(2)} energy from worker`);
+            console.log(`🟣 PARASITE FEEDING: ${this.id} drained ${actualDrained.toFixed(3)} energy from worker`);
+            console.log(`🟣 Worker energy: ${workerEnergyBefore.toFixed(2)} → ${workerEnergyAfter.toFixed(2)} (change: ${(workerEnergyAfter - workerEnergyBefore).toFixed(3)})`);
         }
+        
+        // Create/update visual drain beam
+        this.updateDrainBeam(this.currentTarget.getPosition());
         
         // Check if worker fled (low energy)
         const workerEnergy = this.currentTarget.getEnergyStorage().getCurrentEnergy();
         const workerMaxEnergy = this.currentTarget.getEnergyStorage().getCapacity();
-        if (workerEnergy < workerMaxEnergy * 0.2) { // 20% threshold
-            console.log(`🟣 Worker fled from parasite ${this.id} due to low energy`);
+        if (workerEnergy < workerMaxEnergy * 0.4) { // 40% threshold (more responsive)
+            console.log(`🟣 Worker fled from parasite ${this.id} due to low energy (${workerEnergy.toFixed(1)}/${workerMaxEnergy})`);
+            
+            // Make worker actually flee from this parasite
+            this.currentTarget.fleeFromDanger(this.position, 25);
+            
             this.currentTarget = null;
             this.setState(ParasiteState.PATROLLING);
         }
@@ -297,6 +327,12 @@ export class EnergyParasite {
     private setState(newState: ParasiteState): void {
         if (this.state !== newState) {
             console.log(`🟣 Parasite ${this.id} state: ${this.state} → ${newState}`);
+            
+            // Remove drain beam when leaving feeding state
+            if (this.state === ParasiteState.FEEDING && newState !== ParasiteState.FEEDING) {
+                this.removeDrainBeam();
+            }
+            
             this.state = newState;
             this.lastStateChange = Date.now();
         }
@@ -330,9 +366,86 @@ export class EnergyParasite {
     public isAlive(): boolean { return this.health > 0; }
     
     /**
+     * Set terrain generator for height detection
+     */
+    public setTerrainGenerator(terrainGenerator: any): void {
+        this.terrainGenerator = terrainGenerator;
+    }
+    
+    /**
+     * Get terrain height at position
+     */
+    private getTerrainHeight(x: number, z: number): number {
+        if (this.terrainGenerator) {
+            return this.terrainGenerator.getHeightAtPosition(x, z);
+        }
+        return 0.5; // Default height if no terrain generator
+    }
+    
+    /**
+     * Update position to follow terrain height
+     */
+    private updateTerrainHeight(): void {
+        if (this.terrainGenerator) {
+            const terrainHeight = this.getTerrainHeight(this.position.x, this.position.z);
+            const newY = terrainHeight + 1.0; // 1.0 unit above terrain
+            
+            // Only update if there's a significant difference to avoid jitter
+            if (Math.abs(this.position.y - newY) > 0.1) {
+                this.position.y = newY;
+            }
+        } else {
+            // Fallback if no terrain generator
+            this.position.y = 1.0;
+        }
+    }
+    
+    /**
+     * Create or update visual drain beam
+     */
+    private updateDrainBeam(targetPosition: Vector3): void {
+        if (!this.scene) return;
+        
+        // Remove existing beam
+        if (this.drainBeam) {
+            this.drainBeam.dispose();
+            this.drainBeam = null;
+        }
+        
+        // Create new beam (simple line)
+        const { MeshBuilder, Color3, StandardMaterial } = require('@babylonjs/core');
+        
+        const points = [this.position.clone(), targetPosition.clone()];
+        this.drainBeam = MeshBuilder.CreateLines(`drain_beam_${this.id}`, {
+            points: points
+        }, this.scene);
+        
+        // Create red material for the beam
+        const beamMaterial = new StandardMaterial(`drain_beam_material_${this.id}`, this.scene);
+        beamMaterial.emissiveColor = new Color3(1, 0.2, 0.2); // Red glow
+        beamMaterial.disableLighting = true;
+        this.drainBeam.material = beamMaterial;
+        
+        // Make beam slightly transparent and glowing
+        this.drainBeam.alpha = 0.8;
+    }
+    
+    /**
+     * Remove visual drain beam
+     */
+    private removeDrainBeam(): void {
+        if (this.drainBeam) {
+            this.drainBeam.dispose();
+            this.drainBeam = null;
+        }
+    }
+    
+    /**
      * Dispose parasite and cleanup resources
      */
     public dispose(): void {
+        this.removeDrainBeam();
+        
         if (this.mesh) {
             this.mesh.dispose();
             this.mesh = null;

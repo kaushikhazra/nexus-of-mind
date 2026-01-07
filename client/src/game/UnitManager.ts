@@ -37,6 +37,7 @@ export interface UnitManagerStats {
 export class UnitManager {
     private gameState: GameState;
     private unitRenderer: UnitRenderer;
+    private terrainGenerator: any = null;
     
     // Unit management
     private units: Map<string, Unit> = new Map();
@@ -59,6 +60,20 @@ export class UnitManager {
         this.unitRenderer = unitRenderer;
         
         console.log('👥 UnitManager initialized');
+    }
+    
+    /**
+     * Set terrain generator for height detection
+     */
+    public setTerrainGenerator(terrainGenerator: any): void {
+        this.terrainGenerator = terrainGenerator;
+        
+        // Update existing units
+        for (const unit of this.units.values()) {
+            unit.setTerrainGenerator(terrainGenerator);
+        }
+        
+        console.log('🌍 UnitManager terrain generator set');
     }
 
     /**
@@ -86,6 +101,11 @@ export class UnitManager {
 
             // Add to units map
             this.units.set(unit.getId(), unit);
+            
+            // Set terrain generator for height detection
+            if (this.terrainGenerator) {
+                unit.setTerrainGenerator(this.terrainGenerator);
+            }
             
             // Update counter
             this.unitCounters[unitType]++;
