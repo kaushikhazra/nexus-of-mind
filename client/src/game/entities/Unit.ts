@@ -562,6 +562,13 @@ export abstract class Unit {
     public getHealth(): number { return this.health; }
     public getMaxHealth(): number { return this.maxHealth; }
     public getEnergyStorage(): EnergyStorage { return this.energyStorage; }
+    
+    /**
+     * Drain energy from this unit (used by parasites)
+     */
+    public drainEnergy(amount: number, reason: string): number {
+        return this.energyStorage.drainEnergy(amount, reason);
+    }
     public isActiveUnit(): boolean { return this.isActive; }
     public isSelectedUnit(): boolean { return this.isSelected; }
     public getCreatedAt(): number { return this.createdAt; }

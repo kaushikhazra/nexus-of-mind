@@ -19,6 +19,9 @@ import { UnitRenderer } from '../rendering/UnitRenderer';
 import { BuildingManager } from './BuildingManager';
 import { BuildingRenderer } from '../rendering/BuildingRenderer';
 import { MiningAnalysisTooltip } from '../ui/MiningAnalysisTooltip';
+import { ParasiteManager } from './ParasiteManager';
+import { Worker } from './entities/Worker';
+import { Protector } from './entities/Protector';
 
 export class GameEngine {
     private static instance: GameEngine | null = null;
@@ -48,6 +51,9 @@ export class GameEngine {
     // Building system
     private buildingManager: BuildingManager | null = null;
     private buildingRenderer: BuildingRenderer | null = null;
+    
+    // Combat system
+    private parasiteManager: ParasiteManager | null = null;
     
     // UI systems
     private miningAnalysisTooltip: MiningAnalysisTooltip | null = null;
@@ -125,6 +131,12 @@ export class GameEngine {
             // Initialize building system
             this.buildingRenderer = new BuildingRenderer(this.scene, this.materialManager);
             this.buildingManager = new BuildingManager(this.gameState, this.buildingRenderer, this.energyManager);
+
+            // Initialize combat system
+            this.parasiteManager = new ParasiteManager({
+                scene: this.scene,
+                materialManager: this.materialManager
+            });
 
             // Setup components
             this.cameraController.setupCamera();
@@ -206,6 +218,14 @@ export class GameEngine {
                     // Update energy system
                     if (this.energyManager) {
                         this.energyManager.update();
+                    }
+                    
+                    // Update combat system
+                    if (this.parasiteManager && this.gameState && this.unitManager) {
+                        const mineralDeposits = this.gameState.getAllMineralDeposits();
+                        const workers = this.unitManager.getUnitsByType('worker') as Worker[];
+                        const protectors = this.unitManager.getUnitsByType('protector') as Protector[];
+                        this.parasiteManager.update(deltaTime, mineralDeposits, workers, protectors);
                     }
                     
                     this.scene.render();
@@ -366,6 +386,29 @@ export class GameEngine {
     }
 
     /**
+     * Get parasite manager
+     */
+    public getParasiteManager(): ParasiteManager | null {
+        return this.parasiteManager;
+    }
+
+    /**
+     * Handle protector attacking a parasite
+     */
+    public handleProtectorAttack(protectorId: string, targetPosition: Vector3): boolean {
+        if (!this.parasiteManager || !this.unitManager) {
+            return false;
+        }
+
+        const protector = this.unitManager.getUnit(protectorId);
+        if (!protector || protector.getUnitType() !== 'protector') {
+            return false;
+        }
+
+        return this.parasiteManager.handleProtectorAttack(protector as Protector, targetPosition);
+    }
+
+    /**
      * Setup mouse interaction for unit selection and mining assignment
      */
     private setupMouseInteraction(): void {
@@ -510,6 +553,7 @@ export class GameEngine {
         this.stop();
 
         // Dispose components in reverse order
+        this.parasiteManager?.dispose();
         this.buildingManager?.dispose();
         this.buildingRenderer?.dispose();
         this.unitManager?.dispose();

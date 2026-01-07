@@ -55,12 +55,14 @@
 ## 🚀 Ready (Planned for Current Sprint)
 
 ### Week 2 Focus Items - AI Opponent & Combat System
-- [ ] **[US-008]** Energy-based combat system with variable costs per target
+- [ ] **[US-008]** Environmental Combat System - Energy Parasites
   - *Estimate*: 6 hours
   - *Priority*: P0 (Must Have)
   - *Dependencies*: US-004 (Units), US-003 (Energy), US-007 (Mining) - all complete
-  - *Acceptance Criteria*: Unit vs unit combat with energy consumption per attack
-  - *Status*: Ready for implementation - all foundation systems complete including mining assignment
+  - *Acceptance Criteria*: Energy parasites spawn near mineral deposits, attack workers, protectors defend with energy-based combat
+  - *Status*: Ready for implementation - clarified as environmental threats that drain energy from workers
+  - *Enemy Type*: Energy Parasites (hostile creatures that attack workers at mining sites)
+  - *Combat*: Protectors attack parasites with variable energy costs per target type
 
 ---
 

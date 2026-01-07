@@ -12,6 +12,7 @@ export interface ColorPalette {
     worker: Color3;      // Green
     scout: Color3;       // Blue  
     protector: Color3;   // Red
+    parasite: Color3;    // Dark purple
     
     // Building colors
     base: Color3;        // Yellow
@@ -42,6 +43,7 @@ export class MaterialManager {
         worker: new Color3(0.2, 0.8, 0.2),      // Bright green
         scout: new Color3(0.2, 0.4, 1.0),       // Bright blue
         protector: new Color3(1.0, 0.2, 0.2),   // Bright red
+        parasite: new Color3(0.4, 0.1, 0.6),    // Dark purple
         
         // Building colors (warm colors for infrastructure)
         base: new Color3(1.0, 0.9, 0.2),        // Bright yellow
@@ -131,6 +133,16 @@ export class MaterialManager {
      */
     public getProtectorMaterial(): StandardMaterial {
         return this.createLowPolyMaterial('protector', this.colorPalette.protector);
+    }
+
+    /**
+     * Get material for energy parasites
+     */
+    public getParasiteMaterial(): StandardMaterial {
+        return this.createLowPolyMaterial('parasite', this.colorPalette.parasite, {
+            emissive: new Color3(0.1, 0.02, 0.15), // Dark purple glow
+            specular: new Color3(0.2, 0.1, 0.3)    // Purple-tinted reflections
+        });
     }
 
     /**
