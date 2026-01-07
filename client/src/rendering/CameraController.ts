@@ -97,87 +97,26 @@ export class CameraController {
     }
 
     /**
-     * Setup camera input controls with custom RTS-style navigation
+     * Setup camera input controls with custom keyboard but default mouse
      */
     private setupCameraControls(): void {
         if (!this.camera) return;
 
-        // Remove default inputs to implement custom controls
-        this.camera.inputs.clear();
-        
-        // Add only mouse wheel for zooming
+        // Enable standard mouse controls (keep original behavior)
         this.camera.inputs.addMouseWheel();
+        this.camera.inputs.addPointers();
         
-        // Add custom pointer input for mouse controls
-        this.setupCustomMouseControls();
-        
-        // Add custom keyboard input for WASD/Arrow movement
+        // Add custom keyboard controls only
         this.setupCustomKeyboardControls();
 
-        console.log('🎮 Custom RTS camera controls configured');
-    }
+        // Configure mouse controls (keep original settings)
+        const pointerInput = this.camera.inputs.attached.pointers;
+        if (pointerInput && 'buttons' in pointerInput) {
+            // Left, middle, right mouse buttons (original behavior)
+            (pointerInput as any).buttons = [0, 1, 2];
+        }
 
-    /**
-     * Setup custom mouse controls
-     */
-    private setupCustomMouseControls(): void {
-        if (!this.camera || !this.scene) return;
-
-        let isLeftMouseDown = false;
-        let isRightMouseDown = false;
-        let lastMouseX = 0;
-        let lastMouseY = 0;
-
-        // Mouse down handler
-        this.canvas.addEventListener('mousedown', (event) => {
-            if (event.button === 0) { // Left mouse button
-                isLeftMouseDown = true;
-            } else if (event.button === 2) { // Right mouse button
-                isRightMouseDown = true;
-            }
-            lastMouseX = event.clientX;
-            lastMouseY = event.clientY;
-        });
-
-        // Mouse up handler
-        this.canvas.addEventListener('mouseup', (event) => {
-            if (event.button === 0) {
-                isLeftMouseDown = false;
-            } else if (event.button === 2) {
-                isRightMouseDown = false;
-            }
-        });
-
-        // Mouse move handler
-        this.canvas.addEventListener('mousemove', (event) => {
-            if (!this.camera) return;
-
-            const deltaX = event.clientX - lastMouseX;
-            const deltaY = event.clientY - lastMouseY;
-
-            if (isLeftMouseDown) {
-                // Left click + drag: Tilt camera up/down (change beta angle)
-                const sensitivity = 0.01;
-                this.camera.beta += deltaY * sensitivity;
-                
-                // Clamp beta to prevent flipping
-                this.camera.beta = Math.max(this.MIN_BETA, Math.min(this.MAX_BETA, this.camera.beta));
-            }
-
-            if (isRightMouseDown) {
-                // Right click + drag: Rotate camera around target (change alpha angle)
-                const sensitivity = 0.01;
-                this.camera.alpha -= deltaX * sensitivity; // Negative for natural rotation
-            }
-
-            lastMouseX = event.clientX;
-            lastMouseY = event.clientY;
-        });
-
-        // Prevent context menu on right click
-        this.canvas.addEventListener('contextmenu', (event) => {
-            event.preventDefault();
-        });
+        console.log('🎮 Camera controls configured - original mouse + custom keyboard');
     }
 
     /**
@@ -234,12 +173,6 @@ export class CameraController {
             // D/Right Arrow: Rotate view to right
             if (pressedKeys.has('KeyD') || pressedKeys.has('ArrowRight')) {
                 this.camera.alpha += rotateSpeed;
-                moved = true;
-            }
-
-            // Optional: Log movement for debugging
-            if (moved) {
-                // console.log(`📷 Camera moved - Target: ${this.camera.getTarget().toString()}, Alpha: ${this.camera.alpha.toFixed(2)}`);
             }
         });
     }
@@ -337,10 +270,6 @@ export class CameraController {
     public dispose(): void {
         if (this.camera) {
             console.log('🗑️ Disposing camera...');
-            
-            // Remove event listeners to prevent memory leaks
-            // Note: In a production app, we'd store references to the handlers for proper cleanup
-            // For now, the handlers will be cleaned up when the page unloads
             
             this.camera.dispose();
             this.camera = null;
