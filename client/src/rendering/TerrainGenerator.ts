@@ -52,7 +52,7 @@ export class TerrainGenerator {
             loadRadius: 3, // Load 7x7 grid of chunks
             unloadRadius: 5, // Unload chunks beyond this distance
             seed: 12345,
-            mineralDensity: 6, // Increased from 2.5 - Average 6 deposits per chunk for richer gameplay
+            mineralDensity: 18, // Increased 200% more from 6 - Average 18 deposits per chunk for very rich gameplay
             mineralCapacityRange: [20, 80], // 20-80 energy per deposit
             ...config
         };
