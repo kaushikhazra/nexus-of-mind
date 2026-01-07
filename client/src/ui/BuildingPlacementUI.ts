@@ -949,12 +949,12 @@ export class BuildingPlacementUI {
             // Check if this worker can actually reach this deposit
             const distance = Vector3.Distance(worker.position, targetDeposit.getPosition());
             if (distance <= this.WORKER_MINING_RANGE) {
-                // Issue mining command through UnitManager
-                unitManager.selectUnits([worker.getId()]);
+                // Issue mining command through UnitManager using worker.id (not getId())
+                unitManager.selectUnits([worker.id]);
                 unitManager.issueCommand('mine', undefined, targetDeposit.getId());
                 assignedCount++;
                 
-                console.log(`⛏️ Assigned worker ${worker.getId()} to mine deposit ${targetDeposit.getId()}`);
+                console.log(`⛏️ Assigned worker ${worker.id} to mine deposit ${targetDeposit.getId()}`);
             }
         }
 
