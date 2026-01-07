@@ -52,6 +52,10 @@ export abstract class Unit {
     protected isSelected: boolean = false;
     protected createdAt: number;
     
+    // Flee/danger management
+    protected lastFleeTime: number = 0;
+    protected fleeImmunityDuration: number = 10000; // 10 seconds immunity after fleeing
+    
     // Current actions
     protected currentMiningAction: MiningAction | null = null;
     protected currentMovementAction: MovementAction | null = null;
@@ -59,6 +63,9 @@ export abstract class Unit {
     
     // Pending actions (for chaining movement -> action)
     protected pendingMiningTarget: any = null;
+    
+    // Terrain following
+    protected terrainGenerator: any = null; // TerrainGenerator for height detection
     
     // Event callbacks
     protected onDestroyedCallbacks: ((unit: Unit) => void)[] = [];
@@ -100,7 +107,27 @@ export abstract class Unit {
         });
 
         this.energyStorage.onLowEnergy(() => {
-            console.warn(`⚠️ Unit ${this.id} low on energy`);
+            console.warn(`⚠️ Unit ${this.id} low on energy - considering retreat`);
+            
+            // If energy is critically low (< 10%), try to flee to safety
+            const currentEnergy = this.energyStorage.getCurrentEnergy();
+            const maxEnergy = this.energyStorage.getCapacity();
+            if (currentEnergy < maxEnergy * 0.1) { // 10% critical threshold
+                console.warn(`🏃 Unit ${this.id} energy critical (${currentEnergy.toFixed(1)}/${maxEnergy}) - fleeing to safety!`);
+                // Flee to a random safe direction (no specific danger source)
+                const randomDirection = new Vector3(
+                    (Math.random() - 0.5) * 2,
+                    0, // Keep Y at 0 for ground level
+                    (Math.random() - 0.5) * 2
+                ).normalize();
+                const safeTarget = this.position.add(randomDirection.scale(15));
+                
+                // Set proper terrain height
+                const terrainHeight = this.getTerrainHeight(safeTarget.x, safeTarget.z);
+                safeTarget.y = terrainHeight + 1.0; // Increased unit height above terrain
+                
+                this.startMovement(safeTarget);
+            }
         });
     }
 
@@ -115,12 +142,36 @@ export abstract class Unit {
         // Update current actions
         this.updateActions(deltaTime);
         
+        // Update position to follow terrain height
+        this.updateTerrainHeight();
+        
         // Update energy storage
         // Energy storage updates are handled by the energy system
+        
+        // Passive energy recovery when safe
+        this.updateEnergyRecovery(deltaTime);
         
         // Check health status
         if (this.health <= 0) {
             this.destroy();
+        }
+    }
+    
+    /**
+     * Passive energy recovery when unit is safe
+     */
+    private updateEnergyRecovery(deltaTime: number): void {
+        const currentEnergy = this.energyStorage.getCurrentEnergy();
+        const maxEnergy = this.energyStorage.getCapacity();
+        
+        // Only recover if energy is low and unit is not actively doing energy-consuming actions
+        if (currentEnergy < maxEnergy * 0.8 && !this.currentMiningAction && !this.currentBuildingAction) {
+            const recoveryRate = 0.5; // 0.5 energy per second recovery
+            const recoveryAmount = recoveryRate * deltaTime;
+            
+            if (this.energyStorage.canReceiveEnergy(recoveryAmount)) {
+                this.energyStorage.addEnergy(recoveryAmount, 'passive_recovery');
+            }
         }
     }
 
@@ -151,6 +202,9 @@ export abstract class Unit {
                 
                 // Update position during movement for smooth visuals
                 this.position = this.currentMovementAction.getCurrentPosition();
+                
+                // Ensure terrain following during movement
+                this.updateTerrainHeight();
                 
                 if (!result.success || result.reason === 'Movement completed') {
                     console.log(`🚶 Movement action completed for ${this.id}`);
@@ -479,6 +533,10 @@ export abstract class Unit {
     public stopMovement(): void {
         if (this.currentMovementAction) {
             this.position = this.currentMovementAction.getCurrentPosition();
+            
+            // Ensure terrain following when stopping
+            this.updateTerrainHeight();
+            
             this.currentMovementAction.dispose();
             this.currentMovementAction = null;
             console.log(`🚶 ${this.id} stopped movement`);
@@ -562,6 +620,89 @@ export abstract class Unit {
     public getHealth(): number { return this.health; }
     public getMaxHealth(): number { return this.maxHealth; }
     public getEnergyStorage(): EnergyStorage { return this.energyStorage; }
+    
+    /**
+     * Drain energy from this unit (used by parasites)
+     */
+    public drainEnergy(amount: number, reason: string): number {
+        return this.energyStorage.drainEnergy(amount, reason);
+    }
+    
+    /**
+     * Make unit flee from danger (used when energy is low or under attack)
+     */
+    public fleeFromDanger(dangerPosition: Vector3, fleeDistance: number = 20): void {
+        // Stop all current actions
+        this.stopAllActions();
+        
+        // Calculate flee direction (away from danger)
+        const fleeDirection = this.position.subtract(dangerPosition).normalize();
+        const fleeTarget = this.position.add(fleeDirection.scale(fleeDistance));
+        
+        // Set proper terrain height for flee target
+        const terrainHeight = this.getTerrainHeight(fleeTarget.x, fleeTarget.z);
+        fleeTarget.y = terrainHeight + 1.0; // Increased unit height above terrain
+        
+        // Start movement away from danger
+        this.startMovement(fleeTarget);
+        
+        // Set flee immunity
+        this.lastFleeTime = Date.now();
+        
+        console.log(`🏃 Unit ${this.id} fleeing from danger at ${dangerPosition.toString()} to ${fleeTarget.toString()}`);
+    }
+    
+    /**
+     * Check if unit can be targeted by parasites (not recently fled)
+     */
+    public canBeTargetedByParasites(): boolean {
+        const timeSinceFlee = Date.now() - this.lastFleeTime;
+        const isImmune = timeSinceFlee < this.fleeImmunityDuration;
+        
+        if (isImmune) {
+            const remainingImmunity = (this.fleeImmunityDuration - timeSinceFlee) / 1000;
+            console.log(`🛡️ Unit ${this.id} has parasite immunity for ${remainingImmunity.toFixed(1)}s more`);
+        }
+        
+        return !isImmune && this.isActive && this.health > 0;
+    }
+    
+    /**
+     * Set terrain generator for height detection
+     */
+    public setTerrainGenerator(terrainGenerator: any): void {
+        this.terrainGenerator = terrainGenerator;
+    }
+    
+    /**
+     * Get terrain height at position
+     */
+    protected getTerrainHeight(x: number, z: number): number {
+        if (this.terrainGenerator) {
+            return this.terrainGenerator.getHeightAtPosition(x, z);
+        }
+        return 0.5; // Default height if no terrain generator
+    }
+    
+    /**
+     * Update position to follow terrain height
+     */
+    protected updateTerrainHeight(): void {
+        if (this.terrainGenerator) {
+            const terrainHeight = this.getTerrainHeight(this.position.x, this.position.z);
+            const newY = terrainHeight + 1.0; // 1.0 unit above terrain
+            
+            // Only update if there's a significant difference to avoid jitter
+            if (Math.abs(this.position.y - newY) > 0.05) {
+                this.position.y = newY;
+            }
+        } else {
+            // Fallback if no terrain generator
+            if (this.position.y < 1.0) {
+                this.position.y = 1.0;
+            }
+        }
+    }
     public isActiveUnit(): boolean { return this.isActive; }
     public isSelectedUnit(): boolean { return this.isSelected; }
     public getCreatedAt(): number { return this.createdAt; }

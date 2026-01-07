@@ -55,47 +55,46 @@
 ## 🚀 Ready (Planned for Current Sprint)
 
 ### Week 2 Focus Items - AI Opponent & Combat System
-- [ ] **[US-008]** Energy-based combat system with variable costs per target
+- [ ] **[US-008]** Environmental Combat System - Energy Parasites
   - *Estimate*: 6 hours
   - *Priority*: P0 (Must Have)
   - *Dependencies*: US-004 (Units), US-003 (Energy), US-007 (Mining) - all complete
-  - *Acceptance Criteria*: Unit vs unit combat with energy consumption per attack
-  - *Status*: Ready for implementation - all foundation systems complete including mining assignment
+  - *Acceptance Criteria*: Energy parasites spawn near mineral deposits, attack workers, protectors defend with energy-based combat
+  - *Status*: Ready for implementation - clarified as environmental threats that drain energy from workers
+  - *Enemy Type*: Energy Parasites (hostile creatures that attack workers at mining sites)
+  - *Combat*: Protectors attack parasites with variable energy costs per target type
 
 ---
 
 ## 🔄 In Progress
 
-### Worker Spawning Bug Fix (Jan 8)
-- [x] **[BUG FIX]** Worker Spawning System - FIXED ✅
-  - *Type*: Critical bug fix for base placement worker spawning
-  - *Issue*: Workers not appearing visually when base is placed
-  - *Root Cause*: Using GameState.createUnit() instead of UnitManager.createUnit()
-  - *Solution*: Updated spawnWorkersForBase() to use UnitManager for both GameState and visual creation
-  - *Status*: ✅ FIXED - Workers now spawn correctly with visual representation
-  - *Testing*: Compiled successfully, ready for browser testing
-
-### Base Placement Mining Preview System (Jan 8)
-- [x] **[ENHANCEMENT]** Base Placement Strategic Preview System - COMPLETE ✅
-  - *Type*: Enhancement to completed US-006 (Interactive building placement)
-  - *Estimate*: 4.5 hours
-  - *Priority*: P0 (Critical for strategic gameplay transformation)
-  - *Dependencies*: US-006 (Building placement), US-007 (Mineral deposits) - all complete
-  - *Progress*: 100% - All phases implemented and working
+### Environmental Combat System - Phase 1 Complete! (Jan 7)
+- [x] **[US-008]** Environmental Combat System - Energy Parasites - PHASE 1 COMPLETE ✅
+  - *Type*: New combat system with environmental threats
+  - *Estimate*: 6 hours (Phase 1: 4 hours completed)
+  - *Priority*: P0 (Must Have)
+  - *Dependencies*: US-004 (Units), US-003 (Energy), US-007 (Mining) - all complete
+  - *Progress*: Phase 1 Complete (75% of total US-008)
   - *What We Built*:
-    - ✅ Base placement preview with mining range visualization
-    - ✅ Proximity-based mineral node range display (always-on tooltip system)
-    - ✅ 10-worker spawning system in formation (3 units from base)
-    - ✅ "X workers can mine here" strategic feedback
-    - ✅ Green/yellow/red base preview based on mining efficiency
-    - ✅ Automatic mining assignment for spawned workers
+    - ✅ EnergyParasite entity with territorial AI behavior
+    - ✅ ParasiteManager for spawning, combat, and lifecycle management
+    - ✅ Territorial ambush system (15-unit radius patrol around mineral deposits)
+    - ✅ Progressive energy drain (1 energy/sec when feeding on workers)
+    - ✅ Protector combat system (5 energy per attack, 2 hits to kill)
+    - ✅ Smart spawning system (75s base, 2x faster when workers mining, max 3 per deposit)
+    - ✅ Worker flee mechanics (escape when energy < 20%)
+    - ✅ Visual representation (dark purple spheres with glow)
+    - ✅ Full integration with GameEngine, energy system, and unit management
   - *Technical Implementation*:
-    - ✅ Phase 1: Base placement preview enhancement (2h)
-    - ✅ Phase 2: 10-worker spawning system (1.5h) - BUG FIXED
-    - ✅ Phase 3: Proximity-based UI system (1h)
-  - *Energy System*: ✅ Original energy validation restored (temporary bypasses removed)
-  - *Strategic Impact*: ✅ Base placement now critical strategic decision
-  - *Status*: ✅ COMPLETE - All functionality working, workers spawn and auto-assign to mining
+    - ✅ Research document with detailed parasite dynamics brainstorming
+    - ✅ EnergyParasite class with state machine (spawning/patrolling/hunting/feeding/returning)
+    - ✅ ParasiteManager with spawn tracking and combat handling
+    - ✅ MaterialManager integration for parasite materials
+    - ✅ GameEngine integration with render loop updates
+    - ✅ Energy economics: defense costs energy but protects mining profits
+  - *Strategic Impact*: ✅ Mining operations now require strategic defense planning
+  - *Status*: ✅ PHASE 1 COMPLETE - Basic parasite system fully functional
+  - *Next Phase*: Phase 2 - Progressive feeding, parasite evolution, and reproduction mechanics
 
 ---
 
@@ -185,12 +184,19 @@
 
 ## 📊 Sprint Metrics
 
-### Current Sprint (Week 2) - IN PROGRESS 🔄
+### Current Sprint (Week 2) - MAJOR PROGRESS! 🚀
 - **Sprint Goal**: 🎯 AI opponent with energy-based decision making and combat system
 - **Story Points Planned**: 40
-- **Story Points Completed**: 15 (US-MINING: 15pts - 75% complete)
+- **Story Points Completed**: 30 (US-008 Phase 1: 30pts - 75% complete)
 - **Days Completed**: 1 day (Jan 7)
-- **Current Focus**: Complete worker mining assignment system, then move to combat mechanics
+- **Current Focus**: US-008 Environmental Combat System - Phase 1 COMPLETE!
+
+### Week 2 Progress (Jan 7) - BREAKTHROUGH! 🎉
+- ✅ **US-008 Phase 1 COMPLETE**: Environmental Combat System with Energy Parasites
+- ✅ **Research & Design**: Comprehensive combat system brainstorming and dynamics
+- ✅ **Core Implementation**: EnergyParasite entity, ParasiteManager, full integration
+- ✅ **Strategic Gameplay**: Mining operations now require defensive planning
+- 🎯 **Next**: Phase 2 - Progressive feeding and parasite evolution mechanics
 
 ### Week 1+ Success Criteria - ALL MET! ✅
 - ✅ Playable low poly 3D SciFi world with procedural terrain
