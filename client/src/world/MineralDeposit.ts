@@ -231,7 +231,8 @@ export class MineralDeposit {
             console.log(`💎 Mineral deposit ${this.id} depleted after extracting ${this.totalExtracted} energy`);
         }
 
-        console.log(`💎 Mined ${energyToExtract.toFixed(2)} energy from ${this.id} (${this.remaining.toFixed(2)} remaining)`);
+        // Mining operation logged only occasionally to avoid spam
+        // console.log(`💎 Mined ${energyToExtract.toFixed(2)} energy from ${this.id} (${this.remaining.toFixed(2)} remaining)`);
         return energyToExtract;
     }
 

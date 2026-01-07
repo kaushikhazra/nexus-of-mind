@@ -148,9 +148,12 @@ export abstract class Unit {
         if (this.currentMovementAction) {
             try {
                 const result = await this.currentMovementAction.executeAction(deltaTime);
+                
+                // Update position during movement for smooth visuals
+                this.position = this.currentMovementAction.getCurrentPosition();
+                
                 if (!result.success || result.reason === 'Movement completed') {
                     console.log(`🚶 Movement action completed for ${this.id}`);
-                    this.position = this.currentMovementAction.getCurrentPosition();
                     this.currentMovementAction.dispose();
                     this.currentMovementAction = null;
                     
@@ -194,12 +197,37 @@ export abstract class Unit {
      */
     private async startMiningImmediate(target: any): Promise<boolean> {
         try {
+            // Check if we're close enough to mine
+            const distance = Vector3.Distance(this.position, target.getPosition());
+            const miningRange = this.getMiningRange();
+            
+            if (distance > miningRange) {
+                // Still too far - move closer and try again
+                console.log(`🔄 Still too far (${distance.toFixed(1)}m > ${miningRange}m) - moving closer`);
+                
+                // Start another movement toward the target
+                const moveSuccess = await this.startMovementForMining(target);
+                if (moveSuccess) {
+                    // Keep the pending mining target so we try again after this movement
+                    this.pendingMiningTarget = target;
+                    console.log(`🔄 Moving closer to target, will retry mining`);
+                    return true;
+                } else {
+                    console.warn(`⚠️ ${this.id} failed to start retry movement`);
+                    return false;
+                }
+            }
+            
+            // We're close enough - start mining
+            console.log(`✅ Close enough to mine (${distance.toFixed(1)}m <= ${miningRange}m)`);
             this.currentMiningAction = new MiningAction(this.id, this.position, {
                 miningRange: this.getMiningRange(),
                 energyPerSecond: this.getMiningEnergyCost()
             });
             
             this.currentMiningAction.setEnergyStorage(this.energyStorage);
+            this.currentMiningAction.updatePosition(this.position);
+            
             const result = await this.currentMiningAction.startMining(target);
             
             if (result.success) {
@@ -207,13 +235,13 @@ export abstract class Unit {
                 console.log(`⛏️ ${this.id} started mining after movement`);
                 return true;
             } else {
-                console.warn(`⚠️ ${this.id} mining failed after movement: ${result.reason}`);
+                console.warn(`⚠️ ${this.id} mining failed: ${result.reason}`);
                 this.currentMiningAction.dispose();
                 this.currentMiningAction = null;
                 return false;
             }
         } catch (error) {
-            console.error(`❌ Failed to start immediate mining for ${this.id}:`, error);
+            console.error(`❌ Failed to start mining for ${this.id}:`, error);
             return false;
         }
     }
@@ -271,20 +299,8 @@ export abstract class Unit {
                 // Target is too far - move closer first
                 console.log(`🚶 ${this.id} moving to mining target (${distance.toFixed(1)}m > ${miningRange}m)`);
                 
-                // Calculate position near the target (within mining range)
-                const targetPos = target.getPosition();
-                const direction = this.position.subtract(targetPos).normalize();
-                const moveToPosition = targetPos.add(direction.scale(miningRange * 0.8)); // Move to 80% of mining range
-                
-                // Recalculate energy cost for actual movement distance
-                const actualDistance = Vector3.Distance(this.position, moveToPosition);
-                const actualEnergyCost = actualDistance * energyCostPerUnit;
-                
-                console.log(`📍 ${this.id} calculated move position: ${moveToPosition.toString()}`);
-                console.log(`⚡ ${this.id} actual movement cost: ${actualEnergyCost.toFixed(1)} energy for ${actualDistance.toFixed(1)}m journey (FREE MOVEMENT)`);
-                
-                // Start movement to target (bypass cooldown for mining movement)
-                const moveSuccess = await this.startMovementForMining(moveToPosition);
+                // Start range-based movement - worker will stop when within mining range
+                const moveSuccess = await this.startMovementForMining(target);
                 console.log(`🚶 ${this.id} movement start result: ${moveSuccess}`);
                 
                 if (!moveSuccess) {
@@ -294,7 +310,7 @@ export abstract class Unit {
                 
                 // Set a flag to start mining when movement completes
                 this.pendingMiningTarget = target;
-                console.log(`📍 ${this.id} will start mining when reaching target position`);
+                console.log(`📍 ${this.id} will start mining when reaching target range`);
                 return true;
             }
 
@@ -306,6 +322,10 @@ export abstract class Unit {
             });
             
             this.currentMiningAction.setEnergyStorage(this.energyStorage);
+            
+            // Update the mining action's position to current position
+            this.currentMiningAction.updatePosition(this.position);
+            
             const result = await this.currentMiningAction.startMining(target);
             
             if (result.success) {
@@ -327,7 +347,7 @@ export abstract class Unit {
     /**
      * Start movement action for mining (bypasses cooldown)
      */
-    public async startMovementForMining(targetPosition: Vector3): Promise<boolean> {
+    public async startMovementForMining(target: any): Promise<boolean> {
         // Only check if unit can move, skip cooldown check for mining movement
         if (!this.canMove()) {
             console.warn(`⚠️ ${this.id} cannot move - canMove: ${this.canMove()}`);
@@ -348,10 +368,12 @@ export abstract class Unit {
             );
             
             this.currentMovementAction.setEnergyStorage(this.energyStorage);
-            const result = await this.currentMovementAction.startMovement(targetPosition);
+            
+            // Use range-based movement - stop when within mining range
+            const result = await this.currentMovementAction.startMovementToRange(target, this.getMiningRange() * 0.9);
             
             if (result.success) {
-                console.log(`🚶 ${this.id} started movement for mining to ${targetPosition.toString()}`);
+                console.log(`🚶 ${this.id} started range-based movement for mining (stop at ${(this.getMiningRange() * 0.9).toFixed(1)}m)`);
                 return true;
             } else {
                 console.warn(`⚠️ ${this.id} movement for mining failed: ${result.reason}`);

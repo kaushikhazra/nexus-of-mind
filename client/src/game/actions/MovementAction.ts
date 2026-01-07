@@ -29,6 +29,10 @@ export class MovementAction extends EnergyConsumer {
     
     // Movement state
     private isMoving: boolean = false;
+    
+    // Range-based movement (for mining)
+    private targetObject: any = null; // Object to move toward
+    private stopAtRange: number | null = null; // Stop when within this range
     private movementStartTime: number = 0;
     private distanceTraveled: number = 0;
     private totalEnergyConsumed: number = 0;
@@ -89,9 +93,28 @@ export class MovementAction extends EnergyConsumer {
      * Start movement to target position
      */
     public async startMovement(targetPosition: Vector3): Promise<EnergyConsumptionResult> {
+        return this.startMovementInternal(targetPosition, null, null);
+    }
+
+    /**
+     * Start movement toward an object, stopping when within range
+     */
+    public async startMovementToRange(targetObject: any, stopAtRange: number): Promise<EnergyConsumptionResult> {
+        const targetPosition = targetObject.getPosition();
+        return this.startMovementInternal(targetPosition, targetObject, stopAtRange);
+    }
+
+    /**
+     * Internal movement start method
+     */
+    private async startMovementInternal(targetPosition: Vector3, targetObject: any = null, stopAtRange: number | null = null): Promise<EnergyConsumptionResult> {
         if (this.isMoving) {
             return this.createResult(false, 0, 0, 'Already moving');
         }
+
+        // Store range-based movement parameters
+        this.targetObject = targetObject;
+        this.stopAtRange = stopAtRange;
 
         // Plan the movement path
         this.movementPath = this.planMovement(targetPosition);
@@ -116,10 +139,9 @@ export class MovementAction extends EnergyConsumer {
         this.totalEnergyConsumed = startupCost;
         this.currentWaypointIndex = 0;
 
-        console.log(`🚶 Started movement from ${this.currentPosition.toString()} to ${targetPosition.toString()}`);
+        const movementType = stopAtRange ? `range-based (stop at ${stopAtRange}m)` : 'position-based';
+        console.log(`🚶 Started ${movementType} movement from ${this.currentPosition.toString()} to ${targetPosition.toString()}`);
         console.log(`📏 Distance: ${this.movementPath.totalDistance.toFixed(2)} units, Estimated cost: ${totalEnergyCost.toFixed(2)} energy`);
-        console.log(`⚡ Energy breakdown: ${this.movementPath.totalDistance.toFixed(2)} units × ${this.movementConfig.energyPerUnit} energy/unit = ${totalEnergyCost.toFixed(2)} energy`);
-        console.log(`💰 Current energy: ${this.energyStorage?.getCurrentEnergy().toFixed(2)} energy available`);
 
         return this.createResult(true, startupCost, totalEnergyCost);
     }
@@ -148,15 +170,40 @@ export class MovementAction extends EnergyConsumer {
             return this.createResult(false, 0, energyCostThisFrame, 'Failed to consume movement energy');
         }
 
-        // Update position
+        // For range-based movement, check distance to target object
+        if (this.targetObject && this.stopAtRange !== null) {
+            const currentTargetPosition = this.targetObject.getPosition();
+            const distanceToTarget = Vector3.Distance(this.currentPosition, currentTargetPosition);
+            
+            if (distanceToTarget <= this.stopAtRange) {
+                // We're within range - stop here
+                this.distanceTraveled += Vector3.Distance(this.currentPosition, this.currentPosition);
+                this.totalEnergyConsumed += energyCostThisFrame;
+                
+                console.log(`🎯 Reached target range: ${distanceToTarget.toFixed(1)}m <= ${this.stopAtRange}m`);
+                this.completeMovement();
+                return this.createResult(true, energyCostThisFrame, energyCostThisFrame, 'Movement completed - within range');
+            }
+            
+            // Update target position if object moved
+            this.targetPosition = currentTargetPosition.clone();
+        }
+
+        // Ensure we have a valid target position
+        if (!this.targetPosition) {
+            this.stopMovement();
+            return this.createResult(false, 0, energyCostThisFrame, 'No valid target position');
+        }
+
+        // Update position toward target
         const direction = this.targetPosition.subtract(this.currentPosition).normalize();
         const newPosition = this.currentPosition.add(direction.scale(movementDistance));
         
-        // Check if we've reached the target
+        // Check if we've reached the exact target position (for position-based movement)
         const remainingDistance = Vector3.Distance(newPosition, this.targetPosition);
         
-        if (remainingDistance <= movementDistance) {
-            // Reached target
+        if (remainingDistance <= movementDistance && !this.targetObject) {
+            // Reached exact target position (position-based movement only)
             this.currentPosition = this.targetPosition.clone();
             this.distanceTraveled += remainingDistance;
             this.totalEnergyConsumed += energyCostThisFrame;
@@ -186,6 +233,8 @@ export class MovementAction extends EnergyConsumer {
         this.isMoving = false;
         this.targetPosition = null;
         this.movementPath = null;
+        this.targetObject = null;
+        this.stopAtRange = null;
     }
 
     /**
@@ -202,6 +251,8 @@ export class MovementAction extends EnergyConsumer {
         console.log(`⚡ Energy consumed: ${this.totalEnergyConsumed.toFixed(2)} energy`);
 
         this.isMoving = false;
+        this.targetObject = null;
+        this.stopAtRange = null;
     }
 
     /**

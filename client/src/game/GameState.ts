@@ -95,7 +95,7 @@ export class GameState {
         this.isGameActive = true;
         
         // Initialize energy system with starting energy
-        this.energyManager.initialize(100);
+        this.energyManager.initialize(500);
         
         console.log('🎮 Game state initialized - game started');
     }
@@ -293,9 +293,9 @@ export class GameState {
      */
     private getUnitStorageCapacity(unitType: 'worker' | 'scout' | 'protector'): number {
         const capacities: { [key in 'worker' | 'scout' | 'protector']: number } = {
-            worker: 5000, // Large energy pool for testing - will be adjusted later
-            scout: 8,
-            protector: 12
+            worker: 50, // 5x multiplier (was 10)
+            scout: 40, // 5x multiplier (was 8)
+            protector: 60 // 5x multiplier (was 12)
         };
         return capacities[unitType];
     }

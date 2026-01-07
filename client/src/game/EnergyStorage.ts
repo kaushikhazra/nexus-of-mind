@@ -110,9 +110,15 @@ export class EnergyStorage {
      * Remove energy from storage
      */
     public removeEnergy(amount: number, purpose: string = 'unknown'): boolean {
-        if (amount <= 0) {
+        if (amount < 0) {
             console.warn(`⚠️ Invalid energy removal amount for ${this.entityId}: ${amount}`);
             return false;
+        }
+
+        // Allow zero energy consumption (for free actions like worker movement)
+        if (amount === 0) {
+            console.log(`⚡ Zero energy consumption for ${this.entityId}: ${purpose} (FREE)`);
+            return true;
         }
 
         if (!this.hasEnergy(amount)) {
@@ -123,7 +129,8 @@ export class EnergyStorage {
         // Remove energy
         this.currentEnergy -= amount;
         
-        console.log(`⚡ Energy removed from ${this.entityId}: -${amount} for ${purpose} (${this.currentEnergy}/${this.capacity})`);
+        // Energy removal logged only occasionally to avoid spam
+        // console.log(`⚡ Energy removed from ${this.entityId}: -${amount} for ${purpose} (${this.currentEnergy}/${this.capacity})`);
         
         // Notify changes
         this.notifyEnergyChange();

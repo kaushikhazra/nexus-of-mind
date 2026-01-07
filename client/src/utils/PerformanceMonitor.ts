@@ -206,7 +206,8 @@ export class PerformanceMonitor {
             if (this.isMonitoring && this.currentMetrics) {
                 const { fps, frameTime, drawCalls, triangles, memoryUsage } = this.currentMetrics;
                 
-                console.log(`📊 Performance: ${fps} FPS | ${frameTime}ms | ${drawCalls} draws | ${triangles} tris${memoryUsage ? ` | ${memoryUsage.toFixed(1)}MB` : ''}`);
+                // Disable performance logging to reduce console noise
+                // console.log(`📊 Performance: ${fps} FPS | ${frameTime}ms | ${drawCalls} draws | ${triangles} tris${memoryUsage ? ` | ${memoryUsage.toFixed(1)}MB` : ''}`);
             }
         }, logInterval);
     }

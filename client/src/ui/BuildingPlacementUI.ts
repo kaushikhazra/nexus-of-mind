@@ -971,8 +971,8 @@ export class BuildingPlacementUI {
      */
     private getBuildingCost(buildingType: BuildingType): number {
         switch (buildingType) {
-            case 'base': return 50;
-            case 'powerPlant': return 30;
+            case 'base': return 50; // Reverted to original cost
+            case 'powerPlant': return 30; // Reverted to original cost
             default: return 0;
         }
     }

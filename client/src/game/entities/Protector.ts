@@ -37,8 +37,8 @@ export class Protector extends Unit {
             unitType: 'protector',
             position,
             energyStorage: {
-                capacity: 12,
-                initialEnergy: 8, // Start with good energy for immediate combat
+                capacity: 60, // 5x multiplier (was 12)
+                initialEnergy: 40, // 5x multiplier (was 8) - Start with good energy for immediate combat
                 transferRate: 1.5, // Slower energy transfer due to heavy systems
                 efficiency: 0.9 // Slightly less efficient due to armor weight
             },
