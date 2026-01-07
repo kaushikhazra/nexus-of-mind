@@ -872,11 +872,10 @@ export class BuildingPlacementUI {
         console.log(`👥 Spawning 10 workers for base at ${basePosition.toString()}`);
         
         const gameEngine = GameEngine.getInstance();
-        const gameState = gameEngine?.getGameState();
         const unitManager = gameEngine?.getUnitManager();
         
-        if (!gameState || !unitManager) {
-            console.error(`❌ Cannot spawn workers: GameState or UnitManager not available`);
+        if (!unitManager) {
+            console.error(`❌ Cannot spawn workers: UnitManager not available`);
             return;
         }
 
@@ -884,15 +883,18 @@ export class BuildingPlacementUI {
         const workerPositions = this.calculateWorkerFormationPositions(basePosition);
         const spawnedWorkers: any[] = [];
 
-        // Spawn 10 workers
+        // Spawn 10 workers through UnitManager (this creates both GameState units and visuals)
         for (let i = 0; i < 10; i++) {
             const workerPosition = workerPositions[i];
             
-            // Create worker through GameState (this gives them proper energy capacity)
-            const worker = gameState.createUnit('worker', workerPosition);
-            spawnedWorkers.push(worker);
-            
-            console.log(`👤 Spawned worker ${i + 1}/10 at ${workerPosition.toString()}`);
+            // Create worker through UnitManager (this handles both GameState and visual creation)
+            const worker = unitManager.createUnit('worker', workerPosition);
+            if (worker) {
+                spawnedWorkers.push(worker);
+                console.log(`👤 Spawned worker ${i + 1}/10 at ${workerPosition.toString()}`);
+            } else {
+                console.error(`❌ Failed to spawn worker ${i + 1}/10`);
+            }
         }
 
         console.log(`✅ Successfully spawned ${spawnedWorkers.length} workers for base`);
@@ -922,7 +924,7 @@ export class BuildingPlacementUI {
 
         // Find deposits within worker mining range
         for (const worker of workers) {
-            const workerPosition = worker.position;
+            const workerPosition = worker.getPosition();
             
             for (const deposit of allDeposits) {
                 const distance = Vector3.Distance(workerPosition, deposit.getPosition());
@@ -947,14 +949,14 @@ export class BuildingPlacementUI {
             const targetDeposit = reachableDeposits[depositIndex];
             
             // Check if this worker can actually reach this deposit
-            const distance = Vector3.Distance(worker.position, targetDeposit.getPosition());
+            const distance = Vector3.Distance(worker.getPosition(), targetDeposit.getPosition());
             if (distance <= this.WORKER_MINING_RANGE) {
-                // Issue mining command through UnitManager using worker.id (not getId())
-                unitManager.selectUnits([worker.id]);
+                // Issue mining command through UnitManager using worker.getId()
+                unitManager.selectUnits([worker.getId()]);
                 unitManager.issueCommand('mine', undefined, targetDeposit.getId());
                 assignedCount++;
                 
-                console.log(`⛏️ Assigned worker ${worker.id} to mine deposit ${targetDeposit.getId()}`);
+                console.log(`⛏️ Assigned worker ${worker.getId()} to mine deposit ${targetDeposit.getId()}`);
             }
         }
 
