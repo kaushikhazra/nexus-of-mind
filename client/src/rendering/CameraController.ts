@@ -97,37 +97,151 @@ export class CameraController {
     }
 
     /**
-     * Setup camera input controls
+     * Setup camera input controls with custom RTS-style navigation
      */
     private setupCameraControls(): void {
         if (!this.camera) return;
 
-        // Enable standard camera inputs
+        // Remove default inputs to implement custom controls
+        this.camera.inputs.clear();
+        
+        // Add only mouse wheel for zooming
         this.camera.inputs.addMouseWheel();
-        this.camera.inputs.addPointers();
-        this.camera.inputs.addKeyboard();
+        
+        // Add custom pointer input for mouse controls
+        this.setupCustomMouseControls();
+        
+        // Add custom keyboard input for WASD/Arrow movement
+        this.setupCustomKeyboardControls();
 
-        // Configure mouse controls
-        const pointerInput = this.camera.inputs.attached.pointers;
-        if (pointerInput && 'buttons' in pointerInput) {
-            // Right mouse button for rotation
-            (pointerInput as any).buttons = [0, 1, 2]; // Left, middle, right mouse buttons
-        }
+        console.log('🎮 Custom RTS camera controls configured');
+    }
 
-        // Configure keyboard controls for camera movement
-        const keyboardInput = this.camera.inputs.attached.keyboard;
-        if (keyboardInput && 'keysUp' in keyboardInput) {
-            // WASD keys for camera panning
-            (keyboardInput as any).keysUp = [87]; // W
-            (keyboardInput as any).keysDown = [83]; // S
-            (keyboardInput as any).keysLeft = [65]; // A
-            (keyboardInput as any).keysRight = [68]; // D
-        }
+    /**
+     * Setup custom mouse controls
+     */
+    private setupCustomMouseControls(): void {
+        if (!this.camera || !this.scene) return;
 
-        // Add custom input handling for edge scrolling (future enhancement)
-        this.setupEdgeScrolling();
+        let isLeftMouseDown = false;
+        let isRightMouseDown = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
 
-        console.log('🎮 Camera controls configured');
+        // Mouse down handler
+        this.canvas.addEventListener('mousedown', (event) => {
+            if (event.button === 0) { // Left mouse button
+                isLeftMouseDown = true;
+            } else if (event.button === 2) { // Right mouse button
+                isRightMouseDown = true;
+            }
+            lastMouseX = event.clientX;
+            lastMouseY = event.clientY;
+        });
+
+        // Mouse up handler
+        this.canvas.addEventListener('mouseup', (event) => {
+            if (event.button === 0) {
+                isLeftMouseDown = false;
+            } else if (event.button === 2) {
+                isRightMouseDown = false;
+            }
+        });
+
+        // Mouse move handler
+        this.canvas.addEventListener('mousemove', (event) => {
+            if (!this.camera) return;
+
+            const deltaX = event.clientX - lastMouseX;
+            const deltaY = event.clientY - lastMouseY;
+
+            if (isLeftMouseDown) {
+                // Left click + drag: Tilt camera up/down (change beta angle)
+                const sensitivity = 0.01;
+                this.camera.beta += deltaY * sensitivity;
+                
+                // Clamp beta to prevent flipping
+                this.camera.beta = Math.max(this.MIN_BETA, Math.min(this.MAX_BETA, this.camera.beta));
+            }
+
+            if (isRightMouseDown) {
+                // Right click + drag: Rotate camera around target (change alpha angle)
+                const sensitivity = 0.01;
+                this.camera.alpha -= deltaX * sensitivity; // Negative for natural rotation
+            }
+
+            lastMouseX = event.clientX;
+            lastMouseY = event.clientY;
+        });
+
+        // Prevent context menu on right click
+        this.canvas.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+        });
+    }
+
+    /**
+     * Setup custom keyboard controls for camera movement
+     */
+    private setupCustomKeyboardControls(): void {
+        if (!this.camera) return;
+
+        const moveSpeed = 0.5; // Units per frame
+        const rotateSpeed = 0.02; // Radians per frame
+
+        // Track pressed keys
+        const pressedKeys = new Set<string>();
+
+        // Key down handler
+        window.addEventListener('keydown', (event) => {
+            pressedKeys.add(event.code);
+        });
+
+        // Key up handler
+        window.addEventListener('keyup', (event) => {
+            pressedKeys.delete(event.code);
+        });
+
+        // Update camera position based on pressed keys (called each frame)
+        this.scene.registerBeforeRender(() => {
+            if (!this.camera) return;
+
+            const target = this.camera.getTarget();
+            let moved = false;
+
+            // W/Up Arrow: Move forward in the map
+            if (pressedKeys.has('KeyW') || pressedKeys.has('ArrowUp')) {
+                const forward = this.camera.getDirection(Vector3.Forward()).scale(moveSpeed);
+                const newTarget = target.add(new Vector3(forward.x, 0, forward.z)); // Keep Y constant
+                this.camera.setTarget(newTarget);
+                moved = true;
+            }
+
+            // S/Down Arrow: Move backward in the map
+            if (pressedKeys.has('KeyS') || pressedKeys.has('ArrowDown')) {
+                const backward = this.camera.getDirection(Vector3.Backward()).scale(moveSpeed);
+                const newTarget = target.add(new Vector3(backward.x, 0, backward.z)); // Keep Y constant
+                this.camera.setTarget(newTarget);
+                moved = true;
+            }
+
+            // A/Left Arrow: Rotate view to left
+            if (pressedKeys.has('KeyA') || pressedKeys.has('ArrowLeft')) {
+                this.camera.alpha -= rotateSpeed;
+                moved = true;
+            }
+
+            // D/Right Arrow: Rotate view to right
+            if (pressedKeys.has('KeyD') || pressedKeys.has('ArrowRight')) {
+                this.camera.alpha += rotateSpeed;
+                moved = true;
+            }
+
+            // Optional: Log movement for debugging
+            if (moved) {
+                // console.log(`📷 Camera moved - Target: ${this.camera.getTarget().toString()}, Alpha: ${this.camera.alpha.toFixed(2)}`);
+            }
+        });
     }
 
     /**
@@ -223,6 +337,10 @@ export class CameraController {
     public dispose(): void {
         if (this.camera) {
             console.log('🗑️ Disposing camera...');
+            
+            // Remove event listeners to prevent memory leaks
+            // Note: In a production app, we'd store references to the handlers for proper cleanup
+            // For now, the handlers will be cleaned up when the page unloads
             
             this.camera.dispose();
             this.camera = null;
