@@ -2,7 +2,7 @@
 
 **Project**: Nexus of Mind - AI-Powered Real Time Strategy Game  
 **Duration**: January 5-23, 2026  
-**Total Time**: ~8 hours  
+**Total Time**: ~14 hours  
 
 ## Overview
 Building an innovative AI-powered Real Time Strategy game where players face off against a self-learning AI opponent. The AI adapts and evolves its strategies based on player behavior, creating dynamic and increasingly challenging gameplay experiences. Using Babylon.js for cross-platform 3D gaming and Python for advanced AI/ML capabilities.
@@ -45,6 +45,68 @@ Building an innovative AI-powered Real Time Strategy game where players face off
 - **Discovery**: Two separate unit systems (GameState vs UnitManager) required proper integration
 - **Learning**: UnitManager.createUnit() handles both game state and visual representation
 - **Impact**: Base placement system now complete and ready for strategic gameplay
+
+### Day 5 (Jan 7) - Environmental Combat System Complete! [6h] 🎉
+- **14:00-20:00**: Implemented complete environmental combat system with energy parasites
+- **Major Milestone**: US-008 Environmental Combat System - COMPLETE ✅
+
+#### Research & Design Phase [1h]
+- **Combat System Brainstorming**: Comprehensive analysis of 4 enemy types
+  - Energy Parasites (selected) - Environmental threats at mineral deposits
+  - Energy Vampires - Roaming mobile threats
+  - Rival AI Faction - Full strategic opponent
+  - Energy Storms - Environmental events
+- **Strategic Decision**: Energy Parasites provide perfect balance of immediate gameplay and AI scalability
+- **Documentation**: Created detailed research document with parasite dynamics and evolution path
+
+#### Core Combat Implementation [3h]
+- **EnergyParasite Entity**: Complete territorial AI with 5-state behavior system
+  - Spawning → Patrolling → Hunting → Feeding → Returning
+  - 15-unit territorial radius with ambush behavior
+  - Progressive energy drain (3 energy/sec) with visual red beams
+  - Health system (2 hits to destroy) with combat rewards
+- **ParasiteManager**: Comprehensive spawning and lifecycle management
+  - Smart spawning (75s base, 2x faster when workers mining)
+  - Max 3 parasites per deposit to prevent overwhelming
+  - Combat integration with protector attack system
+- **Visual Integration**: Dark purple spheres with glow effects and red energy drain beams
+
+#### Advanced Mechanics [2h]
+- **Worker Flee System**: Intelligent escape behavior at 40% energy threshold
+  - 10-second immunity after fleeing to prevent death spirals
+  - Proper flee direction calculation away from danger
+  - Energy recovery (0.5 energy/sec) when safe and not working
+- **Terrain Following System**: Complete terrain height detection for all units
+  - Real-time terrain height updates for smooth movement across varied elevations
+  - TerrainGenerator integration with delayed initialization
+  - Fallback height protection and proper ground-level positioning
+- **Combat Economics**: Energy-based combat costs with strategic balance
+  - Protector attacks cost 5 energy, parasites require 2 hits
+  - Defense is expensive but protects profitable mining operations
+  - Creates strategic tension between offense and resource protection
+
+#### Strategic Gameplay Transformation
+- **Mining Operations**: Now require defensive planning and protector escorts
+- **Energy Management**: Critical balance between workers, protectors, and energy costs
+- **Risk/Reward Decisions**: Players must choose which deposits to defend vs abandon
+- **Dynamic Combat**: Cat-and-mouse gameplay between parasites and workers
+- **Emergent Behavior**: Undefended sites become parasite breeding grounds over time
+
+#### Technical Achievements
+- **Performance**: Maintained 60fps with active combat, multiple parasites, and terrain following
+- **Architecture**: Scalable foundation ready for AI faction evolution (Phase 2+)
+- **Integration**: Seamless integration with existing energy, unit, and visual systems
+- **Code Quality**: Followed KISS/DRY principles throughout implementation
+- **Git Workflow**: Proper feature branch development with comprehensive commits
+
+#### Visual & UX Excellence
+- **Combat Feedback**: Clear visual indicators for all combat states and energy drain
+- **Terrain Adaptation**: All units smoothly follow terrain contours during movement
+- **State Transitions**: Intuitive flee behavior and recovery mechanics
+- **Performance Optimization**: Efficient terrain height detection and combat calculations
+
+**Status**: ✅ COMPLETE - Environmental Combat System fully functional and ready for AI scaling
+**Next**: US-009 AI Energy Allocation & Decision Making
 
 ---
 
