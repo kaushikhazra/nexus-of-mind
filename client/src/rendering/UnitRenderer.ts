@@ -50,7 +50,7 @@ export class UnitRenderer {
     // Unit type configurations
     private readonly unitConfigs = {
         worker: {
-            color: new Color3(0.2, 0.8, 0.2), // Green
+            color: new Color3(0.1, 0.4, 0.1), // Dark green
             radius: 0.3, // Much smaller - more realistic scale
             segments: 8 // Low poly
         },

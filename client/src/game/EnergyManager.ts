@@ -126,7 +126,8 @@ export class EnergyManager {
         // Record transaction
         this.recordTransaction(entityId, amount, 'generation', source, true);
         
-        console.log(`⚡ Energy generated: ${amount} from ${source} (total: ${this.totalSystemEnergy})`);
+        // Energy generation logged only occasionally to avoid spam
+        // console.log(`⚡ Energy generated: ${amount} from ${source} (total: ${this.totalSystemEnergy})`);
         this.notifyEnergyChange();
     }
 

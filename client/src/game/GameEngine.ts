@@ -5,7 +5,7 @@
  * Implements singleton pattern for centralized game engine management.
  */
 
-import { Engine, Scene, PointerEventTypes } from '@babylonjs/core';
+import { Engine, Scene, PointerEventTypes, Vector3 } from '@babylonjs/core';
 import { SceneManager } from '../rendering/SceneManager';
 import { CameraController } from '../rendering/CameraController';
 import { LightingSetup } from '../rendering/LightingSetup';
@@ -112,7 +112,7 @@ export class GameEngine {
 
             // Initialize energy system
             this.energyManager = EnergyManager.getInstance();
-            this.energyManager.initialize(100); // Start with 100 energy
+            this.energyManager.initialize(500); // Start with 500 energy (5x multiplier)
 
             // Initialize game state
             this.gameState = GameState.getInstance();

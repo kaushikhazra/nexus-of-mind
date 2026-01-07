@@ -8,6 +8,7 @@
 import { Scene, Vector3 } from '@babylonjs/core';
 import { GameEngine } from '../game/GameEngine';
 import { MineralDeposit } from '../world/MineralDeposit';
+import { MovementAction } from '../game/actions/MovementAction';
 
 export interface MiningTooltipAnalysis {
     nearbyNodes: MineralDeposit[];
@@ -15,6 +16,17 @@ export interface MiningTooltipAnalysis {
     efficiency: 'high' | 'medium' | 'low';
     totalCapacity: number;
     recommendedBasePosition: Vector3;
+    // Movement analysis for selected workers
+    selectedWorkerAnalysis?: WorkerMovementAnalysis[];
+}
+
+export interface WorkerMovementAnalysis {
+    workerId: string;
+    distance: number;
+    movementCost: number;
+    currentEnergy: number;
+    canReach: boolean;
+    energyAfterMovement: number;
 }
 
 export class MiningAnalysisTooltip {
@@ -74,42 +86,73 @@ export class MiningAnalysisTooltip {
     }
 
     /**
-     * Setup mouse tracking for proximity detection
+     * Setup mouse tracking for click detection on mineral deposits
      */
     private setupMouseTracking(): void {
         if (!this.scene) return;
 
         this.pointerObserver = this.scene.onPointerObservable.add((pointerInfo) => {
-            if (pointerInfo.type === 1) { // POINTERMOVE
-                this.handleMouseMove();
+            if (pointerInfo.type === 4) { // POINTERDOWN (click)
+                this.handleMouseClick();
             }
         });
     }
 
     /**
-     * Handle mouse movement for proximity detection
+     * Handle mouse click for mineral deposit detection
      */
-    private handleMouseMove(): void {
+    private handleMouseClick(): void {
         if (!this.scene) return;
 
         // Get world position from mouse
         const pickInfo = this.scene.pick(this.scene.pointerX, this.scene.pointerY);
         
         if (pickInfo && pickInfo.hit && pickInfo.pickedPoint) {
-            this.lastMousePosition = pickInfo.pickedPoint.clone();
+            const clickPosition = pickInfo.pickedPoint.clone();
             
-            // Check proximity to mineral clusters
-            const analysis = this.analyzeProximityToMinerals(this.lastMousePosition);
-            
-            if (analysis && analysis.nearbyNodes.length > 0) {
-                this.showTooltip(analysis);
-                this.updateTooltipPosition();
+            // Check if clicked on or near a mineral deposit
+            if (this.isClickOnMineralDeposit(pickInfo, clickPosition)) {
+                const analysis = this.analyzeProximityToMinerals(clickPosition);
+                
+                if (analysis && analysis.nearbyNodes.length > 0) {
+                    this.showTooltip(analysis);
+                    this.updateTooltipPosition();
+                } else {
+                    this.hideTooltip();
+                }
             } else {
+                // Clicked elsewhere - hide tooltip
                 this.hideTooltip();
             }
         } else {
             this.hideTooltip();
         }
+    }
+
+    /**
+     * Check if click was on a mineral deposit
+     */
+    private isClickOnMineralDeposit(pickInfo: any, clickPosition: Vector3): boolean {
+        // Check if clicked mesh is a mineral chunk
+        if (pickInfo.pickedMesh && pickInfo.pickedMesh.name.startsWith('mineral_chunk_')) {
+            return true;
+        }
+
+        // Also check proximity to any mineral deposit (in case click was near but not exactly on mesh)
+        const gameEngine = GameEngine.getInstance();
+        const terrainGenerator = gameEngine?.getTerrainGenerator();
+        
+        if (!terrainGenerator) return false;
+
+        const allDeposits = terrainGenerator.getAllMineralDeposits();
+        for (const deposit of allDeposits) {
+            const distance = Vector3.Distance(clickPosition, deposit.getPosition());
+            if (distance <= 3) { // Close proximity threshold for clicks
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -141,13 +184,60 @@ export class MiningAnalysisTooltip {
         // Analyze mining potential from recommended base position
         const miningAnalysis = this.analyzeMiningPotentialFromPosition(recommendedBasePosition, allDeposits);
 
+        // Check if workers are selected and add movement analysis
+        let selectedWorkerAnalysis: WorkerMovementAnalysis[] | undefined = undefined;
+        const unitManager = gameEngine?.getUnitManager();
+        if (unitManager) {
+            const selectedUnits = unitManager.getSelectedUnits();
+            const selectedWorkers = selectedUnits.filter(unit => unit.getUnitType() === 'worker');
+            
+            if (selectedWorkers.length > 0) {
+                selectedWorkerAnalysis = this.analyzeWorkerMovement(selectedWorkers, mousePosition);
+            }
+        }
+
         return {
             nearbyNodes,
             potentialWorkers: miningAnalysis.workerCount,
             efficiency: miningAnalysis.efficiency,
             totalCapacity: miningAnalysis.totalCapacity,
-            recommendedBasePosition
+            recommendedBasePosition,
+            selectedWorkerAnalysis
         };
+    }
+
+    /**
+     * Analyze movement cost for selected workers to a mineral deposit
+     */
+    private analyzeWorkerMovement(workers: any[], depositPosition: Vector3): WorkerMovementAnalysis[] {
+        const analyses: WorkerMovementAnalysis[] = [];
+        
+        for (const worker of workers) {
+            const workerPosition = worker.getPosition();
+            const distance = Vector3.Distance(workerPosition, depositPosition);
+            
+            // Get worker's current energy
+            const workerEnergy = worker.getEnergyStorage().getCurrentEnergy();
+            
+            // Calculate movement cost
+            const movementCostPerUnit = MovementAction.getMovementCost('worker');
+            const totalMovementCost = distance * movementCostPerUnit;
+            
+            // Check if worker can reach the deposit
+            const canReach = workerEnergy >= totalMovementCost;
+            const energyAfterMovement = workerEnergy - totalMovementCost;
+            
+            analyses.push({
+                workerId: worker.getId(),
+                distance,
+                movementCost: totalMovementCost,
+                currentEnergy: workerEnergy,
+                canReach,
+                energyAfterMovement
+            });
+        }
+        
+        return analyses;
     }
 
     /**
@@ -265,6 +355,22 @@ export class MiningAnalysisTooltip {
         const efficiencyColor = this.getEfficiencyColor(analysis.efficiency);
         const efficiencyText = analysis.efficiency.toUpperCase();
         
+        // Check if we have selected worker analysis
+        const hasWorkerAnalysis = analysis.selectedWorkerAnalysis && analysis.selectedWorkerAnalysis.length > 0;
+        
+        if (hasWorkerAnalysis) {
+            // Show worker movement analysis
+            return this.createWorkerAnalysisContent(analysis);
+        } else {
+            // Show standard mining analysis
+            return this.createStandardMiningContent(analysis, efficiencyColor, efficiencyText);
+        }
+    }
+
+    /**
+     * Create standard mining analysis content
+     */
+    private createStandardMiningContent(analysis: MiningTooltipAnalysis, efficiencyColor: string, efficiencyText: string): string {
         return `
             <div style="font-size: 12px; font-weight: 700; text-align: center; margin-bottom: 8px; color: #00ffff; text-shadow: 0 0 8px rgba(0, 255, 255, 0.6);">
                 ◊ MINING ANALYSIS ◊
@@ -297,6 +403,92 @@ export class MiningAnalysisTooltip {
     }
 
     /**
+     * Create worker movement analysis content
+     */
+    private createWorkerAnalysisContent(analysis: MiningTooltipAnalysis): string {
+        const workerAnalyses = analysis.selectedWorkerAnalysis!;
+        const multipleWorkers = workerAnalyses.length > 1;
+        
+        let content = `
+            <div style="font-size: 12px; font-weight: 700; text-align: center; margin-bottom: 8px; color: #ffa500; text-shadow: 0 0 8px rgba(255, 165, 0, 0.6);">
+                ◊ WORKER MOVEMENT ◊
+            </div>
+        `;
+
+        // Add basic mining info
+        content += `
+            <div style="margin-bottom: 6px;">
+                <span style="color: #ffcc66;">Mineral Nodes:</span> 
+                <span style="color: #ffffff; font-weight: 600;">${analysis.nearbyNodes.length}</span>
+            </div>
+        `;
+
+        // Add worker analysis
+        for (let i = 0; i < workerAnalyses.length; i++) {
+            const workerAnalysis = workerAnalyses[i];
+            const statusColor = workerAnalysis.canReach ? '#00ff00' : '#ff4444';
+            const statusIcon = workerAnalysis.canReach ? '✅' : '❌';
+            const workerLabel = multipleWorkers ? `Worker ${i + 1}` : 'Selected Worker';
+            
+            if (i > 0) {
+                content += `<div style="border-top: 1px solid rgba(255, 165, 0, 0.2); margin: 6px 0; padding-top: 6px;"></div>`;
+            }
+            
+            content += `
+                <div style="margin-bottom: 4px;">
+                    <span style="color: #ffcc66;">${workerLabel}:</span> 
+                    <span style="color: ${statusColor}; font-weight: 600;">${statusIcon}</span>
+                </div>
+                
+                <div style="margin-bottom: 4px; margin-left: 10px;">
+                    <span style="color: #ffcc66;">Distance:</span> 
+                    <span style="color: #ffffff; font-weight: 600;">${workerAnalysis.distance.toFixed(1)} units</span>
+                </div>
+                
+                <div style="margin-bottom: 4px; margin-left: 10px;">
+                    <span style="color: #ffcc66;">Cost:</span> 
+                    <span style="color: #ffffff; font-weight: 600;">${workerAnalysis.movementCost.toFixed(1)}J</span>
+                </div>
+                
+                <div style="margin-bottom: 4px; margin-left: 10px;">
+                    <span style="color: #ffcc66;">Energy:</span> 
+                    <span style="color: #ffffff; font-weight: 600;">${workerAnalysis.currentEnergy.toFixed(1)}J</span>
+                </div>
+            `;
+            
+            if (workerAnalysis.canReach) {
+                content += `
+                    <div style="margin-bottom: 4px; margin-left: 10px;">
+                        <span style="color: #ffcc66;">After Move:</span> 
+                        <span style="color: #00ff00; font-weight: 600;">${workerAnalysis.energyAfterMovement.toFixed(1)}J</span>
+                    </div>
+                `;
+            } else {
+                const energyNeeded = workerAnalysis.movementCost - workerAnalysis.currentEnergy;
+                content += `
+                    <div style="margin-bottom: 4px; margin-left: 10px;">
+                        <span style="color: #ffcc66;">Need:</span> 
+                        <span style="color: #ff4444; font-weight: 600;">+${energyNeeded.toFixed(1)}J</span>
+                    </div>
+                `;
+            }
+        }
+
+        // Add summary
+        const canReachCount = workerAnalyses.filter(w => w.canReach).length;
+        const summaryColor = canReachCount === workerAnalyses.length ? '#00ff00' : 
+                           canReachCount > 0 ? '#ffff00' : '#ff4444';
+        
+        content += `
+            <div style="font-size: 10px; color: ${summaryColor}; text-align: center; border-top: 1px solid rgba(255, 165, 0, 0.2); padding-top: 6px; margin-top: 8px;">
+                ${canReachCount}/${workerAnalyses.length} workers can reach this deposit
+            </div>
+        `;
+
+        return content;
+    }
+
+    /**
      * Get efficiency color
      */
     private getEfficiencyColor(efficiency: 'high' | 'medium' | 'low'): string {
@@ -319,7 +511,7 @@ export class MiningAnalysisTooltip {
     }
 
     /**
-     * Update tooltip position to follow mouse
+     * Update tooltip position based on click location
      */
     private updateTooltipPosition(): void {
         if (!this.tooltipElement || !this.isVisible) return;
@@ -327,8 +519,8 @@ export class MiningAnalysisTooltip {
         const mouseX = this.scene.pointerX;
         const mouseY = this.scene.pointerY;
         
-        // Offset tooltip to avoid covering cursor
-        const offsetX = 15;
+        // Offset tooltip to avoid covering the clicked area
+        const offsetX = 20;
         const offsetY = -10;
         
         // Ensure tooltip stays within viewport
@@ -345,7 +537,7 @@ export class MiningAnalysisTooltip {
         }
         
         if (finalY < 0) {
-            finalY = mouseY + 20; // Show below cursor
+            finalY = mouseY + 30; // Show below click point
         }
         
         this.tooltipElement.style.left = `${finalX}px`;

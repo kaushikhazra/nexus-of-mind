@@ -22,8 +22,8 @@ export class Scout extends Unit {
             unitType: 'scout',
             position,
             energyStorage: {
-                capacity: 8,
-                initialEnergy: 6, // Start with 75% energy for immediate exploration
+                capacity: 40, // 5x multiplier (was 8)
+                initialEnergy: 30, // 5x multiplier (was 6) - Start with 75% energy for immediate exploration
                 transferRate: 3.0, // Fast energy transfer for quick missions
                 efficiency: 1.2 // High efficiency for extended exploration
             },

@@ -21,8 +21,8 @@ export class Worker extends Unit {
             unitType: 'worker',
             position,
             energyStorage: {
-                capacity: 10,
-                initialEnergy: 5, // Start with 50% energy
+                capacity: 50, // 5x multiplier (was 10)
+                initialEnergy: 25, // 5x multiplier (was 5) - Start with 50% energy
                 transferRate: 2.0,
                 efficiency: 1.0
             },

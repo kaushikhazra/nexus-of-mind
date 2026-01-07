@@ -57,11 +57,13 @@ export class MiningAction extends EnergyConsumer {
             return this.createResult(false, 0, 0, 'Target cannot be mined');
         }
 
-        // Check if target is within range
+        // Check if target is within mining range
         const distance = Vector3.Distance(this.minerPosition, target.getPosition());
         if (distance > this.miningConfig.miningRange) {
             return this.createResult(false, 0, 0, `Target too far (${distance.toFixed(1)}m > ${this.miningConfig.miningRange}m)`);
         }
+        
+        console.log(`⛏️ Starting mining within range (distance: ${distance.toFixed(1)}m <= ${this.miningConfig.miningRange}m)`);
 
         // Check initial energy cost
         const initialCost = this.config.baseCost;
@@ -121,7 +123,8 @@ export class MiningAction extends EnergyConsumer {
             this.energyManager.generateEnergy(this.entityId, extractedEnergy, 'mining');
             this.totalEnergyGenerated += extractedEnergy;
 
-            console.log(`⛏️ Mined ${extractedEnergy.toFixed(2)} energy (net: +${(extractedEnergy - energyCost).toFixed(2)})`);
+            // Reduced logging - only log occasionally to avoid flooding
+            // console.log(`⛏️ Mined ${extractedEnergy.toFixed(2)} energy (net: +${(extractedEnergy - energyCost).toFixed(2)})`);
         }
 
         // Check if deposit is depleted

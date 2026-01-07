@@ -1,5 +1,41 @@
 # Technical Architecture
 
+## Development Principles
+
+**KISS Principle (Keep It Simple, Stupid)**:
+- Always choose the simplest solution that works
+- Avoid over-engineering and complex abstractions
+- If you find yourself adding multiple layers of logic for a simple task, step back and simplify
+- Example: Don't create retry counters, max limits, and complex state management when a simple "keep trying until it works" approach is sufficient
+
+**DRY Principle (Don't Repeat Yourself)**:
+- Avoid duplicating code, logic, or functionality
+- If you're writing similar code in multiple places, extract it into a shared function or component
+- Don't create multiple systems that do the same thing (e.g., multiple distance checking mechanisms)
+- Reuse existing patterns and components rather than creating new ones
+
+**Development Guidelines**:
+- **Start simple**: Implement the minimal working solution first
+- **Iterate and improve**: Add complexity only when actually needed
+- **Question complexity**: If a solution feels complex, ask "Is there a simpler way?"
+- **Remove unused code**: Clean up experimental code and unused features
+- **One responsibility**: Each function/class should do one thing well
+- **Fail fast**: Prefer simple error handling over complex error recovery
+
+**Red Flags to Avoid**:
+- Multiple systems doing the same job
+- Complex retry/fallback logic for simple operations
+- Nested conditionals more than 2-3 levels deep
+- Functions longer than 50 lines
+- Classes with more than 10 methods
+- Copy-pasted code with minor variations
+
+**When in Doubt**:
+- Choose readability over cleverness
+- Choose working code over perfect code
+- Choose simple maintenance over complex optimization
+- Ask: "Will this be easy to understand in 6 months?"
+
 ## Technology Stack
 **Frontend/Game Engine**:
 - Primary: Babylon.js (3D web-based game engine)
