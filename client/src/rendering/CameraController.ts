@@ -14,7 +14,7 @@ export class CameraController {
     private camera: ArcRotateCamera | null = null;
 
     // Camera configuration
-    private readonly INITIAL_RADIUS = 25;
+    private readonly INITIAL_RADIUS = 75; // Increased 3x for better overview (was 25)
     private readonly INITIAL_ALPHA = -Math.PI / 4; // 45 degrees from side
     private readonly INITIAL_BETA = Math.PI / 4;   // 45 degrees from horizontal (better RTS view)
     private readonly MIN_RADIUS = 8;
@@ -97,37 +97,84 @@ export class CameraController {
     }
 
     /**
-     * Setup camera input controls
+     * Setup camera input controls with custom keyboard but default mouse
      */
     private setupCameraControls(): void {
         if (!this.camera) return;
 
-        // Enable standard camera inputs
+        // Enable standard mouse controls (keep original behavior)
         this.camera.inputs.addMouseWheel();
         this.camera.inputs.addPointers();
-        this.camera.inputs.addKeyboard();
+        
+        // Add custom keyboard controls only
+        this.setupCustomKeyboardControls();
 
-        // Configure mouse controls
+        // Configure mouse controls (keep original settings)
         const pointerInput = this.camera.inputs.attached.pointers;
         if (pointerInput && 'buttons' in pointerInput) {
-            // Right mouse button for rotation
-            (pointerInput as any).buttons = [0, 1, 2]; // Left, middle, right mouse buttons
+            // Left, middle, right mouse buttons (original behavior)
+            (pointerInput as any).buttons = [0, 1, 2];
         }
 
-        // Configure keyboard controls for camera movement
-        const keyboardInput = this.camera.inputs.attached.keyboard;
-        if (keyboardInput && 'keysUp' in keyboardInput) {
-            // WASD keys for camera panning
-            (keyboardInput as any).keysUp = [87]; // W
-            (keyboardInput as any).keysDown = [83]; // S
-            (keyboardInput as any).keysLeft = [65]; // A
-            (keyboardInput as any).keysRight = [68]; // D
-        }
+        console.log('🎮 Camera controls configured - original mouse + custom keyboard');
+    }
 
-        // Add custom input handling for edge scrolling (future enhancement)
-        this.setupEdgeScrolling();
+    /**
+     * Setup custom keyboard controls for camera movement
+     */
+    private setupCustomKeyboardControls(): void {
+        if (!this.camera) return;
 
-        console.log('🎮 Camera controls configured');
+        const moveSpeed = 0.5; // Units per frame
+        const rotateSpeed = 0.02; // Radians per frame
+
+        // Track pressed keys
+        const pressedKeys = new Set<string>();
+
+        // Key down handler
+        window.addEventListener('keydown', (event) => {
+            pressedKeys.add(event.code);
+        });
+
+        // Key up handler
+        window.addEventListener('keyup', (event) => {
+            pressedKeys.delete(event.code);
+        });
+
+        // Update camera position based on pressed keys (called each frame)
+        this.scene.registerBeforeRender(() => {
+            if (!this.camera) return;
+
+            const target = this.camera.getTarget();
+            let moved = false;
+
+            // W/Up Arrow: Move forward in the map
+            if (pressedKeys.has('KeyW') || pressedKeys.has('ArrowUp')) {
+                const forward = this.camera.getDirection(Vector3.Forward()).scale(moveSpeed);
+                const newTarget = target.add(new Vector3(forward.x, 0, forward.z)); // Keep Y constant
+                this.camera.setTarget(newTarget);
+                moved = true;
+            }
+
+            // S/Down Arrow: Move backward in the map
+            if (pressedKeys.has('KeyS') || pressedKeys.has('ArrowDown')) {
+                const backward = this.camera.getDirection(Vector3.Backward()).scale(moveSpeed);
+                const newTarget = target.add(new Vector3(backward.x, 0, backward.z)); // Keep Y constant
+                this.camera.setTarget(newTarget);
+                moved = true;
+            }
+
+            // A/Left Arrow: Rotate view to left
+            if (pressedKeys.has('KeyA') || pressedKeys.has('ArrowLeft')) {
+                this.camera.alpha -= rotateSpeed;
+                moved = true;
+            }
+
+            // D/Right Arrow: Rotate view to right
+            if (pressedKeys.has('KeyD') || pressedKeys.has('ArrowRight')) {
+                this.camera.alpha += rotateSpeed;
+            }
+        });
     }
 
     /**
