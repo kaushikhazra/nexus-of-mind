@@ -5,12 +5,13 @@
  * Handles chunk loading/unloading based on camera position for infinite worlds.
  */
 
-import { Scene, Vector3 } from '@babylonjs/core';
+import { Scene, Vector3, Color3 } from '@babylonjs/core';
 import { MaterialManager } from './MaterialManager';
 import { CameraController } from './CameraController';
 import { NoiseGenerator } from '../utils/NoiseGenerator';
 import { TerrainChunk, ChunkData } from './TerrainChunk';
 import { MineralDeposit, MineralDepositConfig } from '../world/MineralDeposit';
+import { TreeRenderer } from './TreeRenderer';
 
 export interface TerrainConfig {
     chunkSize: number;
@@ -20,6 +21,7 @@ export interface TerrainConfig {
     seed: number;
     mineralDensity: number; // Minerals per chunk (average)
     mineralCapacityRange: [number, number]; // Min/max energy per deposit
+    treeDensity: number; // Trees per chunk (average)
 }
 
 export class TerrainGenerator {
@@ -31,6 +33,8 @@ export class TerrainGenerator {
     // Chunk management
     private chunks: Map<string, TerrainChunk> = new Map();
     private mineralDeposits: Map<string, MineralDeposit[]> = new Map(); // Deposits per chunk
+    private treesPerChunk: Map<string, string[]> = new Map(); // Tree IDs per chunk
+    private treeRenderer: TreeRenderer | null = null;
     private config: TerrainConfig;
     private lastCameraPosition: Vector3 = Vector3.Zero();
     private updateThreshold: number = 10; // Update when camera moves 10 units
@@ -54,6 +58,7 @@ export class TerrainGenerator {
             seed: 12345,
             mineralDensity: 18, // Increased 200% more from 6 - Average 18 deposits per chunk for very rich gameplay
             mineralCapacityRange: [20, 80], // 20-80 energy per deposit
+            treeDensity: 8, // Average 8 trees per chunk
             ...config
         };
 
@@ -163,6 +168,9 @@ export class TerrainGenerator {
             // Generate mineral deposits for this chunk
             this.generateMineralDeposits(chunkX, chunkZ);
 
+            // Generate trees for this chunk
+            this.generateTrees(chunkX, chunkZ);
+
             // Store chunk
             this.chunks.set(chunkKey, chunk);
 
@@ -228,6 +236,93 @@ export class TerrainGenerator {
 
         // Store deposits for this chunk
         this.mineralDeposits.set(chunkKey, deposits);
+    }
+
+    /**
+     * Set tree renderer for vegetation spawning
+     */
+    public setTreeRenderer(treeRenderer: TreeRenderer): void {
+        this.treeRenderer = treeRenderer;
+
+        // Generate trees for any chunks that were loaded before tree renderer was set
+        for (const chunkKey of this.chunks.keys()) {
+            if (!this.treesPerChunk.has(chunkKey)) {
+                const [chunkX, chunkZ] = chunkKey.split('_').map(Number);
+                this.generateTrees(chunkX, chunkZ);
+            }
+        }
+    }
+
+    /**
+     * Generate trees for a chunk
+     */
+    private generateTrees(chunkX: number, chunkZ: number): void {
+        if (!this.treeRenderer) return;
+
+        const chunkKey = this.getChunkKey(chunkX, chunkZ);
+        const treeIds: string[] = [];
+
+        // Use seeded random for consistent generation (offset from mineral seed)
+        const chunkSeed = this.config.seed + chunkX * 1000 + chunkZ + 50000;
+        const random = this.createSeededRandom(chunkSeed);
+
+        // Determine number of trees
+        const baseCount = Math.floor(this.config.treeDensity);
+        const extraChance = this.config.treeDensity - baseCount;
+        const treeCount = baseCount + (random() < extraChance ? 1 : 0);
+
+        const worldStartX = chunkX * this.config.chunkSize;
+        const worldStartZ = chunkZ * this.config.chunkSize;
+
+        // Color variations
+        const capColors = [
+            { r: 0.4, g: 0.2, b: 0.5 },   // Purple
+            { r: 0.3, g: 0.25, b: 0.5 },  // Blue-purple
+            { r: 0.5, g: 0.2, b: 0.4 },   // Pink-purple
+            { r: 0.2, g: 0.3, b: 0.45 },  // Teal-blue
+        ];
+
+        const glowColors = [
+            { r: 0.2, g: 0.9, b: 0.8 },   // Cyan
+            { r: 0.3, g: 1.0, b: 0.5 },   // Green
+            { r: 0.9, g: 0.8, b: 0.2 },   // Yellow
+            { r: 0.8, g: 0.3, b: 0.9 },   // Magenta
+        ];
+
+        for (let i = 0; i < treeCount; i++) {
+            // Random position within chunk
+            const margin = 3;
+            const localX = margin + random() * (this.config.chunkSize - 2 * margin);
+            const localZ = margin + random() * (this.config.chunkSize - 2 * margin);
+
+            const worldX = worldStartX + localX;
+            const worldZ = worldStartZ + localZ;
+            const worldY = this.getHeightAtPosition(worldX, worldZ);
+
+            // Get biome - trees prefer vegetation biomes
+            const biome = this.getBiomeAtPosition(worldX, worldZ);
+
+            // Skip some trees in non-vegetation biomes
+            if (biome === 'rocky' && random() > 0.3) continue; // 30% chance in rocky
+            if (biome === 'desert' && random() > 0.2) continue; // 20% chance in desert
+
+            // Random scale and colors
+            const scale = 0.5 + random() * 1.0;
+            const capColor = capColors[Math.floor(random() * capColors.length)];
+            const glowColor = glowColors[Math.floor(random() * glowColors.length)];
+
+            const treeId = this.treeRenderer.createTree({
+                position: new Vector3(worldX, worldY, worldZ),
+                scale,
+                capColor: new Color3(capColor.r, capColor.g, capColor.b),
+                glowColor: new Color3(glowColor.r, glowColor.g, glowColor.b)
+            });
+
+            treeIds.push(treeId);
+        }
+
+        // Store tree IDs for this chunk
+        this.treesPerChunk.set(chunkKey, treeIds);
     }
 
     /**
@@ -303,6 +398,13 @@ export class TerrainGenerator {
         if (deposits) {
             deposits.forEach(deposit => deposit.dispose());
             this.mineralDeposits.delete(chunkKey);
+        }
+
+        // Remove trees for this chunk
+        const treeIds = this.treesPerChunk.get(chunkKey);
+        if (treeIds && this.treeRenderer) {
+            treeIds.forEach(treeId => this.treeRenderer!.removeTree(treeId));
+            this.treesPerChunk.delete(chunkKey);
         }
     }
 
@@ -453,5 +555,13 @@ export class TerrainGenerator {
             deposits.forEach(deposit => deposit.dispose());
         }
         this.mineralDeposits.clear();
+
+        // Remove all trees
+        if (this.treeRenderer) {
+            for (const treeIds of this.treesPerChunk.values()) {
+                treeIds.forEach(treeId => this.treeRenderer!.removeTree(treeId));
+            }
+        }
+        this.treesPerChunk.clear();
     }
 }

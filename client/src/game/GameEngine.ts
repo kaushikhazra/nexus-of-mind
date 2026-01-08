@@ -20,6 +20,7 @@ import { BuildingManager } from './BuildingManager';
 import { BuildingRenderer } from '../rendering/BuildingRenderer';
 import { MiningAnalysisTooltip } from '../ui/MiningAnalysisTooltip';
 import { ParasiteManager } from './ParasiteManager';
+import { TreeRenderer } from '../rendering/TreeRenderer';
 import { Worker } from './entities/Worker';
 import { Protector } from './entities/Protector';
 
@@ -54,6 +55,9 @@ export class GameEngine {
 
     // Combat system
     private parasiteManager: ParasiteManager | null = null;
+
+    // Vegetation system
+    private treeRenderer: TreeRenderer | null = null;
 
     // UI systems
     private miningAnalysisTooltip: MiningAnalysisTooltip | null = null;
@@ -134,12 +138,20 @@ export class GameEngine {
                 terrainGenerator: this.getTerrainGenerator()
             });
 
+            // Initialize vegetation system
+            this.treeRenderer = new TreeRenderer(this.scene);
+
             // Set terrain generator after terrain is initialized (delayed)
             setTimeout(() => {
                 const terrainGen = this.getTerrainGenerator();
                 if (terrainGen && this.unitManager && this.parasiteManager) {
                     this.unitManager.setTerrainGenerator(terrainGen);
                     this.parasiteManager.setTerrainGenerator(terrainGen);
+
+                    // Set tree renderer on terrain for infinite tree spawning
+                    if (this.treeRenderer) {
+                        terrainGen.setTreeRenderer(this.treeRenderer);
+                    }
                 } else {
                     console.warn('⚠️ Terrain generator not available after delay');
                 }
@@ -230,6 +242,11 @@ export class GameEngine {
                         const workers = this.unitManager.getUnitsByType('worker') as Worker[];
                         const protectors = this.unitManager.getUnitsByType('protector') as Protector[];
                         this.parasiteManager.update(deltaTime, mineralDeposits, workers, protectors);
+                    }
+
+                    // Update vegetation animations
+                    if (this.treeRenderer) {
+                        this.treeRenderer.updateAnimations();
                     }
 
                     this.scene.render();
@@ -523,6 +540,7 @@ export class GameEngine {
         this.stop();
 
         // Dispose components in reverse order
+        this.treeRenderer?.dispose();
         this.parasiteManager?.dispose();
         this.buildingManager?.dispose();
         this.buildingRenderer?.dispose();
