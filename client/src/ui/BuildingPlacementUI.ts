@@ -79,8 +79,6 @@ export class BuildingPlacementUI {
         this.createUI();
         this.setupMouseInteraction();
         this.createPreviewMaterials();
-        
-        console.log('🏗️ BuildingPlacementUI initialized');
     }
 
     /**
@@ -251,8 +249,6 @@ export class BuildingPlacementUI {
         
         // Create preview mesh
         this.createPreviewMesh(buildingType);
-        
-        console.log(`🏗️ Started placement mode for ${buildingType}`);
     }
 
     /**
@@ -282,8 +278,6 @@ export class BuildingPlacementUI {
         }
         
         this.updateStatus('Select a building to construct', '#00ccff');
-        
-        console.log('🏗️ Cancelled placement mode');
     }
 
     /**
@@ -733,21 +727,14 @@ export class BuildingPlacementUI {
      * Handle mouse click for building placement
      */
     private handleMouseClick(pointerInfo: any): void {
-        console.log(`🖱️ Mouse click detected in placement mode`);
-        
+
         if (!this.currentMousePosition || !this.currentBuildingType) {
-            console.warn(`⚠️ Missing position or building type:`, {
-                position: this.currentMousePosition,
-                buildingType: this.currentBuildingType
-            });
+            console.warn('Missing position or building type');
             return;
         }
 
-        console.log(`🖱️ Click at position: ${this.currentMousePosition.toString()}`);
-
         // Validate placement
         if (!this.isValidBuildingPosition(this.currentMousePosition)) {
-            console.warn(`❌ Invalid placement position`);
             this.updateStatus('Invalid placement location!', '#ff4444');
             return;
         }
@@ -755,12 +742,9 @@ export class BuildingPlacementUI {
         // Check energy cost again
         const cost = this.getBuildingCost(this.currentBuildingType);
         if (this.energyManager.getTotalEnergy() < cost) {
-            console.warn(`❌ Insufficient energy: need ${cost}, have ${this.energyManager.getTotalEnergy()}`);
             this.updateStatus('Insufficient energy!', '#ff4444');
             return;
         }
-
-        console.log(`✅ Placement validation passed, proceeding with building placement`);
 
         // Place the building
         this.placeBuilding(this.currentBuildingType, this.currentMousePosition);
@@ -806,8 +790,6 @@ export class BuildingPlacementUI {
     private placeBuilding(buildingType: BuildingType, position: Vector3): void {
         const cost = this.getBuildingCost(buildingType);
         
-        console.log(`🏗️ Attempting to place ${buildingType} at ${position.toString()} for ${cost}J`);
-        
         // Consume energy
         const success = this.energyManager.consumeEnergy('building_construction', cost, `build_${buildingType}`);
         
@@ -817,11 +799,8 @@ export class BuildingPlacementUI {
             return;
         }
 
-        console.log(`✅ Energy consumed: ${cost}J`);
-
         // IMMEDIATELY remove preview mesh to prevent visual issues
         if (this.previewMesh) {
-            console.log(`🗑️ Removing preview mesh before building creation`);
             this.previewMesh.dispose();
             this.previewMesh = null;
         }
@@ -835,23 +814,18 @@ export class BuildingPlacementUI {
         const buildingManager = gameEngine?.getBuildingManager();
         
         if (gameState && buildingManager) {
-            console.log(`🏗️ Creating building through GameState and BuildingManager...`);
-            
             // Create building in GameState
             const gameBuilding = gameState.createBuilding(buildingType, position, 'player');
-            console.log(`✅ GameState building created:`, gameBuilding);
-            
+
             // Start construction through BuildingManager
             buildingManager.startConstruction(buildingType, position, 'player').then(building => {
                 if (building) {
-                    console.log(`✅ BuildingManager construction completed instantly:`, building.getId());
-                    
                     // If this is a base, spawn 10 workers
                     if (buildingType === 'base') {
                         this.spawnWorkersForBase(position);
                     }
                 } else {
-                    console.warn(`⚠️ BuildingManager construction failed`);
+                    console.warn('BuildingManager construction failed');
                 }
             });
             
@@ -869,8 +843,6 @@ export class BuildingPlacementUI {
      * Spawn 10 workers for a newly placed base
      */
     private spawnWorkersForBase(basePosition: Vector3): void {
-        console.log(`👥 Spawning 10 workers for base at ${basePosition.toString()}`);
-        
         const gameEngine = GameEngine.getInstance();
         const unitManager = gameEngine?.getUnitManager();
         
@@ -891,13 +863,10 @@ export class BuildingPlacementUI {
             const worker = unitManager.createUnit('worker', workerPosition);
             if (worker) {
                 spawnedWorkers.push(worker);
-                console.log(`👤 Spawned worker ${i + 1}/10 at ${workerPosition.toString()}`);
             } else {
                 console.error(`❌ Failed to spawn worker ${i + 1}/10`);
             }
         }
-
-        console.log(`✅ Successfully spawned ${spawnedWorkers.length} workers for base`);
 
         // Auto-assign workers to nearby mining if available
         this.autoAssignWorkersToMining(spawnedWorkers, basePosition);
@@ -907,8 +876,6 @@ export class BuildingPlacementUI {
      * Auto-assign workers to nearby mineral deposits
      */
     private autoAssignWorkersToMining(workers: any[], basePosition: Vector3): void {
-        console.log(`⛏️ Auto-assigning ${workers.length} workers to nearby mining...`);
-        
         const gameEngine = GameEngine.getInstance();
         const terrainGenerator = gameEngine?.getTerrainGenerator();
         const unitManager = gameEngine?.getUnitManager();
@@ -935,11 +902,8 @@ export class BuildingPlacementUI {
         }
 
         if (reachableDeposits.length === 0) {
-            console.log(`📍 No mineral deposits within range - workers will wait for manual assignment`);
             return;
         }
-
-        console.log(`💎 Found ${reachableDeposits.length} reachable mineral deposits`);
 
         // Assign workers to deposits (distribute evenly)
         let assignedCount = 0;
@@ -955,13 +919,9 @@ export class BuildingPlacementUI {
                 unitManager.selectUnits([worker.getId()]);
                 unitManager.issueCommand('mine', undefined, targetDeposit.getId());
                 assignedCount++;
-                
-                console.log(`⛏️ Assigned worker ${worker.getId()} to mine deposit ${targetDeposit.getId()}`);
             }
         }
 
-        console.log(`✅ Auto-assigned ${assignedCount}/${workers.length} workers to mining`);
-        
         // Clear selection after auto-assignment
         unitManager.clearSelection();
     }
@@ -1031,7 +991,5 @@ export class BuildingPlacementUI {
         if (this.container) {
             this.container.innerHTML = '';
         }
-
-        console.log('🏗️ BuildingPlacementUI disposed');
     }
 }

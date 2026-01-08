@@ -46,7 +46,6 @@ export class EnergyManager {
     private onEnergyDepletedCallbacks: ((entityId: string) => void)[] = [];
 
     private constructor() {
-        console.log('⚡ EnergyManager initialized');
     }
 
     /**
@@ -65,8 +64,7 @@ export class EnergyManager {
     public initialize(initialEnergy: number = 100): void {
         this.totalSystemEnergy = initialEnergy;
         this.lastUpdateTime = performance.now();
-        
-        console.log(`⚡ Energy system initialized with ${initialEnergy} energy`);
+
         this.notifyEnergyChange();
     }
 
@@ -100,8 +98,7 @@ export class EnergyManager {
         
         // Record successful transaction
         this.recordTransaction(entityId, -amount, 'consumption', action, true);
-        
-        console.log(`⚡ Energy consumed: ${amount} for ${action} (remaining: ${this.totalSystemEnergy})`);
+
         this.notifyEnergyChange();
         
         // Check for low energy warnings
@@ -143,8 +140,7 @@ export class EnergyManager {
         // For now, just record the transaction (no actual entity-to-entity transfer yet)
         this.recordTransaction(fromEntityId, -amount, 'transfer', `transfer_to_${toEntityId}`, true);
         this.recordTransaction(toEntityId, amount, 'transfer', `transfer_from_${fromEntityId}`, true);
-        
-        console.log(`⚡ Energy transferred: ${amount} from ${fromEntityId} to ${toEntityId}`);
+
         this.notifyEnergyChange();
         
         return true;
@@ -294,8 +290,7 @@ export class EnergyManager {
         this.energyConsumptionRate = 0;
         this.transactions = [];
         this.transactionId = 0;
-        
-        console.log('⚡ Energy system reset');
+
         this.notifyEnergyChange();
     }
 
@@ -307,8 +302,7 @@ export class EnergyManager {
         this.onLowEnergyCallbacks = [];
         this.onEnergyDepletedCallbacks = [];
         this.transactions = [];
-        
-        console.log('⚡ Energy system disposed');
+
         EnergyManager.instance = null;
     }
 }

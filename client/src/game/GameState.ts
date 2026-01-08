@@ -74,7 +74,6 @@ export class GameState {
     private constructor() {
         this.energyManager = EnergyManager.getInstance();
         this.setupEnergyCallbacks();
-        console.log('🎮 GameState initialized');
     }
 
     /**
@@ -93,11 +92,9 @@ export class GameState {
     public initialize(): void {
         this.gameStartTime = performance.now();
         this.isGameActive = true;
-        
+
         // Initialize energy system with starting energy
         this.energyManager.initialize(500);
-        
-        console.log('🎮 Game state initialized - game started');
     }
 
     /**
@@ -220,7 +217,6 @@ export class GameState {
         this.entities.set(unitId, unit);
         this.units.set(unitId, unit);
 
-        console.log(`👤 Created ${unitType} unit ${unitId} at ${position.toString()}`);
         return unit;
     }
 
@@ -260,7 +256,6 @@ export class GameState {
         this.entities.set(buildingId, building);
         this.buildings.set(buildingId, building);
 
-        console.log(`🏗️ Created ${buildingType.name} building ${buildingId} at ${position.toString()}`);
         return building;
     }
 
@@ -284,8 +279,6 @@ export class GameState {
 
         this.entities.set(depositId, entity);
         this.mineralDeposits.set(depositId, deposit);
-
-        console.log(`💎 Added mineral deposit ${depositId} to game state`);
     }
 
     /**
@@ -347,7 +340,6 @@ export class GameState {
      */
     public addUnit(unit: any): void {
         // This will be implemented when we integrate with the existing GameState
-        console.log(`👤 Unit ${unit.getId()} added to game state`);
     }
 
     /**
@@ -355,7 +347,6 @@ export class GameState {
      */
     public removeUnit(unitId: string): void {
         // This will be implemented when we integrate with the existing GameState
-        console.log(`👤 Unit ${unitId} removed from game state`);
     }
 
     /**
@@ -399,7 +390,6 @@ export class GameState {
      */
     public setGameSpeed(speed: number): void {
         this.gameSpeed = Math.max(0.1, Math.min(speed, 5.0)); // Clamp between 0.1x and 5x
-        console.log(`🎮 Game speed set to ${this.gameSpeed}x`);
     }
 
     /**
@@ -407,7 +397,6 @@ export class GameState {
      */
     public setGamePaused(paused: boolean): void {
         this.isGameActive = !paused;
-        console.log(`🎮 Game ${paused ? 'paused' : 'resumed'}`);
     }
 
     /**
@@ -428,8 +417,6 @@ export class GameState {
      * Reset game state
      */
     public reset(): void {
-        console.log('🎮 Resetting game state...');
-
         // Dispose all actions
         for (const unit of this.units.values()) {
             if (unit.currentAction) {
@@ -461,7 +448,6 @@ export class GameState {
         this.energyManager.reset();
 
         this.isGameActive = false;
-        console.log('✅ Game state reset complete');
     }
 
     /**
@@ -470,6 +456,5 @@ export class GameState {
     public dispose(): void {
         this.reset();
         GameState.instance = null;
-        console.log('🎮 GameState disposed');
     }
 }

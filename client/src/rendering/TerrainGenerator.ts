@@ -58,16 +58,12 @@ export class TerrainGenerator {
         };
 
         this.noiseGenerator = new NoiseGenerator(this.config.seed);
-        
-        console.log('🌍 TerrainGenerator created with config:', this.config);
     }
 
     /**
      * Initialize terrain system and generate initial chunks
      */
     public initialize(): void {
-        console.log('🌍 Initializing terrain system...');
-
         // Get initial camera position
         const camera = this.cameraController.getCamera();
         if (camera) {
@@ -81,8 +77,6 @@ export class TerrainGenerator {
         this.scene.registerBeforeRender(() => {
             this.update();
         });
-
-        console.log('✅ Terrain system initialized');
     }
 
     /**
@@ -172,8 +166,6 @@ export class TerrainGenerator {
             // Store chunk
             this.chunks.set(chunkKey, chunk);
 
-            console.log(`🌱 Loaded terrain chunk at (${chunkX}, ${chunkZ})`);
-
         } catch (error) {
             console.error(`❌ Failed to load chunk at (${chunkX}, ${chunkZ}):`, error);
         }
@@ -236,8 +228,6 @@ export class TerrainGenerator {
 
         // Store deposits for this chunk
         this.mineralDeposits.set(chunkKey, deposits);
-
-        console.log(`💎 Generated ${deposits.length} mineral deposits for chunk (${chunkX}, ${chunkZ})`);
     }
 
     /**
@@ -304,11 +294,8 @@ export class TerrainGenerator {
     private unloadChunk(chunkKey: string): void {
         const chunk = this.chunks.get(chunkKey);
         if (chunk) {
-            const coords = chunk.getCoordinates();
             chunk.dispose();
             this.chunks.delete(chunkKey);
-            
-            console.log(`🗑️ Unloaded terrain chunk at (${coords.x}, ${coords.z})`);
         }
 
         // Dispose mineral deposits for this chunk
@@ -316,7 +303,6 @@ export class TerrainGenerator {
         if (deposits) {
             deposits.forEach(deposit => deposit.dispose());
             this.mineralDeposits.delete(chunkKey);
-            console.log(`💎 Disposed mineral deposits for chunk ${chunkKey}`);
         }
     }
 
@@ -436,15 +422,12 @@ export class TerrainGenerator {
         if (newConfig.seed !== undefined) {
             this.noiseGenerator.setSeed(newConfig.seed);
         }
-        
-        console.log('🔧 Terrain config updated:', this.config);
     }
 
     /**
      * Force update of all chunks (useful for config changes)
      */
     public forceUpdate(): void {
-        console.log('🔄 Forcing terrain update...');
         this.updateChunks();
     }
 
@@ -459,8 +442,6 @@ export class TerrainGenerator {
      * Dispose of all terrain resources
      */
     public dispose(): void {
-        console.log('🗑️ Disposing terrain system...');
-
         // Dispose all chunks
         for (const chunk of this.chunks.values()) {
             chunk.dispose();
@@ -472,7 +453,5 @@ export class TerrainGenerator {
             deposits.forEach(deposit => deposit.dispose());
         }
         this.mineralDeposits.clear();
-
-        console.log('✅ Terrain system disposed');
     }
 }

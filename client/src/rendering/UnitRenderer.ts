@@ -31,6 +31,9 @@ export interface UnitVisual {
     selectionIndicator: Mesh;
     miningConnectionLine: Mesh | null; // Visual line to mining target
     rootNode: TransformNode;
+    lastPosition: Vector3; // Track last position for rotation
+    energyCore: Mesh | null; // Inner glow sphere for energy visualization
+    energyCoreMaterial: StandardMaterial | null; // Material for the energy core
 }
 
 export class UnitRenderer {
@@ -50,39 +53,47 @@ export class UnitRenderer {
     // Unit type configurations
     private readonly unitConfigs = {
         worker: {
-            color: new Color3(0.1, 0.4, 0.1), // Dark green
-            radius: 0.3, // Much smaller - more realistic scale
+            color: new Color3(0.2, 0.5, 0.2), // Green
+            accentColor: new Color3(0.4, 0.4, 0.4), // Gray for engine/hands
+            radius: 0.35,
             segments: 8 // Low poly
         },
         scout: {
             color: new Color3(0.2, 0.2, 0.8), // Blue
+            accentColor: new Color3(0.3, 0.3, 0.5),
             radius: 0.25, // Smaller and faster
             segments: 6 // Lower poly for speed appearance
         },
         protector: {
             color: new Color3(0.8, 0.2, 0.2), // Red
+            accentColor: new Color3(0.5, 0.3, 0.3),
             radius: 0.4, // Slightly larger than worker
             segments: 10 // Slightly higher poly for imposing appearance
         }
     };
+
+    // Accent materials for unit parts (engine, hands)
+    private workerAccentMaterial: StandardMaterial | null = null;
+    private scoutAccentMaterial: StandardMaterial | null = null;
+    private protectorAccentMaterial: StandardMaterial | null = null;
 
     constructor(scene: Scene, materialManager: MaterialManager) {
         this.scene = scene;
         this.materialManager = materialManager;
         
         this.initializeMaterials();
-        console.log('🎨 UnitRenderer initialized');
     }
 
     /**
      * Initialize materials for unit rendering
      */
     private initializeMaterials(): void {
-        // Worker material (Green)
+        // Worker material (Green, semi-transparent to show inner energy core)
         this.workerMaterial = new StandardMaterial('workerMaterial', this.scene);
         this.workerMaterial.diffuseColor = this.unitConfigs.worker.color;
-        this.workerMaterial.specularColor = new Color3(0.1, 0.1, 0.1);
-        this.workerMaterial.emissiveColor = this.unitConfigs.worker.color.scale(0.1);
+        this.workerMaterial.specularColor = new Color3(0.2, 0.2, 0.2);
+        this.workerMaterial.emissiveColor = this.unitConfigs.worker.color.scale(0.05);
+        this.workerMaterial.alpha = 0.35; // More transparent to better show energy core
 
         // Scout material (Blue)
         this.scoutMaterial = new StandardMaterial('scoutMaterial', this.scene);
@@ -107,7 +118,19 @@ export class UnitRenderer {
         this.energyIndicatorMaterial.diffuseColor = new Color3(0, 1, 1); // Cyan
         this.energyIndicatorMaterial.emissiveColor = new Color3(0, 0.3, 0.3);
 
-        console.log('🎨 Unit materials initialized');
+        // Accent materials for unit parts (engine, hands)
+        this.workerAccentMaterial = new StandardMaterial('workerAccentMaterial', this.scene);
+        this.workerAccentMaterial.diffuseColor = this.unitConfigs.worker.accentColor;
+        this.workerAccentMaterial.specularColor = new Color3(0.2, 0.2, 0.2);
+        this.workerAccentMaterial.emissiveColor = new Color3(0.05, 0.05, 0.05);
+
+        this.scoutAccentMaterial = new StandardMaterial('scoutAccentMaterial', this.scene);
+        this.scoutAccentMaterial.diffuseColor = this.unitConfigs.scout.accentColor;
+        this.scoutAccentMaterial.specularColor = new Color3(0.2, 0.2, 0.2);
+
+        this.protectorAccentMaterial = new StandardMaterial('protectorAccentMaterial', this.scene);
+        this.protectorAccentMaterial.diffuseColor = this.unitConfigs.protector.accentColor;
+        this.protectorAccentMaterial.specularColor = new Color3(0.2, 0.2, 0.2);
     }
 
     /**
@@ -135,19 +158,24 @@ export class UnitRenderer {
                 return null;
             }
 
-            // Create main unit mesh (sphere)
-            const mesh = MeshBuilder.CreateSphere(`unit_${unitId}`, {
-                diameter: config.radius * 2,
-                segments: config.segments
-            }, this.scene);
-
-            mesh.parent = rootNode;
-            mesh.position.y = config.radius; // Raise above ground
-
-            // Apply material based on unit type
+            // Create main unit mesh based on unit type
+            let mesh: Mesh;
             const material = this.getUnitMaterial(unitType);
-            if (material) {
-                mesh.material = material;
+
+            if (unitType === 'worker') {
+                // Create detailed worker robot
+                mesh = this.createWorkerMesh(unitId, config, rootNode);
+            } else {
+                // Create simple sphere for other unit types
+                mesh = MeshBuilder.CreateSphere(`unit_${unitId}`, {
+                    diameter: config.radius * 2,
+                    segments: config.segments
+                }, this.scene);
+                mesh.parent = rootNode;
+                mesh.position.y = config.radius;
+                if (material) {
+                    mesh.material = material;
+                }
             }
 
             // Create energy indicator (small sphere above unit) - HIDDEN for cleaner visuals
@@ -172,6 +200,14 @@ export class UnitRenderer {
             selectionIndicator.material = this.selectionMaterial;
             selectionIndicator.setEnabled(false); // Hidden by default
 
+            // Get energy core references for workers
+            let energyCore: Mesh | null = null;
+            let energyCoreMaterial: StandardMaterial | null = null;
+            if (unitType === 'worker') {
+                energyCore = (mesh as any).energyCore || null;
+                energyCoreMaterial = (mesh as any).energyCoreMaterial || null;
+            }
+
             // Create unit visual object
             const unitVisual: UnitVisual = {
                 unit,
@@ -180,7 +216,10 @@ export class UnitRenderer {
                 energyIndicator,
                 selectionIndicator,
                 miningConnectionLine: null, // Will be created when mining starts
-                rootNode
+                rootNode,
+                lastPosition: unit.getPosition().clone(),
+                energyCore,
+                energyCoreMaterial
             };
 
             // Store unit visual
@@ -189,7 +228,6 @@ export class UnitRenderer {
             // Update initial visual state
             this.updateUnitVisual(unitVisual);
 
-            console.log(`🎨 Created visual for ${unitType} unit ${unitId}`);
             return unitVisual;
 
         } catch (error) {
@@ -211,28 +249,196 @@ export class UnitRenderer {
     }
 
     /**
+     * Create detailed worker robot mesh
+     * Design: Spherical body + front camera + two side-mounted claw hands + inner energy core
+     */
+    private createWorkerMesh(unitId: string, config: any, rootNode: TransformNode): Mesh {
+        const radius = config.radius;
+
+        // Create body (main sphere - semi-transparent)
+        const body = MeshBuilder.CreateSphere(`unit_${unitId}`, {
+            diameter: radius * 2,
+            segments: config.segments
+        }, this.scene);
+        body.parent = rootNode;
+        body.position.y = radius + 0.1; // Slightly above ground
+        body.material = this.workerMaterial;
+
+        // Create inner energy core (glowing sphere inside the body)
+        const energyCore = MeshBuilder.CreateSphere(`energyCore_${unitId}`, {
+            diameter: radius * 1.2, // Slightly smaller than body
+            segments: 8
+        }, this.scene);
+        energyCore.parent = body;
+        energyCore.position.y = 0; // Centered in body
+
+        // Energy core material - starts green (full energy), very bright like a light
+        const coreMaterial = new StandardMaterial(`energyCoreMat_${unitId}`, this.scene);
+        coreMaterial.diffuseColor = new Color3(0.5, 1.0, 0.5); // Bright green
+        coreMaterial.emissiveColor = new Color3(0.6, 1.5, 0.6); // Very strong green glow (>1 for bloom effect)
+        coreMaterial.specularColor = new Color3(0.5, 0.5, 0.5); // Some specular for shine
+        coreMaterial.disableLighting = true; // Make it self-illuminating
+        energyCore.material = coreMaterial;
+
+        // Store reference to energy core on the body mesh for later access
+        (body as any).energyCore = energyCore;
+        (body as any).energyCoreMaterial = coreMaterial;
+
+        // Create camera (cylinder at the front)
+        const camera = MeshBuilder.CreateCylinder(`camera_${unitId}`, {
+            diameter: radius * 0.5,
+            height: radius * 0.6,
+            tessellation: 8 // Slightly smoother for camera look
+        }, this.scene);
+        camera.parent = body;
+        camera.position.z = radius * 0.85; // In front of the body
+        camera.position.y = radius * 0.1; // Slightly above center
+        camera.rotation.x = Math.PI / 2; // Rotate to point forward
+        camera.material = this.workerAccentMaterial;
+
+        // Create camera lens (glowing eye)
+        const cameraLens = MeshBuilder.CreateCylinder(`cameraLens_${unitId}`, {
+            diameter: radius * 0.35,
+            height: radius * 0.15,
+            tessellation: 8
+        }, this.scene);
+        cameraLens.parent = camera;
+        cameraLens.position.y = radius * 0.3; // At the front of camera
+        const lensMaterial = new StandardMaterial(`lensMat_${unitId}`, this.scene);
+        lensMaterial.diffuseColor = new Color3(0.2, 0.8, 1); // Cyan glow
+        lensMaterial.emissiveColor = new Color3(0.15, 0.5, 0.6); // Brighter glow for visibility
+        cameraLens.material = lensMaterial;
+
+        // Create left hand/claw (longer)
+        const leftHand = this.createClawHand(`leftHand_${unitId}`, radius);
+        leftHand.parent = body;
+        leftHand.position.x = radius * 0.9; // Left side
+        leftHand.position.y = -radius * 0.1;
+        leftHand.rotation.z = -Math.PI / 8; // Angle outward slightly
+
+        // Create right hand/claw (longer)
+        const rightHand = this.createClawHand(`rightHand_${unitId}`, radius);
+        rightHand.parent = body;
+        rightHand.position.x = -radius * 0.9; // Right side
+        rightHand.position.y = -radius * 0.1;
+        rightHand.rotation.z = Math.PI / 8; // Angle outward slightly
+        rightHand.scaling.x = -1; // Mirror the claw
+
+        return body;
+    }
+
+    /**
+     * Create a claw hand for the worker robot (longer arms)
+     */
+    private createClawHand(name: string, bodyRadius: number): Mesh {
+        // Create arm segment (longer)
+        const arm = MeshBuilder.CreateCylinder(`${name}_arm`, {
+            diameter: bodyRadius * 0.12,
+            height: bodyRadius * 0.9, // Longer arm
+            tessellation: 6
+        }, this.scene);
+        arm.rotation.z = Math.PI / 2; // Horizontal
+        arm.position.x = bodyRadius * 0.5;
+        arm.material = this.workerAccentMaterial;
+
+        // Create claw base
+        const clawBase = MeshBuilder.CreateBox(`${name}_clawBase`, {
+            width: bodyRadius * 0.18,
+            height: bodyRadius * 0.22,
+            depth: bodyRadius * 0.18
+        }, this.scene);
+        clawBase.parent = arm;
+        clawBase.position.x = bodyRadius * 0.5;
+        clawBase.material = this.workerAccentMaterial;
+
+        // Create upper claw finger (longer)
+        const upperFinger = MeshBuilder.CreateBox(`${name}_upperFinger`, {
+            width: bodyRadius * 0.35, // Longer finger
+            height: bodyRadius * 0.06,
+            depth: bodyRadius * 0.1
+        }, this.scene);
+        upperFinger.parent = clawBase;
+        upperFinger.position.x = bodyRadius * 0.2;
+        upperFinger.position.y = bodyRadius * 0.1;
+        upperFinger.rotation.z = -Math.PI / 10; // Angle inward
+        upperFinger.material = this.workerAccentMaterial;
+
+        // Create lower claw finger (longer)
+        const lowerFinger = MeshBuilder.CreateBox(`${name}_lowerFinger`, {
+            width: bodyRadius * 0.35, // Longer finger
+            height: bodyRadius * 0.06,
+            depth: bodyRadius * 0.1
+        }, this.scene);
+        lowerFinger.parent = clawBase;
+        lowerFinger.position.x = bodyRadius * 0.2;
+        lowerFinger.position.y = -bodyRadius * 0.1;
+        lowerFinger.rotation.z = Math.PI / 10; // Angle inward
+        lowerFinger.material = this.workerAccentMaterial;
+
+        return arm;
+    }
+
+    /**
      * Update unit visual based on unit state
      */
     public updateUnitVisual(unitVisual: UnitVisual): void {
         const unit = unitVisual.unit;
-        
+        const currentPosition = unit.getPosition();
+
         // Update position
-        unitVisual.rootNode.position = unit.getPosition();
-        
+        unitVisual.rootNode.position = currentPosition;
+
+        // Update rotation to face movement direction
+        this.updateFacingDirection(unitVisual, currentPosition);
+
         // Update energy level visualization
         this.updateEnergyVisualization(unitVisual);
-        
+
         // Update selection state
         this.updateSelectionVisualization(unitVisual);
-        
+
         // Update health visualization
         this.updateHealthVisualization(unitVisual);
-        
+
         // Update action feedback
         this.updateActionVisualization(unitVisual);
-        
+
         // Update mining connection visualization
         this.updateMiningConnectionVisualization(unitVisual);
+    }
+
+    /**
+     * Update unit facing direction based on movement
+     */
+    private updateFacingDirection(unitVisual: UnitVisual, currentPosition: Vector3): void {
+        const lastPosition = unitVisual.lastPosition;
+
+        // Calculate movement direction (ignoring Y axis for ground movement)
+        const deltaX = currentPosition.x - lastPosition.x;
+        const deltaZ = currentPosition.z - lastPosition.z;
+        const moveDistance = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
+
+        // Only rotate if moved a meaningful distance (avoid jitter)
+        if (moveDistance > 0.01) {
+            // Calculate target rotation angle (facing movement direction)
+            const targetRotationY = Math.atan2(deltaX, deltaZ);
+
+            // Smoothly interpolate rotation for natural turning
+            const currentRotationY = unitVisual.mesh.rotation.y;
+            const rotationDiff = targetRotationY - currentRotationY;
+
+            // Normalize rotation difference to [-PI, PI]
+            let normalizedDiff = rotationDiff;
+            while (normalizedDiff > Math.PI) normalizedDiff -= Math.PI * 2;
+            while (normalizedDiff < -Math.PI) normalizedDiff += Math.PI * 2;
+
+            // Smooth rotation (lerp factor controls turn speed)
+            const turnSpeed = 0.15;
+            unitVisual.mesh.rotation.y += normalizedDiff * turnSpeed;
+        }
+
+        // Update last position
+        unitVisual.lastPosition = currentPosition.clone();
     }
 
     /**
@@ -241,26 +447,39 @@ export class UnitRenderer {
     private updateEnergyVisualization(unitVisual: UnitVisual): void {
         const energyStats = unitVisual.unit.getEnergyStorage().getStats();
         const energyPercentage = energyStats.percentage;
-        
-        // Scale energy indicator based on energy level
-        const scale = 0.5 + (energyPercentage * 0.5); // 0.5 to 1.0 scale
+
+        // Update inner energy core color (for workers) - bright like a light
+        if (unitVisual.energyCoreMaterial) {
+            const coreColor = this.getEnergyColor(energyPercentage);
+            unitVisual.energyCoreMaterial.diffuseColor = coreColor;
+            unitVisual.energyCoreMaterial.emissiveColor = coreColor.scale(1.5); // Extra bright glow
+        }
+
+        // Scale energy indicator based on energy level (hidden but kept for compatibility)
+        const scale = 0.5 + (energyPercentage * 0.5);
         unitVisual.energyIndicator.scaling = new Vector3(scale, scale, scale);
-        
-        // Change color based on energy level
-        if (this.energyIndicatorMaterial) {
-            if (energyPercentage < 0.2) {
-                // Low energy - red
-                this.energyIndicatorMaterial.diffuseColor = new Color3(1, 0, 0);
-                this.energyIndicatorMaterial.emissiveColor = new Color3(0.3, 0, 0);
-            } else if (energyPercentage < 0.5) {
-                // Medium energy - yellow
-                this.energyIndicatorMaterial.diffuseColor = new Color3(1, 1, 0);
-                this.energyIndicatorMaterial.emissiveColor = new Color3(0.3, 0.3, 0);
-            } else {
-                // High energy - cyan
-                this.energyIndicatorMaterial.diffuseColor = new Color3(0, 1, 1);
-                this.energyIndicatorMaterial.emissiveColor = new Color3(0, 0.3, 0.3);
-            }
+    }
+
+    /**
+     * Get energy color based on percentage (bright green -> yellow -> red)
+     */
+    private getEnergyColor(percentage: number): Color3 {
+        if (percentage > 0.5) {
+            // Bright Green to Yellow (100% -> 50%)
+            const t = (percentage - 0.5) * 2; // 0 to 1 as percentage goes from 50% to 100%
+            return new Color3(
+                1.0 - (t * 0.5),       // 1.0 -> 0.5 (less red = more green)
+                1.0,                    // stays bright
+                0.3 * t                 // 0 -> 0.3 (slight cyan tint at full)
+            );
+        } else {
+            // Yellow to Bright Red (50% -> 0%)
+            const t = percentage * 2; // 0 to 1 as percentage goes from 0% to 50%
+            return new Color3(
+                1.0,                    // stays at 1.0 (full red)
+                t * 1.0,                // 0 -> 1.0 (green increases toward yellow)
+                0.0                     // no blue
+            );
         }
     }
 
@@ -344,88 +563,22 @@ export class UnitRenderer {
      * Animate mining action with enhanced visual feedback
      */
     private animateMining(unitVisual: UnitVisual): void {
-        // Subtle bobbing animation for mining
-        const mesh = unitVisual.mesh;
-        const originalY = mesh.position.y;
-        
-        // Create mining bobbing animation
-        Animation.CreateAndStartAnimation(
-            'miningBob',
-            mesh,
-            'position.y',
-            30,
-            30,
-            originalY,
-            originalY + 0.1,
-            Animation.ANIMATIONLOOPMODE_CYCLE
-        );
-
-        // Add mining glow effect to material
-        if (unitVisual.material) {
-            const originalEmissive = unitVisual.material.emissiveColor.clone();
-            const miningGlow = originalEmissive.scale(2.0); // Brighter glow while mining
-            
-            Animation.CreateAndStartAnimation(
-                'miningGlow',
-                unitVisual.material,
-                'emissiveColor',
-                30,
-                60,
-                originalEmissive,
-                miningGlow,
-                Animation.ANIMATIONLOOPMODE_CYCLE
-            );
-        }
-
-        // Add subtle rotation to indicate activity
-        Animation.CreateAndStartAnimation(
-            'miningRotate',
-            mesh,
-            'rotation.y',
-            30,
-            120, // Slower rotation than building
-            mesh.rotation.y,
-            mesh.rotation.y + Math.PI * 2,
-            Animation.ANIMATIONLOOPMODE_CYCLE
-        );
+        // Mining animation disabled - unit should stay stable while mining
+        // The mining connection line provides visual feedback instead
     }
 
     /**
      * Animate movement action
      */
     private animateMovement(unitVisual: UnitVisual): void {
-        // Slight forward lean during movement
-        const mesh = unitVisual.mesh;
-        
-        Animation.CreateAndStartAnimation(
-            'movementLean',
-            mesh,
-            'rotation.x',
-            30,
-            15,
-            0,
-            0.1,
-            Animation.ANIMATIONLOOPMODE_CONSTANT
-        );
+        // Movement animation disabled - rotation is handled by updateFacingDirection
     }
 
     /**
      * Animate building action
      */
     private animateBuilding(unitVisual: UnitVisual): void {
-        // Slight rotation during building
-        const mesh = unitVisual.mesh;
-        
-        Animation.CreateAndStartAnimation(
-            'buildingRotate',
-            mesh,
-            'rotation.y',
-            30,
-            60,
-            0,
-            Math.PI * 2,
-            Animation.ANIMATIONLOOPMODE_CYCLE
-        );
+        // Building animation disabled - unit should stay stable while building
     }
 
     /**
@@ -527,8 +680,6 @@ export class UnitRenderer {
         );
 
         unitVisual.miningConnectionLine = connectionLine;
-        
-        console.log(`⚡ Created mining connection line for worker ${unitVisual.unit.getId()}`);
     }
 
     /**
@@ -572,6 +723,12 @@ export class UnitRenderer {
         }
 
         // Dispose all meshes
+        if (unitVisual.energyCore) {
+            unitVisual.energyCore.dispose();
+        }
+        if (unitVisual.energyCoreMaterial) {
+            unitVisual.energyCoreMaterial.dispose();
+        }
         unitVisual.mesh.dispose();
         unitVisual.energyIndicator.dispose();
         unitVisual.selectionIndicator.dispose();
@@ -582,8 +739,6 @@ export class UnitRenderer {
 
         // Remove from map
         this.unitVisuals.delete(unitId);
-
-        console.log(`🗑️ Removed visual for unit ${unitId}`);
     }
 
     /**
@@ -649,7 +804,6 @@ export class UnitRenderer {
      * Dispose unit renderer
      */
     public dispose(): void {
-        console.log('🗑️ Disposing UnitRenderer...');
 
         // Remove all unit visuals
         for (const unitId of this.unitVisuals.keys()) {
@@ -662,7 +816,8 @@ export class UnitRenderer {
         this.protectorMaterial?.dispose();
         this.selectionMaterial?.dispose();
         this.energyIndicatorMaterial?.dispose();
-
-        console.log('✅ UnitRenderer disposed');
+        this.workerAccentMaterial?.dispose();
+        this.scoutAccentMaterial?.dispose();
+        this.protectorAccentMaterial?.dispose();
     }
 }

@@ -17,7 +17,6 @@ export class SceneManager {
 
     constructor(engine: Engine) {
         this.engine = engine;
-        console.log('🎬 SceneManager created');
     }
 
     /**
@@ -30,8 +29,6 @@ export class SceneManager {
         }
 
         try {
-            console.log('🎬 Creating Babylon.js scene...');
-
             // Create scene
             this.scene = new Scene(this.engine);
 
@@ -41,7 +38,6 @@ export class SceneManager {
             // Setup scene optimization
             this.optimizeScene();
 
-            console.log('✅ Scene created successfully');
             return this.scene;
 
         } catch (error) {
@@ -60,8 +56,6 @@ export class SceneManager {
         }
 
         try {
-            console.log('🌍 Initializing procedural terrain...');
-
             // Create terrain generator
             this.terrainGenerator = new TerrainGenerator(
                 this.scene,
@@ -78,8 +72,6 @@ export class SceneManager {
 
             // Initialize terrain system
             this.terrainGenerator.initialize();
-
-            console.log('✅ Procedural terrain initialized');
 
         } catch (error) {
             console.error('❌ Failed to initialize terrain:', error);
@@ -107,8 +99,6 @@ export class SceneManager {
 
         // Configure physics (disabled for now, can be enabled later)
         // this.scene.enablePhysics(new Vector3(0, -9.81, 0), new CannonJSPlugin());
-
-        console.log('⚙️ Scene configured for low poly SciFi aesthetic');
     }
 
     /**
@@ -137,8 +127,6 @@ export class SceneManager {
         this.scene.registerBeforeRender(() => {
             // Performance monitoring will be handled by PerformanceMonitor
         });
-
-        console.log('⚡ Scene optimized for performance');
     }
 
     /**
@@ -160,8 +148,6 @@ export class SceneManager {
      */
     public dispose(): void {
         if (this.scene) {
-            console.log('🗑️ Disposing scene...');
-            
             // Dispose terrain system first
             if (this.terrainGenerator) {
                 this.terrainGenerator.dispose();
@@ -171,8 +157,6 @@ export class SceneManager {
             // Dispose all scene resources
             this.scene.dispose();
             this.scene = null;
-            
-            console.log('✅ Scene disposed');
         }
     }
 }

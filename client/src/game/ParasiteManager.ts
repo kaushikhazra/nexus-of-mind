@@ -36,10 +36,10 @@ export class ParasiteManager {
     
     // Spawning configuration
     private spawnConfig: ParasiteSpawnConfig = {
-        baseSpawnInterval: 75000,    // 75 seconds base interval
-        maxParasitesPerDeposit: 3,   // Max 3 parasites per deposit
+        baseSpawnInterval: 0,        // Immediate spawn - no delay!
+        maxParasitesPerDeposit: 1,   // Max 1 parasite per deposit
         spawnRadius: 15,             // Spawn within 15 units of deposit
-        activeMiningMultiplier: 2.0  // 2x spawn rate when workers mining
+        activeMiningMultiplier: 1.5  // Only slightly faster when workers mining
     };
     
     // Spawn tracking
@@ -51,7 +51,7 @@ export class ParasiteManager {
         this.materialManager = config.materialManager;
         this.terrainGenerator = config.terrainGenerator || null;
         
-        console.log('🟣 ParasiteManager initialized');
+        // ParasiteManager initialized
     }
     
     /**
@@ -65,7 +65,7 @@ export class ParasiteManager {
             parasite.setTerrainGenerator(terrainGenerator);
         }
         
-        console.log('🟣 ParasiteManager terrain generator updated');
+        // ParasiteManager terrain generator updated
     }
     
     /**
@@ -117,6 +117,28 @@ export class ParasiteManager {
             return;
         }
         
+        // Check if enough time has passed since last spawn attempt
+        let lastSpawn = this.lastSpawnAttempt.get(depositId);
+        if (lastSpawn === undefined) {
+            // First time seeing this deposit - randomly decide if this deposit can spawn parasites
+            const canSpawnParasites = Math.random() < 0.25; // 25% chance
+            
+            if (!canSpawnParasites) {
+                // Mark this deposit as non-spawning by setting a very high timestamp
+                this.lastSpawnAttempt.set(depositId, Number.MAX_SAFE_INTEGER);
+                return;
+            }
+            
+            // This deposit can spawn parasites - set initial delay to prevent immediate spawning
+            this.lastSpawnAttempt.set(depositId, currentTime);
+            return; // Skip spawning this frame
+        }
+        
+        // Skip deposits marked as non-spawning
+        if (lastSpawn === Number.MAX_SAFE_INTEGER) {
+            return;
+        }
+        
         // Calculate spawn interval based on activity
         const workersNearDeposit = workers.filter(worker => {
             const distance = Vector3.Distance(worker.getPosition(), deposit.getPosition());
@@ -128,8 +150,6 @@ export class ParasiteManager {
             ? this.spawnConfig.baseSpawnInterval / this.spawnConfig.activeMiningMultiplier
             : this.spawnConfig.baseSpawnInterval;
         
-        // Check if enough time has passed since last spawn attempt
-        const lastSpawn = this.lastSpawnAttempt.get(depositId) || 0;
         if (currentTime - lastSpawn < spawnInterval) {
             return;
         }
@@ -181,7 +201,7 @@ export class ParasiteManager {
         const currentCount = this.depositParasiteCount.get(depositId) || 0;
         this.depositParasiteCount.set(depositId, currentCount + 1);
         
-        console.log(`🟣 Spawned parasite ${parasite.getId()} near deposit ${depositId} (${currentCount + 1}/${this.spawnConfig.maxParasitesPerDeposit})`);
+        // Parasite spawned silently
     }
     
     /**
@@ -198,14 +218,12 @@ export class ParasiteManager {
         // Check if protector is in range
         const distance = Vector3.Distance(protector.getPosition(), targetParasite.getPosition());
         if (distance > 15) { // 15 unit attack range
-            console.log(`🟣 Protector ${protector.getId()} too far from parasite (${distance.toFixed(1)}m > 15m)`);
             return false;
         }
         
         // Check if protector has enough energy
         const attackCost = 5; // 5 energy per attack
         if (!protector.getEnergyStorage().hasEnergy(attackCost)) {
-            console.log(`🟣 Protector ${protector.getId()} insufficient energy for attack (need ${attackCost})`);
             return false;
         }
         
@@ -223,7 +241,7 @@ export class ParasiteManager {
             const currentCount = this.depositParasiteCount.get(depositId) || 0;
             this.depositParasiteCount.set(depositId, Math.max(0, currentCount - 1));
             
-            console.log(`🟣 Protector ${protector.getId()} destroyed parasite ${targetParasite.getId()} (cost: ${attackCost}, reward: ${killReward})`);
+            // Parasite destroyed silently
         }
         
         return true; // Attack successful
@@ -267,9 +285,7 @@ export class ParasiteManager {
             this.parasites.delete(id);
         }
         
-        if (deadParasites.length > 0) {
-            console.log(`🟣 Cleaned up ${deadParasites.length} dead parasites`);
-        }
+        // Dead parasites cleaned up silently
     }
     
     /**
@@ -301,7 +317,7 @@ export class ParasiteManager {
      */
     public updateSpawnConfig(config: Partial<ParasiteSpawnConfig>): void {
         this.spawnConfig = { ...this.spawnConfig, ...config };
-        console.log('🟣 ParasiteManager spawn config updated:', this.spawnConfig);
+        // Spawn config updated silently
     }
     
     /**
@@ -316,6 +332,6 @@ export class ParasiteManager {
         this.lastSpawnAttempt.clear();
         this.depositParasiteCount.clear();
         
-        console.log('🟣 ParasiteManager disposed');
+        // ParasiteManager disposed silently
     }
 }

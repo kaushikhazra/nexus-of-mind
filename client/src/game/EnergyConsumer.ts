@@ -40,8 +40,6 @@ export abstract class EnergyConsumer {
         this.actionName = actionName;
         this.config = config;
         this.energyManager = EnergyManager.getInstance();
-        
-        console.log(`⚡ EnergyConsumer created: ${actionName} for ${entityId}`);
     }
 
     /**
@@ -92,14 +90,12 @@ export abstract class EnergyConsumer {
             if (this.energyStorage.removeEnergy(amount, `reserve_${this.actionName}`)) {
                 this.reservedEnergy = amount;
                 this.reservationId = `reserve_${this.entityId}_${Date.now()}`;
-                console.log(`⚡ Energy reserved: ${amount} for ${this.actionName}`);
                 return true;
             }
         } else {
             if (this.energyManager.consumeEnergy(this.entityId, amount, `reserve_${this.actionName}`)) {
                 this.reservedEnergy = amount;
                 this.reservationId = `reserve_${this.entityId}_${Date.now()}`;
-                console.log(`⚡ Energy reserved: ${amount} for ${this.actionName}`);
                 return true;
             }
         }
@@ -117,8 +113,7 @@ export abstract class EnergyConsumer {
         }
 
         this.reservedEnergy -= amount;
-        console.log(`⚡ Reserved energy used: ${amount} for ${this.actionName} (remaining: ${this.reservedEnergy})`);
-        
+
         return true;
     }
 
@@ -132,8 +127,7 @@ export abstract class EnergyConsumer {
             } else {
                 this.energyManager.generateEnergy(this.entityId, this.reservedEnergy, `refund_${this.actionName}`);
             }
-            
-            console.log(`⚡ Reserved energy released: ${this.reservedEnergy} for ${this.actionName}`);
+
             this.reservedEnergy = 0;
             this.reservationId = null;
         }
@@ -212,7 +206,6 @@ export abstract class EnergyConsumer {
      */
     public dispose(): void {
         this.releaseReservedEnergy();
-        console.log(`⚡ EnergyConsumer disposed: ${this.actionName} for ${this.entityId}`);
     }
 }
 
@@ -308,7 +301,6 @@ export class ContinuousEnergyConsumer extends EnergyConsumer {
             }
         }, 1000);
 
-        console.log(`⚡ Started continuous consumption: ${costPerSecond}/sec for ${this.actionName}`);
         return this.createResult(true, 0, costPerSecond);
     }
 
@@ -320,9 +312,8 @@ export class ContinuousEnergyConsumer extends EnergyConsumer {
             clearInterval(this.consumptionInterval);
             this.consumptionInterval = null;
         }
-        
+
         this.isActive = false;
-        console.log(`⚡ Stopped continuous consumption for ${this.actionName} (total: ${this.totalConsumed})`);
     }
 
     /**

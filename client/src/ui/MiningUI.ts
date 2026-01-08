@@ -29,7 +29,6 @@ export class MineralReserveUI {
     private initialize(): void {
         this.createUI();
         this.setupUpdateTimer();
-        console.log('💎 Mineral Reserve UI initialized');
     }
 
     /**
@@ -195,7 +194,5 @@ export class MineralReserveUI {
             this.container.remove();
             this.container = null;
         }
-
-        console.log('💎 Mineral Reserve UI disposed');
     }
 }

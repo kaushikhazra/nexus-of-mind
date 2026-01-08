@@ -1,6 +1,6 @@
 /**
  * Scout - Scout unit specialization with exploration and discovery abilities
- * 
+ *
  * Scouts are fast, energy-efficient units designed for exploration and reconnaissance.
  * They excel at discovering hidden mineral deposits and mapping unknown territories,
  * providing crucial intelligence for strategic planning.
@@ -34,8 +34,6 @@ export class Scout extends Unit {
         };
 
         super(scoutConfig);
-        
-        console.log(`🔍 Scout unit ${this.getId()} ready for exploration and reconnaissance`);
     }
 
     /**
@@ -84,15 +82,13 @@ export class Scout extends Unit {
      */
     public async startMovement(targetPosition: Vector3): Promise<boolean> {
         const success = await super.startMovement(targetPosition);
-        
+
         if (success && this.currentMovementAction) {
-            console.log(`🏃 Scout ${this.getId()} moving at high speed to ${targetPosition.toString()}`);
-            
             // Mark areas as explored during movement
             this.markAreaAsExplored(this.getPosition());
             this.markAreaAsExplored(targetPosition);
         }
-        
+
         return success;
     }
 
@@ -106,7 +102,6 @@ export class Scout extends Unit {
 
         const discoveryCost = 1.0; // 1 energy per discovery attempt
         if (this.energyStorage.getCurrentEnergy() < discoveryCost) {
-            console.warn(`⚠️ Scout ${this.getId()} insufficient energy for mineral discovery`);
             return 0;
         }
 
@@ -116,11 +111,11 @@ export class Scout extends Unit {
         }
 
         let discoveredCount = 0;
-        
+
         try {
             // Get nearby mineral deposits
             const nearbyDeposits = terrainGenerator.getMineralDepositsNear(
-                this.getPosition(), 
+                this.getPosition(),
                 this.explorationRadius
             );
 
@@ -131,23 +126,16 @@ export class Scout extends Unit {
                     if (Math.random() < this.discoveryEfficiency * 0.7) { // 70% base chance
                         const scene = null; // TODO: Get scene reference
                         const materialManager = null; // TODO: Get material manager reference
-                        
+
                         if (deposit.discover(scene, materialManager)) {
                             this.discoveredDeposits.push(deposit.getId());
                             discoveredCount++;
-                            console.log(`💎 Scout ${this.getId()} discovered hidden mineral deposit!`);
                         }
                     }
                 }
             }
 
             this.lastActionTime = performance.now();
-            
-            if (discoveredCount > 0) {
-                console.log(`🔍 Scout ${this.getId()} discovered ${discoveredCount} mineral deposits`);
-            } else {
-                console.log(`🔍 Scout ${this.getId()} found no new mineral deposits in area`);
-            }
 
         } catch (error) {
             console.error(`❌ Discovery error for scout ${this.getId()}:`, error);
@@ -166,7 +154,6 @@ export class Scout extends Unit {
 
         const explorationCost = 0.5; // 0.5 energy per area exploration
         if (this.energyStorage.getCurrentEnergy() < explorationCost) {
-            console.warn(`⚠️ Scout ${this.getId()} insufficient energy for area exploration`);
             return false;
         }
 
@@ -177,7 +164,7 @@ export class Scout extends Unit {
 
         // Mark area as explored
         this.markAreaAsExplored(centerPosition);
-        
+
         // Mark surrounding areas as explored based on exploration radius
         const gridSize = 2; // 2x2 unit grid
         for (let x = -this.explorationRadius; x <= this.explorationRadius; x += gridSize) {
@@ -191,8 +178,7 @@ export class Scout extends Unit {
         }
 
         this.lastActionTime = performance.now();
-        console.log(`🗺️ Scout ${this.getId()} explored area around ${centerPosition.toString()}`);
-        
+
         return true;
     }
 
@@ -204,7 +190,7 @@ export class Scout extends Unit {
         const gridX = Math.floor(position.x / gridSize);
         const gridZ = Math.floor(position.z / gridSize);
         const areaKey = `${gridX}_${gridZ}`;
-        
+
         if (!this.exploredAreas.has(areaKey)) {
             this.exploredAreas.add(areaKey);
         }
@@ -218,7 +204,7 @@ export class Scout extends Unit {
         const gridX = Math.floor(position.x / gridSize);
         const gridZ = Math.floor(position.z / gridSize);
         const areaKey = `${gridX}_${gridZ}`;
-        
+
         return this.exploredAreas.has(areaKey);
     }
 
@@ -251,7 +237,6 @@ export class Scout extends Unit {
      */
     public upgradeExplorationRadius(bonus: number): void {
         this.explorationRadius += bonus;
-        console.log(`⬆️ Scout ${this.getId()} exploration radius upgraded to ${this.explorationRadius}`);
     }
 
     /**
@@ -259,7 +244,6 @@ export class Scout extends Unit {
      */
     public upgradeDiscoveryEfficiency(bonus: number): void {
         this.discoveryEfficiency += bonus;
-        console.log(`⬆️ Scout ${this.getId()} discovery efficiency upgraded to ${this.discoveryEfficiency}x`);
     }
 
     /**
@@ -267,7 +251,6 @@ export class Scout extends Unit {
      */
     public upgradeStealthLevel(bonus: number): void {
         this.stealthLevel += bonus;
-        console.log(`⬆️ Scout ${this.getId()} stealth level upgraded to ${this.stealthLevel}x`);
     }
 
     /**
@@ -305,7 +288,7 @@ export class Scout extends Unit {
      */
     public update(deltaTime: number): void {
         super.update(deltaTime);
-        
+
         // Auto-explore current area if not moving and has energy
         if (!this.getCurrentAction() && this.energyStorage.getCurrentEnergy() > 2) {
             const currentPos = this.getPosition();
@@ -323,8 +306,7 @@ export class Scout extends Unit {
         // Clear exploration data
         this.exploredAreas.clear();
         this.discoveredDeposits = [];
-        
-        console.log(`🔍 Scout ${this.getId()} exploration data cleared`);
+
         super.dispose();
     }
 }

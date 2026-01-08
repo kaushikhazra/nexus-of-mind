@@ -55,9 +55,12 @@ export class EnergyParasite {
     // Movement
     private speed: number = 2; // Units per second
     private lastPosition: Vector3;
+    private isMoving: boolean = false; // Track if worm is currently moving
     
-    // Visual representation
-    private mesh: Mesh | null = null;
+    // Visual representation - 4 ring segments
+    private segments: Mesh[] = [];
+    private segmentPositions: Vector3[] = [];
+    private mesh: Mesh | null = null; // Keep for compatibility
     private material: Material | null = null;
     private drainBeam: any | null = null; // Visual effect for energy drain
     
@@ -92,30 +95,53 @@ export class EnergyParasite {
         
         this.createMesh();
         
-        console.log(`🟣 EnergyParasite spawned: ${this.id} at ${this.position.toString()} (guarding ${this.homeDeposit.getId()})`);
+        // EnergyParasite spawned silently
     }
     
     /**
-     * Create the 3D mesh for the parasite
+     * Create the 4-ring worm parasite mesh
      */
     private createMesh(): void {
         if (!this.scene) return;
         
-        // Create a dark purple sphere (Phase 1: simple representation)
-        this.mesh = MeshBuilder.CreateSphere(`parasite_${this.id}`, {
-            diameter: 1.0, // 0.5 unit radius
-            segments: 8 // Low poly
-        }, this.scene);
+        // Create 4 ring segments (torus shapes)
+        this.segments = [];
+        this.segmentPositions = [];
         
-        this.mesh.position = this.position.clone();
-        
-        // Create dark purple material with slight glow
-        this.material = this.materialManager.getParasiteMaterial();
-        if (this.material) {
-            this.mesh.material = this.material;
+        for (let i = 0; i < 4; i++) {
+            // Calculate progressively smaller size from head (i=0) to tail (i=3)
+            const sizeMultiplier = 1.0 - (i * 0.2); // Decrease by 20% each ring
+            const ringDiameter = 0.8 * sizeMultiplier;
+            const ringThickness = 0.2 * sizeMultiplier;
+            
+            // Create torus ring with decreasing size
+            const segment = MeshBuilder.CreateTorus(`parasite_segment_${this.id}_${i}`, {
+                diameter: ringDiameter,
+                thickness: ringThickness,
+                tessellation: 8 // Low poly
+            }, this.scene);
+            
+            // Position rings in a line
+            const segmentPos = this.position.clone();
+            segmentPos.z -= i * 0.3; // Space rings 0.3 units apart
+            segment.position = segmentPos;
+            
+            // Rotate rings to lay flat (like wheels)
+            segment.rotation.x = Math.PI / 2;
+            
+            this.segments.push(segment);
+            this.segmentPositions.push(segmentPos);
         }
         
-        console.log(`🟣 Parasite mesh created for ${this.id}`);
+        // Apply material to all segments
+        this.material = this.materialManager.getParasiteMaterial();
+        if (this.material) {
+            this.segments.forEach(segment => {
+                segment.material = this.material;
+            });
+        }
+        
+        // 4-ring worm parasite mesh created silently
     }
     
     /**
@@ -124,9 +150,11 @@ export class EnergyParasite {
     public update(deltaTime: number, nearbyWorkers: Worker[]): void {
         const currentTime = Date.now();
         
+        // Reset movement flag at start of frame (will be set to true if movement occurs)
+        this.isMoving = false;
+        
         // Check if parasite should die from starvation
         if (currentTime - this.lastFeedTime > this.maxLifetime) {
-            console.log(`🟣 Parasite ${this.id} starved after ${this.maxLifetime/1000}s without feeding`);
             this.dispose();
             return;
         }
@@ -153,9 +181,50 @@ export class EnergyParasite {
         // Update position to follow terrain height
         this.updateTerrainHeight();
         
-        // Update mesh position
-        if (this.mesh) {
-            this.mesh.position = this.position.clone();
+        // Update segment positions with trailing effect, inertia, and organic squeezing
+        if (this.segments && this.segments.length > 0) {
+            const time = Date.now() * 0.002; // Slower wave animation (was 0.005)
+            const waveSpeed = 1.5; // Slower wave speed (was 2.0)
+            
+            for (let i = 0; i < this.segments.length; i++) {
+                if (i === 0) {
+                    // Head segment follows the main position
+                    const segmentPos = this.position.clone();
+                    this.segments[i].position = segmentPos;
+                    this.segmentPositions[i] = segmentPos;
+                } else {
+                    // Body segments trail behind in the opposite direction of movement
+                    const prevSegmentPos = this.segmentPositions[i - 1];
+                    
+                    // Calculate trailing position based on current facing direction
+                    const currentRotation = this.segments[0].rotation.y; // Use head's rotation
+                    
+                    // Dynamic distance based on movement (inertia effect)
+                    const baseDistance = 0.3;
+                    const currentSpeed = this.speed;
+                    const maxSpeed = 3.0;
+                    const speedRatio = Math.min(currentSpeed / maxSpeed, 1.0);
+                    const inertiaMultiplier = 1.0 + (speedRatio * 0.5);
+                    
+                    // Add organic squeezing wave effect (subtle)
+                    const segmentPhase = i * 0.8; // Phase offset for each segment
+                    const squeezeWave = Math.sin(time * waveSpeed + segmentPhase) * 0.15; // Reduced amplitude from 0.3 to 0.15
+                    const squeezeMultiplier = 1.0 + squeezeWave; // Oscillate between 0.85x and 1.15x (was 0.7x to 1.3x)
+                    
+                    const trailingDistance = baseDistance * inertiaMultiplier * squeezeMultiplier;
+                    
+                    // Trail behind the previous segment (opposite to facing direction)
+                    const trailOffset = new Vector3(
+                        -Math.sin(currentRotation) * trailingDistance,
+                        0,
+                        -Math.cos(currentRotation) * trailingDistance
+                    );
+                    
+                    const segmentPos = prevSegmentPos.add(trailOffset);
+                    this.segments[i].position = segmentPos;
+                    this.segmentPositions[i] = segmentPos;
+                }
+            }
         }
     }
     
@@ -183,7 +252,6 @@ export class EnergyParasite {
             // Found a target - start hunting
             this.currentTarget = workersInTerritory[0]; // Target closest available worker
             this.setState(ParasiteState.HUNTING);
-            console.log(`🟣 Parasite ${this.id} found targetable worker: ${this.currentTarget.getId()}`);
             return;
         }
         
@@ -207,7 +275,6 @@ export class EnergyParasite {
         
         // Check if target is still valid (not immune)
         if (!this.currentTarget.canBeTargetedByParasites()) {
-            console.log(`🟣 Parasite ${this.id} lost target - worker became immune`);
             this.currentTarget = null;
             this.setState(ParasiteState.PATROLLING);
             return;
@@ -218,7 +285,6 @@ export class EnergyParasite {
         
         // Check if target left territory
         if (Vector3.Distance(targetPosition, this.territoryCenter) > this.territoryRadius) {
-            console.log(`🟣 Parasite ${this.id} lost target - worker left territory`);
             this.currentTarget = null;
             this.setState(ParasiteState.RETURNING);
             return;
@@ -249,7 +315,6 @@ export class EnergyParasite {
         
         // Check if target moved away
         if (distanceToTarget > 5.0) {
-            console.log(`🟣 Parasite ${this.id} lost feeding target - worker moved away`);
             this.currentTarget = null;
             this.setState(ParasiteState.PATROLLING);
             return;
@@ -263,8 +328,6 @@ export class EnergyParasite {
         
         if (actualDrained > 0) {
             this.lastFeedTime = Date.now();
-            console.log(`🟣 PARASITE FEEDING: ${this.id} drained ${actualDrained.toFixed(3)} energy from worker`);
-            console.log(`🟣 Worker energy: ${workerEnergyBefore.toFixed(2)} → ${workerEnergyAfter.toFixed(2)} (change: ${(workerEnergyAfter - workerEnergyBefore).toFixed(3)})`);
         }
         
         // Create/update visual drain beam
@@ -274,7 +337,6 @@ export class EnergyParasite {
         const workerEnergy = this.currentTarget.getEnergyStorage().getCurrentEnergy();
         const workerMaxEnergy = this.currentTarget.getEnergyStorage().getCapacity();
         if (workerEnergy < workerMaxEnergy * 0.4) { // 40% threshold (more responsive)
-            console.log(`🟣 Worker fled from parasite ${this.id} due to low energy (${workerEnergy.toFixed(1)}/${workerMaxEnergy})`);
             
             // Make worker actually flee from this parasite
             this.currentTarget.fleeFromDanger(this.position, 25);
@@ -297,11 +359,29 @@ export class EnergyParasite {
     }
     
     /**
-     * Move towards a target position
+     * Move towards a target position with directional facing
      */
     private moveTowards(target: Vector3, deltaTime: number): void {
         const direction = target.subtract(this.position).normalize();
         const movement = direction.scale(this.speed * deltaTime);
+        
+        // Track that we're moving
+        this.isMoving = movement.length() > 0.01;
+        
+        // Calculate facing angle (Y-axis rotation to face movement direction)
+        if (this.isMoving) { // Only rotate if there's significant movement
+            const facingAngle = Math.atan2(direction.x, direction.z);
+            
+            // Apply rotation to all segments so the whole worm faces the movement direction
+            if (this.segments && this.segments.length > 0) {
+                this.segments.forEach(segment => {
+                    segment.rotation.y = facingAngle;
+                    // Keep X rotation for ring orientation (laying flat)
+                    segment.rotation.x = Math.PI / 2;
+                });
+            }
+        }
+        
         this.position.addInPlace(movement);
     }
     
@@ -326,7 +406,6 @@ export class EnergyParasite {
      */
     private setState(newState: ParasiteState): void {
         if (this.state !== newState) {
-            console.log(`🟣 Parasite ${this.id} state: ${this.state} → ${newState}`);
             
             // Remove drain beam when leaving feeding state
             if (this.state === ParasiteState.FEEDING && newState !== ParasiteState.FEEDING) {
@@ -343,10 +422,8 @@ export class EnergyParasite {
      */
     public takeDamage(damage: number): boolean {
         this.health -= damage;
-        console.log(`🟣 Parasite ${this.id} took ${damage} damage (${this.health}/${this.maxHealth} remaining)`);
         
         if (this.health <= 0) {
-            console.log(`🟣 Parasite ${this.id} destroyed!`);
             this.dispose();
             return true; // Parasite destroyed
         }
@@ -383,10 +460,11 @@ export class EnergyParasite {
     }
     
     /**
-     * Update position to follow terrain height
+     * Update position to follow terrain height (only when moving to prevent jitter)
      */
     private updateTerrainHeight(): void {
-        if (this.terrainGenerator) {
+        // Only adjust terrain height when the worm is actually moving
+        if (this.isMoving && this.terrainGenerator) {
             const terrainHeight = this.getTerrainHeight(this.position.x, this.position.z);
             const newY = terrainHeight + 1.0; // 1.0 unit above terrain
             
@@ -394,10 +472,11 @@ export class EnergyParasite {
             if (Math.abs(this.position.y - newY) > 0.1) {
                 this.position.y = newY;
             }
-        } else {
+        } else if (!this.terrainGenerator) {
             // Fallback if no terrain generator
             this.position.y = 1.0;
         }
+        // When not moving, keep current Y position to prevent jitter
     }
     
     /**
@@ -446,11 +525,21 @@ export class EnergyParasite {
     public dispose(): void {
         this.removeDrainBeam();
         
+        // Dispose all ring segments
+        if (this.segments) {
+            this.segments.forEach(segment => {
+                if (segment) {
+                    segment.dispose();
+                }
+            });
+            this.segments = [];
+        }
+        
         if (this.mesh) {
             this.mesh.dispose();
             this.mesh = null;
         }
         
-        console.log(`🟣 EnergyParasite ${this.id} disposed`);
+        // Parasite disposed silently
     }
 }

@@ -68,7 +68,6 @@ export class MaterialManager {
 
     constructor(scene: Scene) {
         this.scene = scene;
-        console.log('🎨 MaterialManager created');
     }
 
 
@@ -110,7 +109,6 @@ export class MaterialManager {
         // Store material
         this.materials.set(name, material);
         
-        console.log(`🎨 Created low poly material: ${name}`);
         return material;
     }
 
@@ -136,13 +134,42 @@ export class MaterialManager {
     }
 
     /**
-     * Get material for energy parasites
+     * Get material for energy parasites (bronze/brown body)
      */
     public getParasiteMaterial(): StandardMaterial {
-        return this.createLowPolyMaterial('parasite', this.colorPalette.parasite, {
-            emissive: new Color3(0.1, 0.02, 0.15), // Dark purple glow
-            specular: new Color3(0.2, 0.1, 0.3)    // Purple-tinted reflections
+        return this.createLowPolyMaterial('parasite', new Color3(0.4, 0.25, 0.15), {
+            emissive: new Color3(0.05, 0.03, 0.02), // Subtle bronze glow
+            specular: new Color3(0.3, 0.2, 0.1)     // Metallic reflections
         });
+    }
+
+    /**
+     * Get material for parasite crystals (translucent cyan)
+     */
+    public getParasiteCrystalMaterial(): StandardMaterial {
+        const material = this.createLowPolyMaterial('parasiteCrystal', new Color3(0.1, 0.8, 0.7), {
+            emissive: new Color3(0.05, 0.4, 0.35),
+            specular: new Color3(0.2, 1.0, 0.9)
+        });
+        
+        // Make crystals translucent
+        material.alpha = 0.7;
+        material.transparencyMode = Material.MATERIAL_ALPHABLEND;
+        
+        return material;
+    }
+
+    /**
+     * Get material for parasite energy orbs (bright cyan)
+     */
+    public getParasiteOrbMaterial(): StandardMaterial {
+        const material = this.createLowPolyMaterial('parasiteOrb', new Color3(0.2, 1.0, 0.9), {
+            emissive: new Color3(0.1, 0.6, 0.5)
+        });
+        
+        material.disableLighting = true; // Pure emissive glow
+        
+        return material;
     }
 
     /**
@@ -255,15 +282,12 @@ export class MaterialManager {
      * Dispose of all materials
      */
     public dispose(): void {
-        console.log('🗑️ Disposing materials...');
 
         // Dispose all materials
         for (const [name, material] of this.materials) {
             material.dispose();
-            console.log(`🗑️ Disposed material: ${name}`);
         }
 
         this.materials.clear();
-        console.log('✅ All materials disposed');
     }
 }
