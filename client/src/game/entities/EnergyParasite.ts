@@ -13,6 +13,7 @@ import { Vector3, Scene, Mesh, MeshBuilder, Material, TransformNode } from '@bab
 import { MaterialManager } from '../../rendering/MaterialManager';
 import { Worker } from './Worker';
 import { MineralDeposit } from '../../world/MineralDeposit';
+import { CombatTarget } from '../CombatSystem';
 
 export interface EnergyParasiteConfig {
     position: Vector3;
@@ -29,9 +30,9 @@ export enum ParasiteState {
     RETURNING = 'returning'
 }
 
-export class EnergyParasite {
-    private id: string;
-    private position: Vector3;
+export class EnergyParasite implements CombatTarget {
+    public id: string;
+    public position: Vector3;
     private scene: Scene;
     private materialManager: MaterialManager;
     private homeDeposit: MineralDeposit;
@@ -47,8 +48,8 @@ export class EnergyParasite {
     private lastStateChange: number = 0;
     
     // Combat and feeding
-    private health: number = 2; // Takes 2 hits to kill (Phase 1)
-    private maxHealth: number = 2;
+    public health: number = 2; // Takes 2 hits to kill (Phase 1)
+    public maxHealth: number = 2;
     private drainRate: number = 3; // 3 energy/sec (increased for more dramatic effect)
     private feedingStartTime: number = 0;
     
@@ -418,7 +419,7 @@ export class EnergyParasite {
     }
     
     /**
-     * Take damage from protector attack
+     * Take damage from protector attack (implements CombatTarget interface)
      */
     public takeDamage(damage: number): boolean {
         this.health -= damage;
@@ -429,6 +430,13 @@ export class EnergyParasite {
         }
         
         return false; // Still alive
+    }
+
+    /**
+     * Handle destruction (implements CombatTarget interface)
+     */
+    public onDestroyed(): void {
+        // Already handled in dispose method
     }
     
     // Getters

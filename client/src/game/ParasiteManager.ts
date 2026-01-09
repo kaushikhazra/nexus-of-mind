@@ -289,6 +289,13 @@ export class ParasiteManager {
     }
     
     /**
+     * Get parasite by ID
+     */
+    public getParasiteById(parasiteId: string): EnergyParasite | null {
+        return this.parasites.get(parasiteId) || null;
+    }
+
+    /**
      * Get all active parasites
      */
     public getParasites(): EnergyParasite[] {

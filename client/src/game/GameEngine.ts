@@ -23,6 +23,7 @@ import { ParasiteManager } from './ParasiteManager';
 import { TreeRenderer } from '../rendering/TreeRenderer';
 import { Worker } from './entities/Worker';
 import { Protector } from './entities/Protector';
+import { CombatSystem } from './CombatSystem';
 
 export class GameEngine {
     private static instance: GameEngine | null = null;
@@ -55,6 +56,7 @@ export class GameEngine {
 
     // Combat system
     private parasiteManager: ParasiteManager | null = null;
+    private combatSystem: CombatSystem | null = null;
 
     // Vegetation system
     private treeRenderer: TreeRenderer | null = null;
@@ -137,6 +139,9 @@ export class GameEngine {
                 materialManager: this.materialManager,
                 terrainGenerator: this.getTerrainGenerator()
             });
+
+            // Initialize central combat system
+            this.combatSystem = new CombatSystem(this.energyManager);
 
             // Initialize vegetation system
             this.treeRenderer = new TreeRenderer(this.scene);
@@ -242,6 +247,11 @@ export class GameEngine {
                         const workers = this.unitManager.getUnitsByType('worker') as Worker[];
                         const protectors = this.unitManager.getUnitsByType('protector') as Protector[];
                         this.parasiteManager.update(deltaTime, mineralDeposits, workers, protectors);
+                    }
+
+                    // Update central combat system
+                    if (this.combatSystem) {
+                        this.combatSystem.update(deltaTime);
                     }
 
                     // Update vegetation animations
@@ -404,6 +414,12 @@ export class GameEngine {
     }
 
     /**
+     * Get combat system
+     */
+    public getCombatSystem(): CombatSystem | null {
+        return this.combatSystem;
+    }
+    /**
      * Handle protector attacking a parasite
      */
     public handleProtectorAttack(protectorId: string, targetPosition: Vector3): boolean {
@@ -541,6 +557,7 @@ export class GameEngine {
 
         // Dispose components in reverse order
         this.treeRenderer?.dispose();
+        this.combatSystem?.dispose();
         this.parasiteManager?.dispose();
         this.buildingManager?.dispose();
         this.buildingRenderer?.dispose();

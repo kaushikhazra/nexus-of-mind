@@ -8,13 +8,7 @@
 
 import { Vector3 } from '@babylonjs/core';
 import { Unit, UnitConfig } from './Unit';
-
-export interface CombatTarget {
-    id: string;
-    position: Vector3;
-    health: number;
-    isEnemy: boolean;
-}
+import { CombatTarget } from '../CombatSystem';
 
 export class Protector extends Unit {
     // Protector-specific properties
@@ -123,15 +117,19 @@ export class Protector extends Unit {
         this.lastActionTime = performance.now();
         this.isInCombat = true;
 
-        // Calculate actual damage (base damage + experience bonus - target defense)
+        // Calculate actual damage (base damage + experience bonus)
         const experienceBonus = Math.floor(this.combatExperience / 10);
         const actualDamage = Math.max(1, this.attackDamage + experienceBonus);
 
         // Gain combat experience
         this.combatExperience += 1;
 
-        // TODO: Apply damage to target (would need target reference)
-        // target.takeDamage(actualDamage);
+        // Apply damage to target
+        const targetDestroyed = target.takeDamage(actualDamage);
+        
+        if (targetDestroyed) {
+            this.exitCombat();
+        }
 
         return true;
     }

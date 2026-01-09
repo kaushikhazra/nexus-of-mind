@@ -342,8 +342,21 @@ export class UnitManager {
 
                 case 'attack':
                     if (command.targetId && unit instanceof Protector) {
-                        // TODO: Get target by ID and attack
-                        return true;
+                        // Get combat system from GameEngine
+                        const gameEngine = GameEngine.getInstance();
+                        const combatSystem = gameEngine?.getCombatSystem();
+                        
+                        if (combatSystem) {
+                            // Find target by ID (for now, check parasites)
+                            const parasiteManager = gameEngine?.getParasiteManager();
+                            if (parasiteManager) {
+                                const target = parasiteManager.getParasiteById(command.targetId);
+                                if (target) {
+                                    const success = combatSystem.initiateAttack(unit as Protector, target);
+                                    return success;
+                                }
+                            }
+                        }
                     }
                     break;
 
