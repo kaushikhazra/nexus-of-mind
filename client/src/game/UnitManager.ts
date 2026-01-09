@@ -1,6 +1,6 @@
 /**
  * UnitManager - Central unit management system with selection and command handling
- * 
+ *
  * Manages unit lifecycle, selection, command queuing, and interaction with the
  * rendering system. Provides the interface between player input and unit actions.
  */
@@ -38,16 +38,16 @@ export class UnitManager {
     private gameState: GameState;
     private unitRenderer: UnitRenderer;
     private terrainGenerator: any = null;
-    
+
     // Unit management
     private units: Map<string, Unit> = new Map();
     private selectedUnits: Set<string> = new Set();
-    
+
     // Command system
     private commandQueue: UnitCommand[] = [];
     private commandIdCounter: number = 0;
     private commandsExecuted: number = 0;
-    
+
     // Unit creation counters
     private unitCounters = {
         worker: 0,
@@ -58,22 +58,18 @@ export class UnitManager {
     constructor(gameState: GameState, unitRenderer: UnitRenderer) {
         this.gameState = gameState;
         this.unitRenderer = unitRenderer;
-        
-        console.log('👥 UnitManager initialized');
     }
-    
+
     /**
      * Set terrain generator for height detection
      */
     public setTerrainGenerator(terrainGenerator: any): void {
         this.terrainGenerator = terrainGenerator;
-        
+
         // Update existing units
         for (const unit of this.units.values()) {
             unit.setTerrainGenerator(terrainGenerator);
         }
-        
-        console.log('🌍 UnitManager terrain generator set');
     }
 
     /**
@@ -82,7 +78,7 @@ export class UnitManager {
     public createUnit(unitType: 'worker' | 'scout' | 'protector', position: Vector3): Unit | null {
         try {
             let unit: Unit;
-            
+
             // Create unit based on type
             switch (unitType) {
                 case 'worker':
@@ -101,15 +97,15 @@ export class UnitManager {
 
             // Add to units map
             this.units.set(unit.getId(), unit);
-            
+
             // Set terrain generator for height detection
             if (this.terrainGenerator) {
                 unit.setTerrainGenerator(this.terrainGenerator);
             }
-            
+
             // Update counter
             this.unitCounters[unitType]++;
-            
+
             // Create visual representation
             const unitVisual = this.unitRenderer.createUnitVisual(unit);
             if (!unitVisual) {
@@ -124,7 +120,6 @@ export class UnitManager {
             // Setup unit event callbacks
             this.setupUnitCallbacks(unit);
 
-            console.log(`👤 Created ${unitType} unit ${unit.getId()} at ${position.toString()}`);
             return unit;
 
         } catch (error) {
@@ -142,12 +137,11 @@ export class UnitManager {
         });
 
         unit.onEnergyDepleted((depletedUnit) => {
-            console.warn(`⚠️ Unit ${depletedUnit.getId()} energy depleted - stopping actions`);
             this.stopUnit(depletedUnit.getId());
         });
 
         unit.onActionComplete((completedUnit, action) => {
-            console.log(`✅ Unit ${completedUnit.getId()} completed ${action} action`);
+            // Action completed
         });
     }
 
@@ -156,23 +150,21 @@ export class UnitManager {
      */
     private handleUnitDestroyed(unit: Unit): void {
         const unitId = unit.getId();
-        
+
         // Remove from selection
         this.selectedUnits.delete(unitId);
-        
+
         // Remove visual
         this.unitRenderer.removeUnitVisual(unitId);
-        
+
         // Remove from units map
         this.units.delete(unitId);
-        
+
         // Remove from game state
         this.gameState.removeUnit(unitId);
-        
+
         // Cancel any queued commands for this unit
         this.commandQueue = this.commandQueue.filter(cmd => cmd.unitId !== unitId);
-        
-        console.log(`💀 Unit ${unitId} removed from management`);
     }
 
     /**
@@ -181,7 +173,7 @@ export class UnitManager {
     public selectUnits(unitIds: string[]): void {
         // Clear current selection
         this.clearSelection();
-        
+
         // Add new selection
         for (const unitId of unitIds) {
             const unit = this.units.get(unitId);
@@ -190,8 +182,6 @@ export class UnitManager {
                 this.unitRenderer.setUnitSelection(unitId, true);
             }
         }
-        
-        console.log(`👆 Selected ${this.selectedUnits.size} units`);
     }
 
     /**
@@ -247,9 +237,8 @@ export class UnitManager {
         parameters?: any
     ): void {
         const selectedUnits = this.getSelectedUnits();
-        
+
         if (selectedUnits.length === 0) {
-            console.warn('⚠️ No units selected for command');
             return;
         }
 
@@ -268,8 +257,6 @@ export class UnitManager {
 
             this.commandQueue.push(command);
         }
-
-        console.log(`📋 Issued ${commandType} command to ${selectedUnits.length} units`);
     }
 
     /**
@@ -292,11 +279,11 @@ export class UnitManager {
 
         // Process commands
         const commandsToRemove: number[] = [];
-        
+
         for (let i = 0; i < this.commandQueue.length; i++) {
             const command = this.commandQueue[i];
             const unit = this.units.get(command.unitId);
-            
+
             if (!unit || !unit.isActiveUnit()) {
                 commandsToRemove.push(i);
                 continue;
@@ -329,27 +316,20 @@ export class UnitManager {
                     break;
 
                 case 'mine':
-                    console.log(`🔄 Processing mining command for unit ${unit.getId()} with target ${command.targetId}`);
                     if (command.targetId) {
                         // Get mineral deposit from terrain generator via GameEngine
                         const gameEngine = GameEngine.getInstance();
                         const terrainGenerator = gameEngine?.getTerrainGenerator();
-                        
+
                         if (terrainGenerator) {
                             const target = terrainGenerator.getMineralDepositById(command.targetId);
                             if (target) {
-                                console.log(`💎 Found mining target at ${target.getPosition().toString()}`);
                                 const success = await unit.startMining(target);
-                                console.log(`⛏️ Mining command result for ${unit.getId()}: ${success}`);
                                 return true;
-                            } else {
-                                console.warn(`⚠️ Mineral deposit not found: ${command.targetId}`);
                             }
                         } else {
                             console.error('❌ Terrain generator not available for mining command');
                         }
-                    } else {
-                        console.warn(`⚠️ Mining command missing target ID`);
                     }
                     break;
 
@@ -363,7 +343,6 @@ export class UnitManager {
                 case 'attack':
                     if (command.targetId && unit instanceof Protector) {
                         // TODO: Get target by ID and attack
-                        console.log(`⚔️ Attack command for protector ${unit.getId()} - not yet implemented`);
                         return true;
                     }
                     break;
@@ -381,7 +360,6 @@ export class UnitManager {
                     return true;
 
                 default:
-                    console.warn(`⚠️ Unknown command type: ${command.commandType}`);
                     return true; // Remove unknown commands
             }
 
@@ -400,7 +378,6 @@ export class UnitManager {
         const unit = this.units.get(unitId);
         if (unit) {
             unit.stopAllActions();
-            console.log(`⏹️ Stopped unit ${unitId}`);
         }
     }
 
@@ -469,7 +446,7 @@ export class UnitManager {
         for (const unit of this.units.values()) {
             const unitType = unit.getUnitType();
             unitsByType[unitType] = (unitsByType[unitType] || 0) + 1;
-            
+
             if (unit.isActiveUnit()) {
                 activeUnits++;
             }
@@ -497,15 +474,12 @@ export class UnitManager {
      */
     public clearCommands(): void {
         this.commandQueue = [];
-        console.log('📋 Command queue cleared');
     }
 
     /**
      * Dispose unit manager
      */
     public dispose(): void {
-        console.log('🗑️ Disposing UnitManager...');
-
         // Stop all units
         for (const unit of this.units.values()) {
             unit.dispose();
@@ -515,7 +489,5 @@ export class UnitManager {
         this.units.clear();
         this.selectedUnits.clear();
         this.commandQueue = [];
-
-        console.log('✅ UnitManager disposed');
     }
 }

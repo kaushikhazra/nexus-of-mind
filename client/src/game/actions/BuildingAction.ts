@@ -110,7 +110,6 @@ export class BuildingAction extends EnergyConsumer {
         this.constructionProgress = 0;
         this.energyInvested = 0;
 
-        console.log(`🏗️ Started constructing ${this.buildingType.name} at ${this.position.toString()} (cost: ${totalCost} energy)`);
         return this.createResult(true, 0, totalCost);
     }
 
@@ -135,8 +134,6 @@ export class BuildingAction extends EnergyConsumer {
         this.constructionProgress = 1.0;
         this.energyInvested = totalCost;
 
-        console.log(`🏗️ ${this.buildingType.name} construction completed instantly (cost: ${totalCost} energy)`);
-
         // Complete construction immediately
         this.completeConstruction();
         return this.createResult(true, totalCost, totalCost, 'Construction completed instantly');
@@ -146,17 +143,10 @@ export class BuildingAction extends EnergyConsumer {
      * Complete building construction
      */
     private completeConstruction(): void {
-        const constructionTime = (performance.now() - this.constructionStartTime) / 1000;
-        
-        console.log(`🏗️ ${this.buildingType.name} construction completed in ${constructionTime.toFixed(1)}s (total cost: ${this.energyInvested.toFixed(1)} energy)`);
-        
         this.isConstructing = false;
-        
+
         // Release any remaining reserved energy (should be minimal)
         this.releaseReservedEnergy();
-        
-        // Notify completion - the BuildingManager should handle creating the actual building visual
-        console.log(`✅ Construction completed for ${this.buildingType.name} at ${this.position.toString()}`);
     }
 
     /**
@@ -167,12 +157,9 @@ export class BuildingAction extends EnergyConsumer {
             return;
         }
 
-        const constructionTime = (performance.now() - this.constructionStartTime) / 1000;
-        console.log(`🏗️ ${this.buildingType.name} construction cancelled after ${constructionTime.toFixed(1)}s (refunding ${this.getReservedEnergy()} energy)`);
-
         // Release reserved energy (automatic refund)
         this.releaseReservedEnergy();
-        
+
         this.isConstructing = false;
         this.constructionProgress = 0;
         this.energyInvested = 0;
@@ -276,6 +263,5 @@ export class BuildingAction extends EnergyConsumer {
     public dispose(): void {
         this.cancelConstruction();
         super.dispose();
-        console.log(`🏗️ BuildingAction disposed for ${this.buildingType.name}`);
     }
 }

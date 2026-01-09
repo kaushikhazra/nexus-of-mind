@@ -49,7 +49,6 @@ export class PerformanceMonitor {
     constructor(scene: Scene, engine: Engine) {
         this.scene = scene;
         this.engine = engine;
-        console.log('📊 PerformanceMonitor created');
     }
 
     /**
@@ -57,11 +56,8 @@ export class PerformanceMonitor {
      */
     public startMonitoring(): void {
         if (this.isMonitoring) {
-            console.warn('Performance monitoring already active');
             return;
         }
-
-        console.log('📊 Starting performance monitoring...');
         
         this.isMonitoring = true;
         this.lastUpdateTime = performance.now();
@@ -73,8 +69,6 @@ export class PerformanceMonitor {
 
         // Start console logging (can be disabled in production)
         this.startConsoleLogging();
-
-        console.log('✅ Performance monitoring started');
     }
 
     /**
@@ -85,9 +79,7 @@ export class PerformanceMonitor {
             return;
         }
 
-        console.log('📊 Stopping performance monitoring...');
         this.isMonitoring = false;
-        console.log('✅ Performance monitoring stopped');
     }
 
     /**
@@ -189,11 +181,7 @@ export class PerformanceMonitor {
      * Suggest performance optimizations
      */
     private suggestOptimizations(): void {
-        console.log('💡 Performance Optimization Suggestions:');
-        console.log('  - Reduce camera view distance');
-        console.log('  - Enable frustum culling');
-        console.log('  - Reduce particle effects');
-        console.log('  - Lower hardware scaling level');
+        // Performance optimization suggestions would be logged here
     }
 
     /**
@@ -244,7 +232,6 @@ export class PerformanceMonitor {
      */
     public setThresholds(thresholds: Partial<PerformanceThresholds>): void {
         this.thresholds = { ...this.thresholds, ...thresholds };
-        console.log('📊 Performance thresholds updated:', this.thresholds);
     }
 
     /**
@@ -266,7 +253,6 @@ export class PerformanceMonitor {
      */
     public setConsoleLogging(enabled: boolean): void {
         // Implementation would control console logging
-        console.log(`📊 Console logging ${enabled ? 'enabled' : 'disabled'}`);
     }
 
     /**
@@ -309,12 +295,8 @@ export class PerformanceMonitor {
      * Dispose performance monitor
      */
     public dispose(): void {
-        console.log('🗑️ Disposing performance monitor...');
-        
         this.stopMonitoring();
         this.metrics = [];
         this.currentMetrics = null;
-        
-        console.log('✅ Performance monitor disposed');
     }
 }

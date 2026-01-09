@@ -139,10 +139,6 @@ export class MovementAction extends EnergyConsumer {
         this.totalEnergyConsumed = startupCost;
         this.currentWaypointIndex = 0;
 
-        const movementType = stopAtRange ? `range-based (stop at ${stopAtRange}m)` : 'position-based';
-        console.log(`🚶 Started ${movementType} movement from ${this.currentPosition.toString()} to ${targetPosition.toString()}`);
-        console.log(`📏 Distance: ${this.movementPath.totalDistance.toFixed(2)} units, Estimated cost: ${totalEnergyCost.toFixed(2)} energy`);
-
         return this.createResult(true, startupCost, totalEnergyCost);
     }
 
@@ -179,8 +175,7 @@ export class MovementAction extends EnergyConsumer {
                 // We're within range - stop here
                 this.distanceTraveled += Vector3.Distance(this.currentPosition, this.currentPosition);
                 this.totalEnergyConsumed += energyCostThisFrame;
-                
-                console.log(`🎯 Reached target range: ${distanceToTarget.toFixed(1)}m <= ${this.stopAtRange}m`);
+
                 this.completeMovement();
                 return this.createResult(true, energyCostThisFrame, energyCostThisFrame, 'Movement completed - within range');
             }
@@ -224,12 +219,6 @@ export class MovementAction extends EnergyConsumer {
      * Complete movement
      */
     private completeMovement(): void {
-        const movementTime = (performance.now() - this.movementStartTime) / 1000;
-        
-        console.log(`🚶 Movement completed in ${movementTime.toFixed(1)}s`);
-        console.log(`📏 Distance traveled: ${this.distanceTraveled.toFixed(2)} units`);
-        console.log(`⚡ Total energy consumed: ${this.totalEnergyConsumed.toFixed(2)} energy`);
-        
         this.isMoving = false;
         this.targetPosition = null;
         this.movementPath = null;
@@ -244,11 +233,6 @@ export class MovementAction extends EnergyConsumer {
         if (!this.isMoving) {
             return;
         }
-
-        const movementTime = (performance.now() - this.movementStartTime) / 1000;
-        console.log(`🚶 Movement stopped after ${movementTime.toFixed(1)}s at ${this.currentPosition.toString()}`);
-        console.log(`📏 Distance traveled: ${this.distanceTraveled.toFixed(2)} units`);
-        console.log(`⚡ Energy consumed: ${this.totalEnergyConsumed.toFixed(2)} energy`);
 
         this.isMoving = false;
         this.targetObject = null;
@@ -352,6 +336,5 @@ export class MovementAction extends EnergyConsumer {
     public dispose(): void {
         this.stopMovement();
         super.dispose();
-        console.log(`🚶 MovementAction disposed for ${this.entityId}`);
     }
 }

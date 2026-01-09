@@ -1,6 +1,6 @@
 /**
  * Worker - Worker unit specialization with mining and building capabilities
- * 
+ *
  * Workers are the backbone of resource gathering and construction. They excel at
  * mining minerals efficiently and constructing buildings, making them essential
  * for economic development and base expansion.
@@ -33,8 +33,6 @@ export class Worker extends Unit {
         };
 
         super(workerConfig);
-        
-        console.log(`👷 Worker unit ${this.getId()} ready for mining and construction`);
     }
 
     /**
@@ -82,12 +80,11 @@ export class Worker extends Unit {
      */
     public async startMining(target: any): Promise<boolean> {
         const success = await super.startMining(target);
-        
+
         if (success && this.currentMiningAction) {
             // Apply mining efficiency bonus
-            console.log(`⛏️ Worker ${this.getId()} mining with ${this.miningEfficiency}x efficiency`);
         }
-        
+
         return success;
     }
 
@@ -96,12 +93,11 @@ export class Worker extends Unit {
      */
     public async startBuilding(buildingType: string, position: Vector3): Promise<boolean> {
         const success = await super.startBuilding(buildingType, position);
-        
+
         if (success && this.currentBuildingAction) {
             // Apply building efficiency bonus
-            console.log(`🏗️ Worker ${this.getId()} building with ${this.buildingEfficiency}x efficiency`);
         }
-        
+
         return success;
     }
 
@@ -114,7 +110,6 @@ export class Worker extends Unit {
         }
 
         // TODO: Implement repair functionality
-        console.log(`🔧 Worker ${this.getId()} repair functionality not yet implemented`);
         return false;
     }
 
@@ -124,13 +119,12 @@ export class Worker extends Unit {
     public collectResources(amount: number): boolean {
         const availableSpace = this.carryCapacity - this.currentCarriedResources;
         const actualAmount = Math.min(amount, availableSpace);
-        
+
         if (actualAmount > 0) {
             this.currentCarriedResources += actualAmount;
-            console.log(`📦 Worker ${this.getId()} collected ${actualAmount} resources (${this.currentCarriedResources}/${this.carryCapacity})`);
             return true;
         }
-        
+
         return false;
     }
 
@@ -140,11 +134,7 @@ export class Worker extends Unit {
     public depositResources(): number {
         const deposited = this.currentCarriedResources;
         this.currentCarriedResources = 0;
-        
-        if (deposited > 0) {
-            console.log(`📤 Worker ${this.getId()} deposited ${deposited} resources`);
-        }
-        
+
         return deposited;
     }
 
@@ -153,7 +143,6 @@ export class Worker extends Unit {
      */
     public upgradeMiningEfficiency(bonus: number): void {
         this.miningEfficiency += bonus;
-        console.log(`⬆️ Worker ${this.getId()} mining efficiency upgraded to ${this.miningEfficiency}x`);
     }
 
     /**
@@ -161,7 +150,6 @@ export class Worker extends Unit {
      */
     public upgradeBuildingEfficiency(bonus: number): void {
         this.buildingEfficiency += bonus;
-        console.log(`⬆️ Worker ${this.getId()} building efficiency upgraded to ${this.buildingEfficiency}x`);
     }
 
     /**
@@ -169,7 +157,6 @@ export class Worker extends Unit {
      */
     public upgradeCarryCapacity(bonus: number): void {
         this.carryCapacity += bonus;
-        console.log(`⬆️ Worker ${this.getId()} carry capacity upgraded to ${this.carryCapacity}`);
     }
 
     /**
@@ -213,7 +200,7 @@ export class Worker extends Unit {
      */
     public update(deltaTime: number): void {
         super.update(deltaTime);
-        
+
         // Worker-specific update logic can be added here
         // For example: automatic resource collection, efficiency bonuses, etc.
     }
@@ -223,10 +210,6 @@ export class Worker extends Unit {
      */
     public dispose(): void {
         // Drop any carried resources
-        if (this.currentCarriedResources > 0) {
-            console.log(`📦 Worker ${this.getId()} dropped ${this.currentCarriedResources} resources on disposal`);
-        }
-        
         super.dispose();
     }
 }

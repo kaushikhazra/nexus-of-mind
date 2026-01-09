@@ -46,8 +46,6 @@ export class BuildingManager {
         this.gameState = gameState;
         this.buildingRenderer = buildingRenderer;
         this.energyManager = energyManager;
-        
-        console.log('🏗️ BuildingManager initialized');
     }
 
     /**
@@ -158,7 +156,6 @@ export class BuildingManager {
             // Setup building event callbacks
             this.setupBuildingCallbacks(building);
 
-            console.log(`🏗️ Started construction of ${placement.buildingType.name} at ${position.toString()}`);
             return building;
 
         } catch (error) {
@@ -172,8 +169,6 @@ export class BuildingManager {
      */
     private setupBuildingCallbacks(building: Building): void {
         building.onCompleted((completedBuilding) => {
-            console.log(`✅ Building ${completedBuilding.getId()} construction completed`);
-            
             // Remove construction action
             const constructionAction = this.constructionActions.get(completedBuilding.getId());
             if (constructionAction) {
@@ -201,7 +196,7 @@ export class BuildingManager {
     private setupEnergyGeneration(building: Building): void {
         const energyGeneration = building.getEnergyGeneration();
         if (energyGeneration > 0) {
-            console.log(`⚡ Building ${building.getId()} now generating ${energyGeneration} energy/second`);
+            // Building is now generating energy
         }
     }
 
@@ -223,8 +218,6 @@ export class BuildingManager {
         
         // Remove from buildings map
         this.buildings.delete(buildingId);
-        
-        console.log(`💥 Building ${buildingId} removed from management`);
     }
 
     /**
@@ -369,8 +362,6 @@ export class BuildingManager {
      * Dispose building manager
      */
     public dispose(): void {
-        console.log('🗑️ Disposing BuildingManager...');
-
         // Dispose all construction actions
         for (const constructionAction of this.constructionActions.values()) {
             constructionAction.dispose();
@@ -382,7 +373,5 @@ export class BuildingManager {
             building.dispose();
         }
         this.buildings.clear();
-
-        console.log('✅ BuildingManager disposed');
     }
 }

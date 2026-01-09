@@ -55,8 +55,6 @@ export class EnergyStorage {
         if (this.currentEnergy > this.capacity) {
             this.currentEnergy = this.capacity;
         }
-        
-        console.log(`⚡ EnergyStorage created for ${entityId}: ${this.currentEnergy}/${this.capacity} energy`);
     }
 
     /**
@@ -97,8 +95,6 @@ export class EnergyStorage {
         // Add energy
         this.currentEnergy += actualAmount;
         
-        console.log(`⚡ Energy added to ${this.entityId}: +${actualAmount} from ${source} (${this.currentEnergy}/${this.capacity})`);
-        
         // Notify changes
         this.notifyEnergyChange();
         this.checkEnergyLevels();
@@ -117,7 +113,6 @@ export class EnergyStorage {
 
         // Allow zero energy consumption (for free actions like worker movement)
         if (amount === 0) {
-            console.log(`⚡ Zero energy consumption for ${this.entityId}: ${purpose} (FREE)`);
             return true;
         }
 
@@ -167,7 +162,6 @@ export class EnergyStorage {
             this.addEnergy(refund, 'transfer_refund');
         }
 
-        console.log(`⚡ Energy transferred: ${actualTransferred} from ${this.entityId} to ${targetStorage.entityId}`);
         return actualTransferred > 0;
     }
 
@@ -179,8 +173,7 @@ export class EnergyStorage {
         
         if (actualDrain > 0) {
             this.currentEnergy -= actualDrain;
-            console.log(`⚡ Energy drained from ${this.entityId}: -${actualDrain} (${reason})`);
-            
+
             this.notifyEnergyChange();
             this.checkEnergyLevels();
         }
@@ -243,8 +236,7 @@ export class EnergyStorage {
         if (this.currentEnergy > this.capacity) {
             this.currentEnergy = this.capacity;
         }
-        
-        console.log(`⚡ Capacity changed for ${this.entityId}: ${oldCapacity} → ${newCapacity}`);
+
         this.notifyEnergyChange();
     }
 
@@ -258,7 +250,6 @@ export class EnergyStorage {
         }
 
         this.efficiency = newEfficiency;
-        console.log(`⚡ Efficiency changed for ${this.entityId}: ${newEfficiency * 100}%`);
     }
 
     /**
@@ -327,7 +318,5 @@ export class EnergyStorage {
         this.onLowEnergyCallbacks = [];
         this.onEnergyDepletedCallbacks = [];
         this.onEnergyFullCallbacks = [];
-        
-        console.log(`⚡ EnergyStorage disposed for ${this.entityId}`);
     }
 }

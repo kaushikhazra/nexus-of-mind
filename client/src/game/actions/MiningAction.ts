@@ -62,8 +62,6 @@ export class MiningAction extends EnergyConsumer {
         if (distance > this.miningConfig.miningRange) {
             return this.createResult(false, 0, 0, `Target too far (${distance.toFixed(1)}m > ${this.miningConfig.miningRange}m)`);
         }
-        
-        console.log(`⛏️ Starting mining within range (distance: ${distance.toFixed(1)}m <= ${this.miningConfig.miningRange}m)`);
 
         // Check initial energy cost
         const initialCost = this.config.baseCost;
@@ -82,7 +80,6 @@ export class MiningAction extends EnergyConsumer {
         this.miningStartTime = performance.now();
         this.totalEnergyGenerated = 0;
 
-        console.log(`⛏️ Started mining deposit ${target.getId()} at distance ${distance.toFixed(1)}m`);
         return this.createResult(true, initialCost, initialCost);
     }
 
@@ -129,8 +126,6 @@ export class MiningAction extends EnergyConsumer {
 
         // Check if deposit is depleted
         if (this.currentTarget.isDepleted()) {
-            const miningDuration = (performance.now() - this.miningStartTime) / 1000;
-            console.log(`⛏️ Deposit depleted after ${miningDuration.toFixed(1)}s (total generated: ${this.totalEnergyGenerated.toFixed(2)})`);
             this.stopMining();
         }
 
@@ -149,9 +144,6 @@ export class MiningAction extends EnergyConsumer {
             this.currentTarget.stopMining();
         }
 
-        const miningDuration = (performance.now() - this.miningStartTime) / 1000;
-        console.log(`⛏️ Stopped mining after ${miningDuration.toFixed(1)}s (generated ${this.totalEnergyGenerated.toFixed(2)} energy)`);
-
         this.currentTarget = null;
         this.isMining = false;
         this.miningStartTime = 0;
@@ -167,7 +159,6 @@ export class MiningAction extends EnergyConsumer {
         if (this.isMining && this.currentTarget) {
             const distance = Vector3.Distance(this.minerPosition, this.currentTarget.getPosition());
             if (distance > this.miningConfig.miningRange) {
-                console.log(`⛏️ Moved out of mining range (${distance.toFixed(1)}m > ${this.miningConfig.miningRange}m)`);
                 this.stopMining();
             }
         }
@@ -224,6 +215,5 @@ export class MiningAction extends EnergyConsumer {
     public dispose(): void {
         this.stopMining();
         super.dispose();
-        console.log(`⛏️ MiningAction disposed for ${this.entityId}`);
     }
 }

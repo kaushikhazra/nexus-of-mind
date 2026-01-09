@@ -1,6 +1,6 @@
 /**
  * Building - Building entity with energy generation and storage capabilities
- * 
+ *
  * Represents constructed buildings in the game world with 3D visualization,
  * energy generation/storage, and integration with the unit and energy systems.
  */
@@ -27,18 +27,18 @@ export class Building {
     private buildingType: BuildingType;
     private position: Vector3;
     private energyStorage: EnergyStorage | null = null;
-    
+
     // Building properties
     private constructionProgress: number = 0; // 0-1, 1 = complete
     private health: number;
     private maxHealth: number;
     private energyGeneration: number = 0; // Energy per second
     private createdAt: number;
-    
+
     // State management
     private isActive: boolean = true;
     private constructorId: string;
-    
+
     // Event callbacks
     private onCompletedCallbacks: ((building: Building) => void)[] = [];
     private onDestroyedCallbacks: ((building: Building) => void)[] = [];
@@ -53,7 +53,7 @@ export class Building {
         this.health = this.maxHealth;
         this.energyGeneration = buildingType.energyGeneration || 0;
         this.createdAt = performance.now();
-        
+
         // Initialize energy storage if building has storage capacity
         if (buildingType.energyStorage && buildingType.energyStorage > 0) {
             const storageConfig: EnergyStorageConfig = {
@@ -62,11 +62,9 @@ export class Building {
                 transferRate: 5.0, // Buildings have good transfer rates
                 efficiency: 1.0 // Perfect efficiency for buildings
             };
-            
+
             this.energyStorage = new EnergyStorage(this.id, storageConfig);
         }
-        
-        console.log(`🏗️ ${buildingType.name} building ${this.id} created at ${position.toString()}`);
     }
 
     /**
@@ -88,7 +86,7 @@ export class Building {
         if (this.isComplete() && this.energyGeneration > 0) {
             this.generateEnergy(deltaTime);
         }
-        
+
         // Check health status
         if (this.health <= 0) {
             this.destroy();
@@ -100,7 +98,7 @@ export class Building {
      */
     private generateEnergy(deltaTime: number): void {
         const energyGenerated = this.energyGeneration * deltaTime;
-        
+
         if (this.energyStorage) {
             // Add to building's own storage first
             const stored = this.energyStorage.addEnergy(energyGenerated, 'building_generation');
@@ -119,7 +117,7 @@ export class Building {
      */
     public setConstructionProgress(progress: number): void {
         this.constructionProgress = Math.max(0, Math.min(1, progress));
-        
+
         if (this.constructionProgress >= 1.0 && !this.isComplete()) {
             this.completeConstruction();
         }
@@ -130,8 +128,7 @@ export class Building {
      */
     private completeConstruction(): void {
         this.constructionProgress = 1.0;
-        console.log(`🏗️ ${this.buildingType.name} ${this.id} construction completed`);
-        
+
         this.onCompletedCallbacks.forEach(callback => callback(this));
     }
 
@@ -140,8 +137,7 @@ export class Building {
      */
     public takeDamage(amount: number): void {
         this.health = Math.max(0, this.health - amount);
-        console.log(`💥 Building ${this.id} took ${amount} damage (${this.health}/${this.maxHealth} health)`);
-        
+
         if (this.health <= 0) {
             this.destroy();
         }
@@ -152,7 +148,6 @@ export class Building {
      */
     public repair(amount: number): void {
         this.health = Math.min(this.maxHealth, this.health + amount);
-        console.log(`🔧 Building ${this.id} repaired ${amount} health (${this.health}/${this.maxHealth})`);
     }
 
     /**
@@ -163,8 +158,6 @@ export class Building {
             return;
         }
 
-        console.log(`💥 Building ${this.id} destroyed`);
-        
         this.isActive = false;
         this.onDestroyedCallbacks.forEach(callback => callback(this));
     }
@@ -239,11 +232,9 @@ export class Building {
      */
     public dispose(): void {
         this.energyStorage?.dispose();
-        
+
         this.onCompletedCallbacks = [];
         this.onDestroyedCallbacks = [];
         this.onEnergyGeneratedCallbacks = [];
-        
-        console.log(`🗑️ Building ${this.id} disposed`);
     }
 }

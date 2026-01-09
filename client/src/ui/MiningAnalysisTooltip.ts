@@ -55,7 +55,6 @@ export class MiningAnalysisTooltip {
     private initialize(): void {
         this.createTooltipElement();
         this.setupMouseTracking();
-        console.log('🔍 MiningAnalysisTooltip initialized');
     }
 
     /**
@@ -580,7 +579,5 @@ export class MiningAnalysisTooltip {
             this.tooltipElement.parentNode.removeChild(this.tooltipElement);
             this.tooltipElement = null;
         }
-
-        console.log('🔍 MiningAnalysisTooltip disposed');
     }
 }

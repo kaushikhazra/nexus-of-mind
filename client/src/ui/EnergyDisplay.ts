@@ -60,8 +60,6 @@ export class EnergyDisplay {
         this.createUI();
         this.startUpdates();
         this.subscribeToEnergyEvents();
-        
-        console.log('⚡ EnergyDisplay initialized');
     }
 
     /**
@@ -416,7 +414,5 @@ export class EnergyDisplay {
         if (this.container) {
             this.container.innerHTML = '';
         }
-
-        console.log('⚡ EnergyDisplay disposed');
     }
 }

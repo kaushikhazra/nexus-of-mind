@@ -1,6 +1,6 @@
 /**
  * GameEngine - Core game engine with Babylon.js initialization
- * 
+ *
  * Manages the main game loop, scene initialization, and component coordination.
  * Implements singleton pattern for centralized game engine management.
  */
@@ -20,44 +20,48 @@ import { BuildingManager } from './BuildingManager';
 import { BuildingRenderer } from '../rendering/BuildingRenderer';
 import { MiningAnalysisTooltip } from '../ui/MiningAnalysisTooltip';
 import { ParasiteManager } from './ParasiteManager';
+import { TreeRenderer } from '../rendering/TreeRenderer';
 import { Worker } from './entities/Worker';
 import { Protector } from './entities/Protector';
 
 export class GameEngine {
     private static instance: GameEngine | null = null;
-    
+
     private engine: Engine | null = null;
     private scene: Scene | null = null;
     private canvas: HTMLCanvasElement;
-    
+
     // Core managers
     private sceneManager: SceneManager | null = null;
     private cameraController: CameraController | null = null;
     private lightingSetup: LightingSetup | null = null;
     private materialManager: MaterialManager | null = null;
     private performanceMonitor: PerformanceMonitor | null = null;
-    
+
     // Energy system
     private energyManager: EnergyManager | null = null;
     private energyDisplay: EnergyDisplay | null = null;
-    
+
     // Game state
     private gameState: GameState | null = null;
-    
+
     // Unit system
     private unitManager: UnitManager | null = null;
     private unitRenderer: UnitRenderer | null = null;
-    
+
     // Building system
     private buildingManager: BuildingManager | null = null;
     private buildingRenderer: BuildingRenderer | null = null;
-    
+
     // Combat system
     private parasiteManager: ParasiteManager | null = null;
-    
+
+    // Vegetation system
+    private treeRenderer: TreeRenderer | null = null;
+
     // UI systems
     private miningAnalysisTooltip: MiningAnalysisTooltip | null = null;
-    
+
     private isInitialized: boolean = false;
     private isRunning: boolean = false;
 
@@ -65,11 +69,9 @@ export class GameEngine {
         if (GameEngine.instance) {
             throw new Error('GameEngine is a singleton. Use GameEngine.getInstance()');
         }
-        
+
         this.canvas = canvas;
         GameEngine.instance = this;
-        
-        console.log('🎮 GameEngine created');
     }
 
     /**
@@ -89,10 +91,7 @@ export class GameEngine {
         }
 
         try {
-            console.log('🔧 Initializing Babylon.js engine...');
-            
             // Initialize WebGL engine (WebGPU support can be added later)
-            console.log('🚀 Using WebGL engine');
             this.engine = new Engine(this.canvas, true, {
                 preserveDrawingBuffer: true,
                 stencil: true,
@@ -138,14 +137,21 @@ export class GameEngine {
                 materialManager: this.materialManager,
                 terrainGenerator: this.getTerrainGenerator()
             });
-            
+
+            // Initialize vegetation system
+            this.treeRenderer = new TreeRenderer(this.scene);
+
             // Set terrain generator after terrain is initialized (delayed)
             setTimeout(() => {
                 const terrainGen = this.getTerrainGenerator();
                 if (terrainGen && this.unitManager && this.parasiteManager) {
                     this.unitManager.setTerrainGenerator(terrainGen);
                     this.parasiteManager.setTerrainGenerator(terrainGen);
-                    console.log('🌍 Terrain generator set on UnitManager and ParasiteManager (delayed)');
+
+                    // Set tree renderer on terrain for infinite tree spawning
+                    if (this.treeRenderer) {
+                        terrainGen.setTreeRenderer(this.treeRenderer);
+                    }
                 } else {
                     console.warn('⚠️ Terrain generator not available after delay');
                 }
@@ -154,29 +160,28 @@ export class GameEngine {
             // Setup components
             this.cameraController.setupCamera();
             this.lightingSetup.setupLighting();
-            
+
             // Initialize procedural terrain system
             this.sceneManager.initializeTerrain(this.materialManager, this.cameraController);
-            
+
             // Initialize energy UI
             this.initializeEnergyUI();
-            
+
             // Initialize mining analysis tooltip
             this.initializeMiningAnalysisTooltip();
-            
+
             // Setup terrain integration with game state
             this.setupTerrainIntegration();
-            
+
             // Setup mouse interaction for unit selection and mining assignment
             this.setupMouseInteraction();
-            
+
             // Handle window resize
             window.addEventListener('resize', () => {
                 this.engine?.resize();
             });
 
             this.isInitialized = true;
-            console.log('✅ GameEngine initialized successfully');
 
         } catch (error) {
             console.error('❌ Failed to initialize GameEngine:', error);
@@ -198,8 +203,6 @@ export class GameEngine {
         }
 
         try {
-            console.log('▶️ Starting game engine...');
-
             if (!this.engine || !this.scene) {
                 throw new Error('Engine or scene not initialized');
             }
@@ -212,27 +215,27 @@ export class GameEngine {
                 if (this.scene && this.engine) {
                     // Calculate delta time
                     const deltaTime = this.engine.getDeltaTime() / 1000; // Convert to seconds
-                    
+
                     // Update game state
                     if (this.gameState) {
                         this.gameState.update(deltaTime);
                     }
-                    
+
                     // Update unit system (async for command processing)
                     if (this.unitManager) {
                         await this.unitManager.update(deltaTime);
                     }
-                    
+
                     // Update building system
                     if (this.buildingManager) {
                         this.buildingManager.update(deltaTime);
                     }
-                    
+
                     // Update energy system
                     if (this.energyManager) {
                         this.energyManager.update();
                     }
-                    
+
                     // Update combat system
                     if (this.parasiteManager && this.gameState && this.unitManager) {
                         const mineralDeposits = this.gameState.getAllMineralDeposits();
@@ -240,13 +243,17 @@ export class GameEngine {
                         const protectors = this.unitManager.getUnitsByType('protector') as Protector[];
                         this.parasiteManager.update(deltaTime, mineralDeposits, workers, protectors);
                     }
-                    
+
+                    // Update vegetation animations
+                    if (this.treeRenderer) {
+                        this.treeRenderer.updateAnimations();
+                    }
+
                     this.scene.render();
                 }
             });
 
             this.isRunning = true;
-            console.log('✅ Game engine started - render loop active');
 
         } catch (error) {
             console.error('❌ Failed to start GameEngine:', error);
@@ -262,16 +269,12 @@ export class GameEngine {
             return;
         }
 
-        console.log('⏹️ Stopping game engine...');
-
         if (this.engine) {
             this.engine.stopRenderLoop();
         }
 
         this.performanceMonitor?.stopMonitoring();
         this.isRunning = false;
-
-        console.log('✅ Game engine stopped');
     }
 
     /**
@@ -290,8 +293,6 @@ export class GameEngine {
                 this.gameState!.addMineralDeposit(deposit);
             });
         }
-
-        console.log(`🌍 Integrated ${deposits.length} mineral deposits with game state`);
     }
 
     /**
@@ -318,8 +319,6 @@ export class GameEngine {
             showDetails: true,
             showHistory: false
         });
-
-        console.log('⚡ Energy UI initialized');
     }
 
     /**
@@ -332,7 +331,6 @@ export class GameEngine {
         }
 
         this.miningAnalysisTooltip = new MiningAnalysisTooltip(this.scene);
-        console.log('🔍 Mining analysis tooltip initialized');
     }
 
     /**
@@ -430,8 +428,6 @@ export class GameEngine {
             return;
         }
 
-        console.log('🖱️ Setting up mouse interaction for unit selection and mining assignment');
-
         // Add pointer observable for mouse clicks
         this.scene.onPointerObservable.add((pointerInfo) => {
             if (pointerInfo.type === PointerEventTypes.POINTERDOWN) {
@@ -448,18 +444,15 @@ export class GameEngine {
 
         // Get the pick result
         const pickInfo = this.scene.pick(this.scene.pointerX, this.scene.pointerY);
-        
+
         if (!pickInfo || !pickInfo.hit) {
             // Clicked on empty space - clear selection
             this.unitManager.clearSelection();
-            console.log('🖱️ Clicked empty space - cleared selection');
             return;
         }
 
         const pickedMesh = pickInfo.pickedMesh;
         if (!pickedMesh) return;
-
-        console.log(`🖱️ Clicked on mesh: ${pickedMesh.name}`);
 
         // Check if clicked on a unit
         if (pickedMesh.name.startsWith('unit_')) {
@@ -472,7 +465,6 @@ export class GameEngine {
         // Clicked on something else - clear selection
         else {
             this.unitManager.clearSelection();
-            console.log('🖱️ Clicked on non-interactive object - cleared selection');
         }
     }
 
@@ -493,7 +485,6 @@ export class GameEngine {
 
         // Select the clicked unit (single selection for now)
         this.unitManager.selectUnits([unitId]);
-        console.log(`👆 Selected ${unit.getUnitType()} unit: ${unitId}`);
     }
 
     /**
@@ -503,9 +494,8 @@ export class GameEngine {
         if (!this.unitManager) return;
 
         const selectedUnits = this.unitManager.getSelectedUnits();
-        
+
         if (selectedUnits.length === 0) {
-            console.log('🖱️ Clicked mineral deposit but no units selected');
             return;
         }
 
@@ -515,12 +505,10 @@ export class GameEngine {
             console.warn(`⚠️ Invalid mineral chunk name format: ${mineralMesh.name}`);
             return;
         }
-        
+
         // Reconstruct the deposit ID (everything between "mineral_chunk_" and the last "_<chunkIndex>")
         const depositId = nameParts.slice(2, -1).join('_');
-        
-        console.log(`🖱️ Clicked mineral chunk: ${mineralMesh.name}, extracted deposit ID: ${depositId} with ${selectedUnits.length} selected units`);
-        
+
         // Get the mineral deposit from terrain generator
         const terrainGenerator = this.getTerrainGenerator();
         if (!terrainGenerator) {
@@ -534,26 +522,14 @@ export class GameEngine {
             return;
         }
 
-        console.log(`💎 Found mineral deposit at ${mineralDeposit.getPosition().toString()}`);
-
         // Assign selected workers to mine this deposit
         let assignedCount = 0;
         for (const unit of selectedUnits) {
             if (unit.getUnitType() === 'worker') {
-                console.log(`⛏️ Issuing mining command to worker ${unit.getId()}`);
                 // Issue mining command
                 this.unitManager.issueCommand('mine', undefined, depositId);
                 assignedCount++;
-                console.log(`⛏️ Assigned worker ${unit.getId()} to mine deposit ${depositId}`);
-            } else {
-                console.log(`⚠️ Unit ${unit.getId()} is not a worker (${unit.getUnitType()}), skipping mining assignment`);
             }
-        }
-
-        if (assignedCount > 0) {
-            console.log(`✅ Assigned ${assignedCount} workers to mineral deposit`);
-        } else {
-            console.log('⚠️ No workers selected for mining assignment');
         }
     }
 
@@ -561,11 +537,10 @@ export class GameEngine {
      * Dispose of all resources
      */
     public dispose(): void {
-        console.log('🗑️ Disposing GameEngine...');
-
         this.stop();
 
         // Dispose components in reverse order
+        this.treeRenderer?.dispose();
         this.parasiteManager?.dispose();
         this.buildingManager?.dispose();
         this.buildingRenderer?.dispose();
@@ -590,7 +565,5 @@ export class GameEngine {
         this.scene = null;
         this.isInitialized = false;
         GameEngine.instance = null;
-
-        console.log('✅ GameEngine disposed');
     }
 }

@@ -64,8 +64,6 @@ export class MineralDeposit {
         this.biome = config.biome || 'unknown';
         this.visible = config.visible !== false; // Default to visible
         this.size = config.size || 1.0;
-        
-        console.log(`💎 MineralDeposit created: ${this.id} at ${this.position.toString()} (${this.capacity} energy)`);
     }
 
     /**
@@ -160,8 +158,6 @@ export class MineralDeposit {
                 chunk.material = this.material;
             });
         }
-
-        console.log(`💎 Low-poly mineral cluster created for deposit ${this.id} (${chunkCount} chunks)`);
     }
 
     /**
@@ -194,12 +190,10 @@ export class MineralDeposit {
      */
     public mine(deltaTime: number): number {
         if (this.remaining <= 0) {
-            console.warn(`⚠️ Cannot mine depleted deposit ${this.id}`);
             return 0;
         }
 
         if (!this.visible) {
-            console.warn(`⚠️ Cannot mine hidden deposit ${this.id} - must be discovered first`);
             return 0;
         }
 
@@ -228,11 +222,8 @@ export class MineralDeposit {
         // Check if depleted
         if (this.remaining <= 0) {
             this.onDepletedCallbacks.forEach(callback => callback(this));
-            console.log(`💎 Mineral deposit ${this.id} depleted after extracting ${this.totalExtracted} energy`);
         }
 
-        // Mining operation logged only occasionally to avoid spam
-        // console.log(`💎 Mined ${energyToExtract.toFixed(2)} energy from ${this.id} (${this.remaining.toFixed(2)} remaining)`);
         return energyToExtract;
     }
 
@@ -249,7 +240,6 @@ export class MineralDeposit {
         this.createMesh(materialManager);
         
         this.onDiscoveredCallbacks.forEach(callback => callback(this));
-        console.log(`💎 Mineral deposit ${this.id} discovered!`);
         
         return true;
     }
@@ -339,7 +329,6 @@ export class MineralDeposit {
      */
     public stopMining(): void {
         this.isBeingMined = false;
-        console.log(`💎 Stopped mining deposit ${this.id}`);
     }
 
     /**
@@ -381,6 +370,6 @@ export class MineralDeposit {
         this.onDiscoveredCallbacks = [];
         this.onMinedCallbacks = [];
 
-        console.log(`💎 MineralDeposit ${this.id} disposed`);
+        // MineralDeposit disposed silently
     }
 }

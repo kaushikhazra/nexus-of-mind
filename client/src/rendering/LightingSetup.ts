@@ -22,7 +22,6 @@ export class LightingSetup {
 
     constructor(scene: Scene) {
         this.scene = scene;
-        console.log('💡 LightingSetup created');
     }
 
     /**
@@ -30,8 +29,6 @@ export class LightingSetup {
      */
     public setupLighting(): void {
         try {
-            console.log('💡 Setting up SciFi lighting...');
-
             // Create directional light (main light source)
             this.createDirectionalLight();
 
@@ -40,8 +37,6 @@ export class LightingSetup {
 
             // Configure lighting for low poly materials
             this.configureLowPolyLighting();
-
-            console.log('✅ SciFi lighting setup complete');
 
         } catch (error) {
             console.error('❌ Failed to setup lighting:', error);
@@ -67,8 +62,6 @@ export class LightingSetup {
 
         // Position the light for optimal low poly shading
         this.directionalLight.position = new Vector3(10, 20, 10);
-
-        console.log('☀️ Directional light created');
     }
 
     /**
@@ -87,8 +80,6 @@ export class LightingSetup {
         this.ambientLight.diffuse = this.AMBIENT_COLOR;
         this.ambientLight.specular = new Color3(0, 0, 0); // No specular from ambient
         this.ambientLight.groundColor = this.GROUND_COLOR;
-
-        console.log('🌙 Ambient light created');
     }
 
     /**
@@ -108,8 +99,6 @@ export class LightingSetup {
         // Configure scene lighting mode for performance
         this.scene.lightsEnabled = true;
         this.scene.shadowsEnabled = false; // Disable shadows for performance
-
-        console.log('🎨 Lighting configured for low poly flat shading');
     }
 
     /**
@@ -136,8 +125,6 @@ export class LightingSetup {
                 this.ambientLight.diffuse = new Color3(0.1, 0.1, 0.3);
                 break;
         }
-
-        console.log(`🌅 Lighting updated for ${timeOfDay}`);
     }
 
     /**
@@ -159,12 +146,9 @@ export class LightingSetup {
      */
     public setShadowsEnabled(enabled: boolean): void {
         this.scene.shadowsEnabled = enabled;
-        
+
         if (enabled && this.directionalLight) {
             // Future: Setup shadow generator
-            console.log('🌑 Shadows enabled (placeholder)');
-        } else {
-            console.log('☀️ Shadows disabled');
         }
     }
 
@@ -172,8 +156,6 @@ export class LightingSetup {
      * Dispose lighting resources
      */
     public dispose(): void {
-        console.log('🗑️ Disposing lighting...');
-
         if (this.directionalLight) {
             this.directionalLight.dispose();
             this.directionalLight = null;
@@ -183,7 +165,5 @@ export class LightingSetup {
             this.ambientLight.dispose();
             this.ambientLight = null;
         }
-
-        console.log('✅ Lighting disposed');
     }
 }

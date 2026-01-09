@@ -42,7 +42,6 @@ export class WorkerCreationUI {
         this.createUI();
         this.setupEventListeners();
         this.setupUpdateTimer();
-        console.log('👷 Worker Creation UI initialized');
     }
 
     /**
@@ -88,8 +87,6 @@ export class WorkerCreationUI {
         this.createButton = document.getElementById('create-worker-btn');
         
         this.applyStyles();
-        
-        console.log('👷 Worker Creation UI elements created and attached');
     }
 
     /**
@@ -219,8 +216,6 @@ export class WorkerCreationUI {
      * Handle worker creation button click
      */
     private handleWorkerCreation(): void {
-        console.log('👷 Worker creation requested');
-
         // Validate energy availability
         const currentEnergy = this.config.energyManager.getTotalEnergy();
         if (currentEnergy < this.WORKER_ENERGY_COST) {
@@ -242,8 +237,6 @@ export class WorkerCreationUI {
             return;
         }
 
-        console.log(`✅ Energy consumed: ${this.WORKER_ENERGY_COST}E`);
-
         // Create worker (will be implemented in Phase 2)
         this.createWorker();
         
@@ -260,7 +253,6 @@ export class WorkerCreationUI {
     private ensureUIVisible(): void {
         if (this.container) {
             this.container.style.display = 'block';
-            console.log('👷 UI visibility ensured after worker creation');
         }
     }
 
@@ -268,18 +260,10 @@ export class WorkerCreationUI {
      * Create worker using WorkerSpawner
      */
     private createWorker(): void {
-        console.log('👷 Creating worker...');
-        
         const spawnResult = this.workerSpawner.spawnWorker();
-        
+
         if (spawnResult.success) {
-            console.log(`✅ Worker created successfully: ${spawnResult.worker?.getId()}`);
             this.showFeedback('Worker Created!', 'success');
-            
-            // Log spawn details
-            if (spawnResult.position) {
-                console.log(`📍 Worker spawned at: ${spawnResult.position.toString()}`);
-            }
         } else {
             console.error(`❌ Worker creation failed: ${spawnResult.message}`);
             this.showFeedback(`Creation Failed: ${spawnResult.message}`, 'error');
@@ -392,7 +376,5 @@ export class WorkerCreationUI {
             this.container.remove();
             this.container = null;
         }
-
-        console.log('👷 Worker Creation UI disposed');
     }
 }

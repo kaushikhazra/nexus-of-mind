@@ -29,8 +29,6 @@ class Application {
      * Initialize the application
      */
     public async init(): Promise<void> {
-        console.log('🚀 Nexus of Mind - Initializing...');
-        
         try {
             // Get canvas element
             this.canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
@@ -67,8 +65,6 @@ class Application {
             setTimeout(() => {
                 this.hideLoadingScreen();
             }, 500);
-
-            console.log('✅ Nexus of Mind - Initialized successfully');
 
         } catch (error) {
             console.error('❌ Failed to initialize application:', error);
@@ -138,8 +134,6 @@ class Application {
             buildingManager: buildingManager,
             terrainGenerator: terrainGenerator
         });
-
-        console.log('👷 Worker Creation UI initialized');
     }
     private initializeMineralReserveUI(): void {
         if (!this.gameEngine) {
@@ -158,8 +152,6 @@ class Application {
             containerId: 'mineral-reserve-ui',
             terrainGenerator: terrainGenerator
         });
-
-        console.log('💎 Mineral Reserve UI initialized');
     }
     private initializeBuildingPlacementUI(): void {
         if (!this.gameEngine) {
@@ -182,8 +174,6 @@ class Application {
             buildingManager: buildingManager,
             energyManager: energyManager
         });
-
-        console.log('🏗️ Building placement UI initialized');
     }
 
     /**
@@ -545,5 +535,4 @@ document.addEventListener('DOMContentLoaded', async () => {
 // Handle window resize
 window.addEventListener('resize', () => {
     // Engine will handle resize automatically
-    console.log('Window resized');
 });

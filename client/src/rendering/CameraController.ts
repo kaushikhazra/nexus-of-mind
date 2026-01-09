@@ -25,7 +25,6 @@ export class CameraController {
     constructor(scene: Scene, canvas: HTMLCanvasElement) {
         this.scene = scene;
         this.canvas = canvas;
-        console.log('📷 CameraController created');
     }
 
     /**
@@ -33,8 +32,6 @@ export class CameraController {
      */
     public setupCamera(): void {
         try {
-            console.log('📷 Setting up RTS camera...');
-
             // Create ArcRotateCamera for RTS-style controls
             this.camera = new ArcRotateCamera(
                 'rtsCamera',
@@ -59,8 +56,6 @@ export class CameraController {
 
             // Set camera target to a better position (slightly above ground)
             this.setCameraTarget(new Vector3(0, 2, 0));
-
-            console.log('✅ RTS camera setup complete');
 
         } catch (error) {
             console.error('❌ Failed to setup camera:', error);
@@ -92,8 +87,6 @@ export class CameraController {
         this.camera.angularSensibilityY = 1000;
         this.camera.wheelPrecision = 50;
         this.camera.pinchPrecision = 50;
-
-        console.log('⚙️ Camera constraints configured');
     }
 
     /**
@@ -115,8 +108,6 @@ export class CameraController {
             // Left, middle, right mouse buttons (original behavior)
             (pointerInput as any).buttons = [0, 1, 2];
         }
-
-        console.log('🎮 Camera controls configured - original mouse + custom keyboard');
     }
 
     /**
@@ -183,7 +174,6 @@ export class CameraController {
     public setCameraTarget(target: Vector3): void {
         if (this.camera) {
             this.camera.setTarget(target);
-            console.log(`📷 Camera target set to: ${target.toString()}`);
         }
     }
 
@@ -227,7 +217,6 @@ export class CameraController {
             }
         });
 
-        console.log('🖱️ Edge scrolling setup (placeholder)');
     }
 
     /**
@@ -260,8 +249,6 @@ export class CameraController {
         this.camera.beta = this.INITIAL_BETA;
         this.camera.radius = this.INITIAL_RADIUS;
         this.camera.setTarget(Vector3.Zero());
-
-        console.log('🔄 Camera reset to default position');
     }
 
     /**
@@ -269,12 +256,8 @@ export class CameraController {
      */
     public dispose(): void {
         if (this.camera) {
-            console.log('🗑️ Disposing camera...');
-            
             this.camera.dispose();
             this.camera = null;
-            
-            console.log('✅ Camera disposed');
         }
     }
 }

@@ -1,6 +1,6 @@
 /**
  * Protector - Protector unit specialization with combat and defense capabilities
- * 
+ *
  * Protectors are heavily armored combat units designed for base defense and tactical
  * combat. They have the highest health and energy storage but consume more energy
  * for movement and actions, making them powerful but resource-intensive.
@@ -25,7 +25,7 @@ export class Protector extends Unit {
     private shieldStrength: number = 50; // Shield hit points
     private maxShieldStrength: number = 50;
     private combatExperience: number = 0; // Gained through combat
-    
+
     // Combat state
     private currentTarget: CombatTarget | null = null;
     private lastAttackTime: number = 0;
@@ -49,8 +49,6 @@ export class Protector extends Unit {
         };
 
         super(protectorConfig);
-        
-        console.log(`🛡️ Protector unit ${this.getId()} ready for combat and defense`);
     }
 
     /**
@@ -105,14 +103,12 @@ export class Protector extends Unit {
         // Check if target is in range
         const distance = Vector3.Distance(this.getPosition(), target.position);
         if (distance > this.attackRange) {
-            console.warn(`⚠️ Protector ${this.getId()} target out of range (${distance.toFixed(1)} > ${this.attackRange})`);
             return false;
         }
 
         // Calculate energy cost based on target type and distance
         const energyCost = this.calculateAttackEnergyCost(target, distance);
         if (this.energyStorage.getCurrentEnergy() < energyCost) {
-            console.warn(`⚠️ Protector ${this.getId()} insufficient energy for attack (need ${energyCost})`);
             return false;
         }
 
@@ -131,8 +127,6 @@ export class Protector extends Unit {
         const experienceBonus = Math.floor(this.combatExperience / 10);
         const actualDamage = Math.max(1, this.attackDamage + experienceBonus);
 
-        console.log(`⚔️ Protector ${this.getId()} attacks ${target.id} for ${actualDamage} damage (cost: ${energyCost} energy)`);
-
         // Gain combat experience
         this.combatExperience += 1;
 
@@ -147,13 +141,13 @@ export class Protector extends Unit {
      */
     private calculateAttackEnergyCost(target: CombatTarget, distance: number): number {
         let baseCost = 3.0; // Base attack energy cost
-        
+
         // Distance modifier (further targets cost more energy)
         const distanceModifier = 1 + (distance / this.attackRange) * 0.5;
-        
+
         // Target type modifier (future: different costs for different target types)
         const targetModifier = 1.0;
-        
+
         return baseCost * distanceModifier * targetModifier;
     }
 
@@ -163,7 +157,7 @@ export class Protector extends Unit {
     private canAttack(): boolean {
         const now = performance.now();
         const timeSinceLastAttack = (now - this.lastAttackTime) / 1000;
-        
+
         return timeSinceLastAttack >= this.attackCooldown;
     }
 
@@ -172,13 +166,11 @@ export class Protector extends Unit {
      */
     public async activateShield(): Promise<boolean> {
         if (this.shieldActive) {
-            console.log(`🛡️ Protector ${this.getId()} shield already active`);
             return true;
         }
 
         const activationCost = 2.0; // 2 energy to activate shield
         if (this.energyStorage.getCurrentEnergy() < activationCost) {
-            console.warn(`⚠️ Protector ${this.getId()} insufficient energy for shield activation`);
             return false;
         }
 
@@ -191,7 +183,6 @@ export class Protector extends Unit {
         this.shieldStrength = this.maxShieldStrength;
         this.lastActionTime = performance.now();
 
-        console.log(`🛡️ Protector ${this.getId()} shield activated (${this.shieldStrength} strength)`);
         return true;
     }
 
@@ -204,7 +195,6 @@ export class Protector extends Unit {
         }
 
         this.shieldActive = false;
-        console.log(`🛡️ Protector ${this.getId()} shield deactivated`);
     }
 
     /**
@@ -217,7 +207,6 @@ export class Protector extends Unit {
 
         const shieldEnergyCost = 1.0 * deltaTime; // 1 energy per second
         if (this.energyStorage.getCurrentEnergy() < shieldEnergyCost) {
-            console.log(`🛡️ Protector ${this.getId()} shield deactivated - insufficient energy`);
             this.deactivateShield();
             return;
         }
@@ -247,8 +236,6 @@ export class Protector extends Unit {
             this.shieldStrength -= shieldAbsorbed;
             actualDamage -= shieldAbsorbed;
 
-            console.log(`🛡️ Protector ${this.getId()} shield absorbed ${shieldAbsorbed} damage (${this.shieldStrength} shield remaining)`);
-
             if (this.shieldStrength <= 0) {
                 this.deactivateShield();
             }
@@ -270,7 +257,6 @@ export class Protector extends Unit {
 
         const patrolCost = 0.5; // 0.5 energy to start patrol
         if (this.energyStorage.getCurrentEnergy() < patrolCost) {
-            console.warn(`⚠️ Protector ${this.getId()} insufficient energy for patrol`);
             return false;
         }
 
@@ -280,8 +266,7 @@ export class Protector extends Unit {
         }
 
         // TODO: Implement patrol logic with waypoints
-        console.log(`👮 Protector ${this.getId()} started patrol around ${centerPosition.toString()} (radius: ${radius})`);
-        
+
         this.lastActionTime = performance.now();
         return true;
     }
@@ -291,7 +276,6 @@ export class Protector extends Unit {
      */
     public upgradeAttackDamage(bonus: number): void {
         this.attackDamage += bonus;
-        console.log(`⬆️ Protector ${this.getId()} attack damage upgraded to ${this.attackDamage}`);
     }
 
     /**
@@ -299,7 +283,6 @@ export class Protector extends Unit {
      */
     public upgradeDefenseRating(bonus: number): void {
         this.defenseRating += bonus;
-        console.log(`⬆️ Protector ${this.getId()} defense rating upgraded to ${this.defenseRating}`);
     }
 
     /**
@@ -308,7 +291,6 @@ export class Protector extends Unit {
     public upgradeShieldStrength(bonus: number): void {
         this.maxShieldStrength += bonus;
         this.shieldStrength = Math.min(this.shieldStrength + bonus, this.maxShieldStrength);
-        console.log(`⬆️ Protector ${this.getId()} shield strength upgraded to ${this.maxShieldStrength}`);
     }
 
     /**
@@ -343,7 +325,6 @@ export class Protector extends Unit {
     public exitCombat(): void {
         this.isInCombat = false;
         this.currentTarget = null;
-        console.log(`⚔️ Protector ${this.getId()} exited combat`);
     }
 
     /**
@@ -351,15 +332,15 @@ export class Protector extends Unit {
      */
     public update(deltaTime: number): void {
         super.update(deltaTime);
-        
+
         // Update shield
         this.updateShield(deltaTime);
-        
+
         // Check combat state timeout
         if (this.isInCombat) {
             const now = performance.now();
             const timeSinceLastAttack = (now - this.lastAttackTime) / 1000;
-            
+
             // Exit combat if no recent attacks
             if (timeSinceLastAttack > 10.0) { // 10 seconds timeout
                 this.exitCombat();
@@ -373,11 +354,10 @@ export class Protector extends Unit {
     public dispose(): void {
         // Deactivate shield
         this.deactivateShield();
-        
+
         // Clear combat state
         this.exitCombat();
-        
-        console.log(`🛡️ Protector ${this.getId()} combat systems shut down`);
+
         super.dispose();
     }
 }

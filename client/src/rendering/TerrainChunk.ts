@@ -67,8 +67,6 @@ export class TerrainChunk {
             this.mesh.freezeWorldMatrix();
             this.mesh.doNotSyncBoundingInfo = true;
 
-            console.log(`✅ Terrain chunk created at (${this.chunkX}, ${this.chunkZ})`);
-
         } catch (error) {
             console.error(`❌ Failed to create terrain chunk at (${this.chunkX}, ${this.chunkZ}):`, error);
             throw error;
@@ -343,12 +341,8 @@ export class TerrainChunk {
      */
     public dispose(): void {
         if (this.mesh) {
-            console.log(`🗑️ Disposing terrain chunk at (${this.chunkX}, ${this.chunkZ})`);
-            
             this.mesh.dispose();
             this.mesh = null;
-            
-            console.log(`✅ Terrain chunk disposed at (${this.chunkX}, ${this.chunkZ})`);
         }
     }
 }
