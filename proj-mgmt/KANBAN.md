@@ -10,11 +10,16 @@
 ### Epic 1: Core Game Engine
 - [x] **[US-006]** Interactive building placement system (bases and power plants) - COMPLETE ✅
 - [x] **[US-007]** Mineral deposits (light blue crystals) and mining mechanics - COMPLETE ✅
-- [ ] **[US-008]** Infinite world generation with flora (low poly vegetation)
+- [x] **[US-008]** Infinite world generation with flora (low poly vegetation) - COMPLETE ✅
 
 ### Epic 2: Basic AI Opponent & Combat System
-- [ ] **[US-008]** Energy-based combat system with variable costs per target
-- [ ] **[US-009]** AI energy allocation and decision making
+- [x] **[US-008]** Environmental combat system (Energy Parasites vs Workers/Protectors) - COMPLETE ✅
+- [ ] **[US-009]** AI Opponent Infrastructure System (NEW - MAJOR COMPONENT)
+  - AI opponent that builds bases and power plants
+  - AI unit production (workers, scouts, protectors)  
+  - Combat targeting for AI buildings and units
+  - AI base discovery mechanics (hidden until scouted)
+- [ ] **[US-010]** AI energy allocation and decision making
 - [ ] **[US-010]** Looting mechanics for bases, resources, and energy
 - [ ] **[US-011]** Shield system for bases with energy consumption
 - [ ] **[US-012]** AI base discovery mechanics (hidden until scouted)
@@ -145,14 +150,17 @@
   - *Git Status*: Feature branch merged to develop, mining gameplay complete
   - *Note*: Enhanced with worker mining assignment system (click-to-select/assign functionality)
 - [x] **[US-008]** Environmental Combat System - Energy Parasites - COMPLETE ✅
-  - *Status*: ✅ COMPLETED & VALIDATED
+  - *Status*: ✅ COMPLETED & VALIDATED (Environmental Combat Component)
   - *Implementation*: Complete environmental combat with energy parasites, territorial AI, and terrain following
   - *Validation*: Full combat system working, terrain following implemented, strategic gameplay achieved
   - *Visual Confirmation*: Dark purple parasites, red energy drain beams, smooth terrain following
   - *Performance*: 60fps maintained during combat with multiple parasites and units
-  - *Git Status*: Feature branch merged to develop, combat system complete
+  - *Git Status*: Feature branch merged to develop, environmental combat complete
   - *Strategic Impact*: Mining operations now require defensive planning and energy management
   - *Technical Achievement*: Scalable foundation for AI faction evolution, complete terrain integration
+  - *Flora System*: ✅ COMPLETE - Alien mushroom trees with bioluminescent effects, infinite generation
+  - *Infinite World*: ✅ COMPLETE - Chunk-based terrain with seamless biome transitions
+  - *Missing Component*: AI Opponent Infrastructure System (identified as US-009)
 
 ### 🎉 WEEK 1+ MILESTONE ACHIEVED! 🎉
 **Status**: ✅ ALL WEEK 1 SUCCESS CRITERIA MET + INTERACTIVE BUILDING PLACEMENT + MINERAL DEPOSITS
