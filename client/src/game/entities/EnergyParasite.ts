@@ -61,6 +61,7 @@ export class EnergyParasite implements CombatTarget {
     // Visual representation - 4 ring segments
     private segments: Mesh[] = [];
     private segmentPositions: Vector3[] = [];
+    private parentNode: TransformNode | null = null; // Parent node for click detection
     private mesh: Mesh | null = null; // Keep for compatibility
     private material: Material | null = null;
     private drainBeam: any | null = null; // Visual effect for energy drain
@@ -105,6 +106,10 @@ export class EnergyParasite implements CombatTarget {
     private createMesh(): void {
         if (!this.scene) return;
         
+        // Create parent node for click detection with correct naming
+        this.parentNode = new TransformNode(`parasite_${this.id}`, this.scene);
+        this.parentNode.position = this.position.clone();
+        
         // Create 4 ring segments (torus shapes)
         this.segments = [];
         this.segmentPositions = [];
@@ -122,16 +127,19 @@ export class EnergyParasite implements CombatTarget {
                 tessellation: 8 // Low poly
             }, this.scene);
             
-            // Position rings in a line
-            const segmentPos = this.position.clone();
-            segmentPos.z -= i * 0.3; // Space rings 0.3 units apart
+            // Make this segment a child of the parent node for click detection
+            segment.parent = this.parentNode;
+            
+            // Position rings in a line (start with original spacing)
+            const segmentPos = new Vector3(0, 0, -i * 0.3); // Space rings 0.3 units apart
             segment.position = segmentPos;
             
             // Rotate rings to lay flat (like wheels)
             segment.rotation.x = Math.PI / 2;
             
             this.segments.push(segment);
-            this.segmentPositions.push(segmentPos);
+            // Initialize segment positions in world coordinates for trailing effect
+            this.segmentPositions.push(this.position.clone().add(segmentPos));
         }
         
         // Apply material to all segments
@@ -183,16 +191,19 @@ export class EnergyParasite implements CombatTarget {
         this.updateTerrainHeight();
         
         // Update segment positions with trailing effect, inertia, and organic squeezing
-        if (this.segments && this.segments.length > 0) {
+        if (this.segments && this.segments.length > 0 && this.parentNode) {
+            // Update parent node position
+            this.parentNode.position = this.position.clone();
+            
             const time = Date.now() * 0.002; // Slower wave animation (was 0.005)
             const waveSpeed = 1.5; // Slower wave speed (was 2.0)
             
             for (let i = 0; i < this.segments.length; i++) {
                 if (i === 0) {
-                    // Head segment follows the main position
-                    const segmentPos = this.position.clone();
+                    // Head segment follows the main position (relative to parent at origin)
+                    const segmentPos = Vector3.Zero();
                     this.segments[i].position = segmentPos;
-                    this.segmentPositions[i] = segmentPos;
+                    this.segmentPositions[i] = this.position.clone();
                 } else {
                     // Body segments trail behind in the opposite direction of movement
                     const prevSegmentPos = this.segmentPositions[i - 1];
@@ -221,9 +232,13 @@ export class EnergyParasite implements CombatTarget {
                         -Math.cos(currentRotation) * trailingDistance
                     );
                     
-                    const segmentPos = prevSegmentPos.add(trailOffset);
-                    this.segments[i].position = segmentPos;
-                    this.segmentPositions[i] = segmentPos;
+                    // Calculate world position for segment tracking
+                    const segmentWorldPos = prevSegmentPos.add(trailOffset);
+                    this.segmentPositions[i] = segmentWorldPos;
+                    
+                    // Convert to local position relative to parent node
+                    const segmentLocalPos = segmentWorldPos.subtract(this.position);
+                    this.segments[i].position = segmentLocalPos;
                 }
             }
         }
@@ -423,12 +438,12 @@ export class EnergyParasite implements CombatTarget {
      */
     public takeDamage(damage: number): boolean {
         this.health -= damage;
-        
+
         if (this.health <= 0) {
-            this.dispose();
-            return true; // Parasite destroyed
+            // Don't dispose - ParasiteManager will handle respawn
+            return true; // Parasite killed (will respawn)
         }
-        
+
         return false; // Still alive
     }
 
@@ -436,7 +451,80 @@ export class EnergyParasite implements CombatTarget {
      * Handle destruction (implements CombatTarget interface)
      */
     public onDestroyed(): void {
-        // Already handled in dispose method
+        // Notify ParasiteManager of destruction for proper cleanup
+        // This will be called by CombatSystem when the parasite is destroyed
+        console.log(`🎯 EnergyParasite ${this.id} killed - will respawn nearby`);
+    }
+
+    /**
+     * Hide the parasite (used while waiting to respawn)
+     */
+    public hide(): void {
+        // Hide parent node which hides all segments
+        if (this.parentNode) {
+            this.parentNode.setEnabled(false);
+        }
+        // Also hide individual segments
+        for (const segment of this.segments) {
+            if (segment) {
+                segment.setEnabled(false);
+            }
+        }
+    }
+
+    /**
+     * Show the parasite
+     */
+    public show(): void {
+        // Show parent node which shows all segments
+        if (this.parentNode) {
+            this.parentNode.setEnabled(true);
+        }
+        // Also show individual segments
+        for (const segment of this.segments) {
+            if (segment) {
+                segment.setEnabled(true);
+            }
+        }
+    }
+
+    /**
+     * Respawn the parasite at a new position
+     */
+    public respawn(newPosition: Vector3): void {
+        // Reset health
+        this.health = this.maxHealth;
+
+        // Update position
+        this.position = newPosition.clone();
+
+        // Update territory center to new location
+        this.territoryCenter = newPosition.clone();
+
+        // Move parent node to new position
+        if (this.parentNode) {
+            this.parentNode.position = newPosition.clone();
+        }
+
+        // Reset segment positions
+        for (let i = 0; i < this.segments.length; i++) {
+            const segmentPos = new Vector3(0, 0, -i * 0.3);
+            this.segments[i].position = segmentPos;
+            this.segmentPositions[i] = newPosition.clone().add(segmentPos);
+        }
+
+        // Show the parasite
+        this.show();
+
+        // Reset state
+        this.state = ParasiteState.PATROLLING;
+        this.currentTarget = null;
+        this.feedingStartTime = 0;
+
+        // Generate new patrol target around new territory
+        this.patrolTarget = this.generatePatrolTarget();
+
+        console.log(`🔄 Parasite ${this.id} respawned at (${newPosition.x.toFixed(1)}, ${newPosition.z.toFixed(1)})`);
     }
     
     // Getters
@@ -541,6 +629,12 @@ export class EnergyParasite implements CombatTarget {
                 }
             });
             this.segments = [];
+        }
+        
+        // Dispose parent node
+        if (this.parentNode) {
+            this.parentNode.dispose();
+            this.parentNode = null;
         }
         
         if (this.mesh) {

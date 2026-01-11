@@ -142,8 +142,8 @@ export class GameEngine {
                 terrainGenerator: this.getTerrainGenerator()
             });
 
-            // Initialize central combat system
-            this.combatSystem = new CombatSystem(this.energyManager);
+            // Initialize central combat system with scene for visual effects
+            this.combatSystem = new CombatSystem(this.energyManager, this.scene);
             
             // Connect combat system to performance monitor for combat-specific monitoring
             if (this.performanceMonitor) {

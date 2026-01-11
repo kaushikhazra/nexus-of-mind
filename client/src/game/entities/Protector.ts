@@ -38,6 +38,9 @@ export class Protector extends Unit {
     private combatState: 'moving' | 'detecting' | 'engaging' | 'attacking' = 'moving';
     private autoAttackEnabled: boolean = true;
 
+    // Target facing - used for combat animations
+    private facingTargetPosition: Vector3 | null = null;
+
     // Energy management
     private energyManager: EnergyManager;
 
@@ -111,6 +114,9 @@ export class Protector extends Unit {
         if (!this.canPerformAction()) {
             return false;
         }
+
+        // Clear facing target so protector faces movement direction
+        this.clearFacingTarget();
 
         // Store original destination for potential resumption after combat
         this.originalDestination = destination.clone();
@@ -514,6 +520,28 @@ export class Protector extends Unit {
             autoAttackEnabled: this.autoAttackEnabled,
             originalDestination: this.originalDestination
         };
+    }
+
+    /**
+     * Set facing target for combat animations
+     * The UnitRenderer will use this to rotate the protector towards the target
+     */
+    public faceTarget(targetPosition: Vector3): void {
+        this.facingTargetPosition = targetPosition.clone();
+    }
+
+    /**
+     * Get the current facing target position
+     */
+    public getFacingTarget(): Vector3 | null {
+        return this.facingTargetPosition;
+    }
+
+    /**
+     * Clear the facing target
+     */
+    public clearFacingTarget(): void {
+        this.facingTargetPosition = null;
     }
 
     /**

@@ -6,10 +6,11 @@
  * checking, energy costs, and combat state management.
  */
 
-import { Vector3 } from '@babylonjs/core';
+import { Vector3, Scene } from '@babylonjs/core';
 import { Protector } from './entities/Protector';
 import { EnergyParasite } from './entities/EnergyParasite';
 import { EnergyManager } from './EnergyManager';
+import { CombatEffects } from '../rendering/CombatEffects';
 
 export interface CombatTarget {
     id: string;
@@ -37,7 +38,8 @@ export interface AttackResult {
 }
 
 export interface CombatConfig {
-    protectorAttackRange: number; // 8 units
+    protectorDetectionRange: number; // 10 units - auto-detection range
+    protectorAttackRange: number; // 8 units - attack range
     attackEnergyCost: number; // 5 energy per attack
     attackCooldown: number; // 1000ms between attacks
     parasiteReward: number; // 10 energy for destroying parasite
@@ -46,6 +48,20 @@ export interface CombatConfig {
         scout: number; // 12 energy
         protector: number; // 20 energy
     };
+    autoAttackEnabled: boolean; // Global auto-attack toggle
+}
+
+/**
+ * Combat performance metrics for monitoring system performance during combat
+ */
+export interface CombatPerformanceMetrics {
+    activeCombatCount: number;
+    attacksPerSecond: number;
+    averageAttackProcessingTime: number; // milliseconds
+    targetValidationsPerSecond: number;
+    combatStateCleanups: number;
+    lastUpdateTime: number;
+    frameTimeImpact: number; // milliseconds added to frame time
 }
 
 /**
@@ -54,22 +70,26 @@ export interface CombatConfig {
 export class CombatAction {
     public protectorId: string;
     public targetId: string;
-    public state: 'approaching' | 'attacking' | 'completed';
+    public state: 'moving' | 'detecting' | 'engaging' | 'attacking' | 'resuming_movement' | 'completed';
     public startTime: number;
     public lastAttackTime: number;
+    public originalDestination: Vector3 | null; // Where protector was originally moving
+    public detectionTriggered: boolean;
 
-    constructor(protectorId: string, targetId: string) {
+    constructor(protectorId: string, targetId: string, originalDestination?: Vector3) {
         this.protectorId = protectorId;
         this.targetId = targetId;
-        this.state = 'approaching';
+        this.state = 'moving';
         this.startTime = performance.now();
         this.lastAttackTime = 0;
+        this.originalDestination = originalDestination || null;
+        this.detectionTriggered = false;
     }
 
     /**
      * Update combat action state
      */
-    public setState(newState: 'approaching' | 'attacking' | 'completed'): void {
+    public setState(newState: 'moving' | 'detecting' | 'engaging' | 'attacking' | 'resuming_movement' | 'completed'): void {
         this.state = newState;
     }
 
@@ -101,12 +121,32 @@ export class CombatAction {
  * CombatSystem - Central coordinator for all combat actions and state management
  */
 export class CombatSystem {
+    private scene: Scene | null = null;
     private energyManager: EnergyManager;
+    private combatEffects: CombatEffects | null = null;
     private activeCombats: Map<string, CombatAction> = new Map();
+    private protectorRegistry: Map<string, Protector> = new Map();
+    private lastCleanupTime: number = 0;
+    
+    // Performance monitoring
+    private performanceMetrics: CombatPerformanceMetrics = {
+        activeCombatCount: 0,
+        attacksPerSecond: 0,
+        averageAttackProcessingTime: 0,
+        targetValidationsPerSecond: 0,
+        combatStateCleanups: 0,
+        lastUpdateTime: 0,
+        frameTimeImpact: 0
+    };
+    private attackTimings: number[] = [];
+    private validationTimings: number[] = [];
+    private lastMetricsReset: number = 0;
+    private metricsResetInterval: number = 5000; // Reset metrics every 5 seconds
     
     // Combat configuration
     private config: CombatConfig = {
-        protectorAttackRange: 8,
+        protectorDetectionRange: 10, // 10 units - auto-detection range
+        protectorAttackRange: 8, // 8 units - attack range
         attackEnergyCost: 5,
         attackCooldown: 1000,
         parasiteReward: 10,
@@ -114,11 +154,119 @@ export class CombatSystem {
             worker: 15,
             scout: 12,
             protector: 20
-        }
+        },
+        autoAttackEnabled: true // Global auto-attack toggle
     };
 
-    constructor(energyManager: EnergyManager) {
+    constructor(energyManager: EnergyManager, scene?: Scene) {
         this.energyManager = energyManager;
+        if (scene) {
+            this.scene = scene;
+            this.combatEffects = new CombatEffects(scene);
+        }
+    }
+
+    /**
+     * Set scene for visual effects (can be called after construction)
+     */
+    public setScene(scene: Scene): void {
+        this.scene = scene;
+        if (!this.combatEffects) {
+            this.combatEffects = new CombatEffects(scene);
+        }
+    }
+
+    /**
+     * Create laser beam effects from both guns to target
+     */
+    private createAttackEffect(attackerPos: Vector3, targetPos: Vector3): void {
+        if (!this.combatEffects) return;
+
+        // Calculate direction to target for gun offset
+        const direction = targetPos.subtract(attackerPos).normalize();
+
+        // Calculate perpendicular direction (left/right offset)
+        const perpendicular = new Vector3(-direction.z, 0, direction.x).normalize();
+
+        // Gun parameters (matching UnitRenderer protector mesh)
+        const gunHeight = 0.4; // Height of guns from ground
+        const gunSideOffset = 0.35; // Distance from center to each gun
+        const gunForwardOffset = 0.1; // Guns slightly forward
+
+        // Calculate left gun position
+        const leftGunPos = attackerPos.clone()
+            .add(new Vector3(0, gunHeight, 0))
+            .add(perpendicular.scale(gunSideOffset))
+            .add(direction.scale(gunForwardOffset));
+
+        // Calculate right gun position
+        const rightGunPos = attackerPos.clone()
+            .add(new Vector3(0, gunHeight, 0))
+            .add(perpendicular.scale(-gunSideOffset))
+            .add(direction.scale(gunForwardOffset));
+
+        // Target position (slightly above ground)
+        const targetHitPos = targetPos.clone().add(new Vector3(0, 0.5, 0));
+
+        // Create left gun laser
+        this.combatEffects.createEnergyBeam({
+            scene: this.scene!,
+            startPosition: leftGunPos,
+            endPosition: targetHitPos,
+            duration: 250,
+            width: 0.08
+        });
+
+        // Create right gun laser (slight delay for visual effect)
+        setTimeout(() => {
+            if (this.combatEffects) {
+                this.combatEffects.createEnergyBeam({
+                    scene: this.scene!,
+                    startPosition: rightGunPos,
+                    endPosition: targetHitPos,
+                    duration: 250,
+                    width: 0.08
+                });
+            }
+        }, 50);
+    }
+
+    /**
+     * Create explosion effect when target is destroyed
+     */
+    private createDestructionEffect(position: Vector3): void {
+        if (!this.combatEffects) return;
+
+        this.combatEffects.createDestructionEffect({
+            scene: this.scene!,
+            position: position.clone(),
+            targetSize: 1.5,
+            explosionType: 'small',
+            duration: 1500
+        });
+    }
+
+    /**
+     * Register a protector with the combat system
+     */
+    public registerProtector(protector: Protector): void {
+        this.protectorRegistry.set(protector.getId(), protector);
+    }
+
+    /**
+     * Unregister a protector from the combat system
+     */
+    public unregisterProtector(protectorId: string): void {
+        this.protectorRegistry.delete(protectorId);
+        // Also clean up any combat actions involving this protector
+        this.handleProtectorDestruction(protectorId);
+    }
+
+    /**
+     * Get protector instance by ID
+     */
+    private getProtectorById(protectorId: string): Protector | null {
+        return this.protectorRegistry.get(protectorId) || null;
     }
 
     /**
@@ -129,6 +277,12 @@ export class CombatSystem {
         const validation = this.validateTarget(protector, target);
         if (!validation.isValid) {
             console.warn(`❌ Attack validation failed: ${validation.reason}`);
+            
+            // Show energy shortage feedback if that's the reason
+            if (validation.reason === 'insufficient_energy') {
+                this.showEnergyShortageUI(protector.getId(), validation.requiredEnergy || this.config.attackEnergyCost);
+            }
+            
             return false;
         }
 
@@ -152,7 +306,7 @@ export class CombatSystem {
             this.executeAttack(protector, target, combatAction);
         } else {
             // Out of range - protector needs to move closer
-            combatAction.setState('approaching');
+            combatAction.setState('engaging');
             this.moveProtectorToAttackRange(protector, target);
         }
 
@@ -160,20 +314,174 @@ export class CombatSystem {
     }
 
     /**
+     * Initiate automatic attack when enemy is detected during movement
+     */
+    public initiateAutoAttack(protector: Protector, detectedTarget: CombatTarget, originalDestination?: Vector3): boolean {
+        if (!this.config.autoAttackEnabled) {
+            return false;
+        }
+
+        // Validate the target for auto-attack
+        const validation = this.validateTarget(protector, detectedTarget);
+        if (!validation.isValid) {
+            console.warn(`❌ Auto-attack validation failed: ${validation.reason}`);
+            
+            // Show energy shortage feedback if that's the reason
+            if (validation.reason === 'insufficient_energy') {
+                this.showEnergyShortageUI(protector.getId(), validation.requiredEnergy || this.config.attackEnergyCost);
+            }
+            
+            return false;
+        }
+
+        // Check if protector is already in combat
+        const existingCombat = this.getActiveCombatForProtector(protector.getId());
+        if (existingCombat) {
+            // Cancel existing combat and start new one
+            this.cancelCombat(existingCombat.protectorId, existingCombat.targetId);
+        }
+
+        // Create new combat action with original destination for resumption
+        const combatId = this.generateCombatId(protector.getId(), detectedTarget.id);
+        const combatAction = new CombatAction(protector.getId(), detectedTarget.id, originalDestination);
+        combatAction.setState('detecting');
+        combatAction.detectionTriggered = true;
+        this.activeCombats.set(combatId, combatAction);
+
+        // Stop current movement to engage target
+        protector.stopMovement();
+
+        // Check if target is in combat range
+        const distance = Vector3.Distance(protector.getPosition(), detectedTarget.position);
+        if (distance <= this.config.protectorAttackRange) {
+            // In range - start attacking immediately
+            combatAction.setState('attacking');
+            this.executeAttack(protector, detectedTarget, combatAction);
+        } else {
+            // Out of range - move to attack range first
+            combatAction.setState('engaging');
+            this.moveProtectorToAttackRange(protector, detectedTarget);
+        }
+
+        console.log(`🎯 Auto-attack initiated: ${protector.getId()} → ${detectedTarget.id} (distance: ${distance.toFixed(1)})`);
+        return true;
+    }
+
+    /**
+     * Detect nearby enemies within detection range
+     */
+    public detectNearbyEnemies(protector: Protector, detectionRange: number = this.config.protectorDetectionRange): CombatTarget[] {
+        const startTime = performance.now();
+        const protectorPosition = protector.getPosition();
+        const nearbyEnemies: CombatTarget[] = [];
+
+        // Validate detection range (must be larger than combat range for smooth engagement)
+        if (detectionRange <= this.config.protectorAttackRange) {
+            console.warn(`⚠️ Detection range (${detectionRange}) should be larger than combat range (${this.config.protectorAttackRange}) for smooth engagement`);
+        }
+
+        // Get all potential targets from the game world
+        const allTargets = this.getAllPotentialTargets();
+
+        for (const target of allTargets) {
+            const distance = Vector3.Distance(protectorPosition, target.position);
+            
+            // Check if target is within detection range
+            if (distance <= detectionRange) {
+                // Use enhanced validation for auto-detection
+                const validation = this.validateTargetForAutoDetection(target);
+                if (validation.isValid) {
+                    nearbyEnemies.push(target);
+                    
+                    // Log detection for debugging
+                    console.log(`👁️ Enemy detected: ${protector.getId()} detected ${target.id} at ${distance.toFixed(1)} units (detection range: ${detectionRange})`);
+                } else {
+                    // Log rejection reason for debugging
+                    console.log(`🚫 Target rejected during detection: ${target.id} - ${validation.reason}`);
+                }
+            }
+        }
+
+        // Record detection timing for performance monitoring
+        this.recordValidationTiming(startTime);
+
+        return nearbyEnemies;
+    }
+
+    /**
+     * Resume movement after combat completion
+     */
+    public resumeMovementAfterCombat(protector: Protector): void {
+        const activeCombat = this.getActiveCombatForProtector(protector.getId());
+        
+        if (activeCombat && activeCombat.originalDestination) {
+            const originalDestination = activeCombat.originalDestination;
+            
+            // Mark combat as resuming movement
+            activeCombat.setState('resuming_movement');
+            
+            // Check if protector has reached the original destination
+            const currentPosition = protector.getPosition();
+            const distanceToDestination = Vector3.Distance(currentPosition, originalDestination);
+            
+            if (distanceToDestination > 1.0) { // 1 unit tolerance
+                // Resume movement to original destination
+                protector.startMovement(originalDestination);
+                console.log(`🚶 Resuming movement: ${protector.getId()} → (${originalDestination.x.toFixed(1)}, ${originalDestination.z.toFixed(1)})`);
+            } else {
+                // Already at destination, complete the combat action
+                activeCombat.setState('completed');
+                console.log(`✅ Reached destination: ${protector.getId()}`);
+            }
+        }
+    }
+
+    /**
      * Validate if a target is valid for attack
      */
     public validateTarget(protector: Protector, target: CombatTarget): TargetValidation {
+        const startTime = performance.now();
+        
+        // Check for null/undefined inputs
+        if (!protector || !target) {
+            this.recordValidationTiming(startTime);
+            throw new Error('Protector and target must be provided');
+        }
+        
+        // Check for invalid positions (NaN values)
+        const protectorPos = protector.getPosition();
+        const targetPos = target.position;
+        
+        if (isNaN(protectorPos.x) || isNaN(protectorPos.y) || isNaN(protectorPos.z) ||
+            isNaN(targetPos.x) || isNaN(targetPos.y) || isNaN(targetPos.z)) {
+            this.recordValidationTiming(startTime);
+            return {
+                isValid: false,
+                reason: 'invalid_type'
+            };
+        }
+        
+        // Check if target is a friendly unit (reject friendly units)
+        if (this.isFriendlyUnit(target)) {
+            this.recordValidationTiming(startTime);
+            return {
+                isValid: false,
+                reason: 'friendly'
+            };
+        }
+
         // Check if target is a valid enemy type
         if (!this.isValidEnemyTarget(target)) {
+            this.recordValidationTiming(startTime);
             return {
                 isValid: false,
                 reason: 'invalid_type'
             };
         }
 
-        // Check if protector has enough energy
-        const protectorEnergy = protector.getEnergyStorage().getCurrentEnergy();
-        if (protectorEnergy < this.config.attackEnergyCost) {
+        // Check if protector has enough energy using global EnergyManager
+        if (!this.energyManager.canConsumeEnergy(protector.getId(), this.config.attackEnergyCost)) {
+            this.recordValidationTiming(startTime);
             return {
                 isValid: false,
                 reason: 'insufficient_energy',
@@ -181,9 +489,19 @@ export class CombatSystem {
             };
         }
 
-        // Check range (for UI feedback, not blocking)
-        const distance = Vector3.Distance(protector.getPosition(), target.position);
+        // Check range
+        const distance = Vector3.Distance(protectorPos, targetPos);
+        if (distance > this.config.protectorAttackRange) {
+            this.recordValidationTiming(startTime);
+            return {
+                isValid: false,
+                reason: 'out_of_range',
+                currentRange: distance,
+                maxRange: this.config.protectorAttackRange
+            };
+        }
         
+        this.recordValidationTiming(startTime);
         return {
             isValid: true,
             reason: 'valid',
@@ -218,6 +536,23 @@ export class CombatSystem {
      * Execute an attack action
      */
     public executeAttack(protector: Protector, target: CombatTarget, combatAction: CombatAction): AttackResult {
+        const startTime = performance.now();
+        
+        // Check if multiple protectors are attacking the same target
+        const attackingProtectors = this.getProtectorsAttackingTarget(target.id);
+        
+        if (attackingProtectors.length > 1) {
+            // Multiple protectors attacking - use coordinated damage system
+            const protectorInstances = attackingProtectors
+                .map(combat => this.getProtectorById(combat.protectorId))
+                .filter(p => p !== null) as Protector[];
+            
+            const result = this.coordinateMultiProtectorDamage(target, protectorInstances);
+            this.recordAttackTiming(startTime);
+            return result;
+        }
+
+        // Single protector attack - use existing logic
         const result: AttackResult = {
             success: false,
             damageDealt: 0,
@@ -228,12 +563,16 @@ export class CombatSystem {
 
         // Check if protector can attack (cooldown, energy, etc.)
         if (!this.canProtectorAttack(protector)) {
+            this.recordAttackTiming(startTime);
             return result;
         }
 
-        // Consume energy for attack
+        // Consume energy for attack using global EnergyManager (5 energy per attack as specified)
         const energyConsumed = this.config.attackEnergyCost;
-        if (!protector.getEnergyStorage().removeEnergy(energyConsumed, 'combat_attack')) {
+        if (!this.energyManager.consumeEnergy(protector.getId(), energyConsumed, 'combat_attack')) {
+            // Show energy shortage feedback
+            this.showEnergyShortageUI(protector.getId(), energyConsumed);
+            this.recordAttackTiming(startTime);
             return result;
         }
 
@@ -241,6 +580,13 @@ export class CombatSystem {
 
         // Calculate and apply damage
         const damage = this.calculateDamage(protector, target);
+
+        // Create laser beam visual effect
+        this.createAttackEffect(protector.getPosition(), target.position);
+
+        // Make protector face the target
+        protector.faceTarget(target.position);
+
         const targetDestroyed = target.takeDamage(damage);
 
         result.success = true;
@@ -252,8 +598,12 @@ export class CombatSystem {
 
         // Handle target destruction
         if (targetDestroyed) {
+            // Create explosion effect
+            this.createDestructionEffect(target.position);
+
             const energyReward = this.getEnergyReward(target);
             if (energyReward > 0) {
+                // Use EnergyManager to generate energy reward (10 energy for parasites as specified)
                 this.energyManager.generateEnergy(protector.getId(), energyReward, 'combat_victory');
                 result.energyRewarded = energyReward;
             }
@@ -263,6 +613,109 @@ export class CombatSystem {
             combatAction.setState('completed');
         }
 
+        this.recordAttackTiming(startTime);
+        return result;
+    }
+
+    /**
+     * Get all protectors attacking a specific target
+     */
+    public getProtectorsAttackingTarget(targetId: string): CombatAction[] {
+        const attackingProtectors: CombatAction[] = [];
+        
+        for (const combat of this.activeCombats.values()) {
+            if (combat.targetId === targetId && combat.state === 'attacking') {
+                attackingProtectors.push(combat);
+            }
+        }
+        
+        return attackingProtectors;
+    }
+
+    /**
+     * Coordinate damage from multiple protectors attacking the same target
+     */
+    public coordinateMultiProtectorDamage(target: CombatTarget, attackingProtectors: Protector[]): AttackResult {
+        const result: AttackResult = {
+            success: false,
+            damageDealt: 0,
+            targetDestroyed: false,
+            energyConsumed: 0,
+            energyRewarded: 0
+        };
+
+        let totalDamage = 0;
+        let totalEnergyConsumed = 0;
+        const validAttackers: Protector[] = [];
+
+        // Validate all attacking protectors and calculate total damage
+        for (const protector of attackingProtectors) {
+            if (this.canProtectorAttack(protector)) {
+                // Consume energy for this protector's attack
+                const energyConsumed = this.config.attackEnergyCost;
+                if (this.energyManager.consumeEnergy(protector.getId(), energyConsumed, 'combat_attack')) {
+                    const damage = this.calculateDamage(protector, target);
+                    totalDamage += damage;
+                    totalEnergyConsumed += energyConsumed;
+                    validAttackers.push(protector);
+
+                    // Create laser beam visual effect for each attacker
+                    this.createAttackEffect(protector.getPosition(), target.position);
+
+                    // Make protector face the target
+                    protector.faceTarget(target.position);
+
+                    // Update protector's combat action
+                    const combatAction = this.getActiveCombatForProtector(protector.getId());
+                    if (combatAction) {
+                        combatAction.recordAttack();
+                    }
+                }
+            }
+        }
+
+        // If no valid attackers, return failed result
+        if (validAttackers.length === 0) {
+            return result;
+        }
+
+        // Apply accumulated damage to target
+        const targetDestroyed = target.takeDamage(totalDamage);
+
+        result.success = true;
+        result.damageDealt = totalDamage;
+        result.targetDestroyed = targetDestroyed;
+        result.energyConsumed = totalEnergyConsumed;
+
+        // Handle target destruction and energy rewards
+        if (targetDestroyed) {
+            // Create explosion effect
+            this.createDestructionEffect(target.position);
+            const energyReward = this.getEnergyReward(target);
+            if (energyReward > 0) {
+                // Distribute energy reward among all participating protectors
+                const rewardPerProtector = Math.floor(energyReward / validAttackers.length);
+                const remainderReward = energyReward % validAttackers.length;
+                
+                for (let i = 0; i < validAttackers.length; i++) {
+                    const protector = validAttackers[i];
+                    let reward = rewardPerProtector;
+                    
+                    // Give remainder to first protector
+                    if (i === 0) {
+                        reward += remainderReward;
+                    }
+                    
+                    this.energyManager.generateEnergy(protector.getId(), reward, 'combat_victory');
+                }
+                
+                result.energyRewarded = energyReward;
+            }
+
+            // Clean up all combat actions targeting this destroyed target
+            this.handleTargetDestruction(target);
+        }
+
         return result;
     }
 
@@ -270,12 +723,16 @@ export class CombatSystem {
      * Handle target destruction cleanup
      */
     public handleTargetDestruction(target: CombatTarget): void {
+        // Get all protectors that were attacking this target
+        const affectedProtectors: string[] = [];
+        
         // Cancel all pending attacks on this target
         const combatsToCancel: string[] = [];
         
         for (const [combatId, combat] of this.activeCombats) {
             if (combat.targetId === target.id) {
                 combatsToCancel.push(combatId);
+                affectedProtectors.push(combat.protectorId);
             }
         }
 
@@ -284,8 +741,29 @@ export class CombatSystem {
             this.activeCombats.delete(combatId);
         }
 
+        // Resume movement for affected protectors if they have original destinations
+        for (const protectorId of affectedProtectors) {
+            const protector = this.getProtectorById(protectorId);
+            if (protector) {
+                // Clear facing target so protector faces movement direction
+                protector.clearFacingTarget();
+                this.resumeMovementAfterCombat(protector);
+            }
+        }
+
         // Notify target of destruction
         target.onDestroyed();
+
+        // If target is an EnergyParasite, notify ParasiteManager for proper cleanup
+        if (target instanceof EnergyParasite) {
+            const gameEngine = require('./GameEngine').GameEngine.getInstance();
+            const parasiteManager = gameEngine?.getParasiteManager();
+            if (parasiteManager) {
+                parasiteManager.handleParasiteDestruction(target.id);
+            }
+        }
+        
+        console.log(`🎯 Target ${target.id} destroyed, cancelled ${combatsToCancel.length} combat actions, resuming movement for ${affectedProtectors.length} protectors`);
     }
 
     /**
@@ -305,12 +783,221 @@ export class CombatSystem {
         for (const combatId of combatsToCancel) {
             this.activeCombats.delete(combatId);
         }
+
+        // Remove from protector registry
+        this.protectorRegistry.delete(protectorId);
+        
+        console.log(`⚔️ Protector ${protectorId} destroyed, cancelled ${combatsToCancel.length} combat actions`);
+    }
+
+    /**
+     * Handle combat interruption scenarios gracefully
+     */
+    public handleCombatInterruption(protectorId: string, targetId: string, reason: 'out_of_range' | 'energy_depleted' | 'target_invalid' | 'protector_destroyed' | 'target_destroyed'): void {
+        const combatId = this.generateCombatId(protectorId, targetId);
+        const combat = this.activeCombats.get(combatId);
+        
+        if (!combat) {
+            return; // Combat already cleaned up
+        }
+
+        // Mark combat as completed
+        combat.setState('completed');
+        
+        // Remove from active combats
+        this.activeCombats.delete(combatId);
+        
+        // Log interruption for debugging
+        console.log(`🚫 Combat interrupted: ${protectorId} vs ${targetId}, reason: ${reason}`);
+        
+        // Handle specific interruption scenarios
+        switch (reason) {
+            case 'out_of_range':
+                // Protector could attempt to move back into range or resume original movement
+                const protector = this.getProtectorById(protectorId);
+                if (protector) {
+                    // Stop current movement and resume original destination if available
+                    protector.stopMovement();
+                    if (combat.originalDestination) {
+                        this.resumeMovementAfterCombat(protector);
+                    }
+                }
+                break;
+                
+            case 'energy_depleted':
+                // Show energy shortage feedback and resume movement if possible
+                this.showEnergyShortageUI(protectorId, this.config.attackEnergyCost);
+                const protectorForEnergy = this.getProtectorById(protectorId);
+                if (protectorForEnergy && combat.originalDestination) {
+                    this.resumeMovementAfterCombat(protectorForEnergy);
+                }
+                break;
+                
+            case 'target_invalid':
+                // Target became invalid (e.g., became friendly) - resume movement
+                console.warn(`Target ${targetId} became invalid during combat`);
+                const protectorForInvalid = this.getProtectorById(protectorId);
+                if (protectorForInvalid && combat.originalDestination) {
+                    this.resumeMovementAfterCombat(protectorForInvalid);
+                }
+                break;
+                
+            case 'protector_destroyed':
+                // Already handled by handleProtectorDestruction
+                break;
+                
+            case 'target_destroyed':
+                // Already handled by handleTargetDestruction
+                break;
+        }
+    }
+
+    /**
+     * Clean up all combat state (emergency cleanup)
+     */
+    public cleanupAllCombatState(): void {
+        const combatCount = this.activeCombats.size;
+        
+        // Clear all active combats
+        this.activeCombats.clear();
+        
+        // Clear protector registry
+        this.protectorRegistry.clear();
+        
+        console.log(`🧹 Emergency cleanup: cleared ${combatCount} combat actions and protector registry`);
+    }
+
+    /**
+     * Validate and clean up stale combat actions
+     */
+    public validateAndCleanupStaleCombats(): void {
+        const staleCombats: string[] = [];
+        const now = performance.now();
+        
+        for (const [combatId, combat] of this.activeCombats) {
+            // Check if combat has been running too long (30 seconds timeout)
+            if (now - combat.startTime > 30000) {
+                staleCombats.push(combatId);
+                continue;
+            }
+            
+            // Check if protector still exists
+            const protector = this.getProtectorById(combat.protectorId);
+            if (!protector) {
+                staleCombats.push(combatId);
+                continue;
+            }
+            
+            // Additional validation could be added here
+            // (e.g., check if target still exists, if protector is still alive, etc.)
+        }
+        
+        // Remove stale combats
+        for (const combatId of staleCombats) {
+            this.activeCombats.delete(combatId);
+        }
+        
+        if (staleCombats.length > 0) {
+            console.log(`🧹 Cleaned up ${staleCombats.length} stale combat actions`);
+        }
+    }
+
+    /**
+     * Show energy shortage UI feedback
+     */
+    private showEnergyShortageUI(protectorId: string, requiredEnergy: number): void {
+        const currentEnergy = this.energyManager.getTotalEnergy();
+        
+        // Create a temporary UI notification for energy shortage
+        this.createEnergyShortageNotification(protectorId, requiredEnergy, currentEnergy);
+        
+        // Also trigger the energy manager's low energy callback
+        this.energyManager.onLowEnergy((entityId: string, energy: number) => {
+            // This will trigger existing UI warnings in EnergyDisplay
+        });
+        
+        console.warn(`⚠️ Insufficient energy for combat: need ${requiredEnergy}, have ${currentEnergy}`);
+    }
+
+    /**
+     * Create temporary energy shortage notification
+     */
+    private createEnergyShortageNotification(protectorId: string, requiredEnergy: number, currentEnergy: number): void {
+        // Create a floating notification element
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 0, 0, 0.9);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-family: 'Orbitron', monospace;
+            font-size: 14px;
+            font-weight: bold;
+            z-index: 1000;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
+            border: 2px solid #ff4444;
+            text-align: center;
+            pointer-events: none;
+            animation: energyShortageAlert 2s ease-out forwards;
+        `;
+        
+        notification.innerHTML = `
+            <div>⚡ INSUFFICIENT ENERGY ⚡</div>
+            <div style="font-size: 12px; margin-top: 5px;">
+                Need: ${requiredEnergy} | Have: ${Math.round(currentEnergy)}
+            </div>
+        `;
+        
+        // Add CSS animation if not exists
+        if (!document.querySelector('#energy-shortage-animation')) {
+            const style = document.createElement('style');
+            style.id = 'energy-shortage-animation';
+            style.textContent = `
+                @keyframes energyShortageAlert {
+                    0% { 
+                        opacity: 0; 
+                        transform: translate(-50%, -50%) scale(0.5); 
+                    }
+                    20% { 
+                        opacity: 1; 
+                        transform: translate(-50%, -50%) scale(1.1); 
+                    }
+                    40% { 
+                        transform: translate(-50%, -50%) scale(1); 
+                    }
+                    100% { 
+                        opacity: 0; 
+                        transform: translate(-50%, -50%) scale(0.8); 
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        // Add to document
+        document.body.appendChild(notification);
+        
+        // Remove after animation completes
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 2000);
     }
 
     /**
      * Update combat system (called from game loop)
      */
     public update(deltaTime: number): void {
+        const updateStartTime = performance.now();
+        
+        // Update performance metrics
+        this.updatePerformanceMetrics();
+        
         // Clean up completed or timed out combat actions
         const combatsToRemove: string[] = [];
         
@@ -323,7 +1010,23 @@ export class CombatSystem {
         // Remove completed combats
         for (const combatId of combatsToRemove) {
             this.activeCombats.delete(combatId);
+            this.performanceMetrics.combatStateCleanups++;
         }
+
+        // Periodically validate and cleanup stale combats (every 5 seconds)
+        const now = performance.now();
+        if (!this.lastCleanupTime || now - this.lastCleanupTime > 5000) {
+            this.validateAndCleanupStaleCombats();
+            this.lastCleanupTime = now;
+        }
+        
+        // Record frame time impact
+        const updateEndTime = performance.now();
+        this.performanceMetrics.frameTimeImpact = updateEndTime - updateStartTime;
+        this.performanceMetrics.lastUpdateTime = updateEndTime;
+        
+        // Check for performance issues during combat
+        this.checkCombatPerformance();
     }
 
     /**
@@ -332,8 +1035,8 @@ export class CombatSystem {
     private canProtectorAttack(protector: Protector): boolean {
         const protectorStats = protector.getProtectorStats();
         
-        // Check energy
-        if (protectorStats.energyStorage.currentEnergy < this.config.attackEnergyCost) {
+        // Check global energy using EnergyManager (5 energy per attack as specified)
+        if (!this.energyManager.canConsumeEnergy(protector.getId(), this.config.attackEnergyCost)) {
             return false;
         }
 
@@ -348,6 +1051,21 @@ export class CombatSystem {
     }
 
     /**
+     * Check if target is a friendly unit (reject friendly units)
+     */
+    private isFriendlyUnit(target: CombatTarget): boolean {
+        // Import unit classes to check instanceof
+        const { Worker } = require('./entities/Worker');
+        const { Scout } = require('./entities/Scout');
+        const { Protector } = require('./entities/Protector');
+
+        // Check if target is any of our friendly unit types
+        return target instanceof Worker || 
+               target instanceof Scout || 
+               target instanceof Protector;
+    }
+
+    /**
      * Check if target is a valid enemy
      */
     private isValidEnemyTarget(target: CombatTarget): boolean {
@@ -358,7 +1076,150 @@ export class CombatSystem {
 
         // TODO: Add AI unit validation when AI units are implemented
         // For now, accept any target that implements CombatTarget interface
-        return target.id !== undefined && target.position !== undefined && typeof target.health === 'number';
+        // but is not a friendly unit
+        return target.id !== undefined && 
+               target.position !== undefined && 
+               typeof target.health === 'number' &&
+               !this.isFriendlyUnit(target);
+    }
+
+    /**
+     * Validate target type only (without range/energy checks)
+     */
+    private validateTargetType(target: CombatTarget): TargetValidation {
+        // Check for null/undefined inputs
+        if (!target) {
+            return {
+                isValid: false,
+                reason: 'invalid_type'
+            };
+        }
+        
+        // Check for invalid positions (NaN values)
+        const targetPos = target.position;
+        
+        if (isNaN(targetPos.x) || isNaN(targetPos.y) || isNaN(targetPos.z)) {
+            return {
+                isValid: false,
+                reason: 'invalid_type'
+            };
+        }
+        
+        // Check if target is a friendly unit (reject friendly units)
+        if (this.isFriendlyUnit(target)) {
+            return {
+                isValid: false,
+                reason: 'friendly'
+            };
+        }
+
+        // Check if target is a valid enemy type
+        if (!this.isValidEnemyTarget(target)) {
+            return {
+                isValid: false,
+                reason: 'invalid_type'
+            };
+        }
+        
+        return {
+            isValid: true,
+            reason: 'valid'
+        };
+    }
+
+    /**
+     * Validate target for auto-detection (type and basic checks only)
+     * This is used during enemy detection to filter valid targets before prioritization
+     */
+    public validateTargetForAutoDetection(target: CombatTarget): TargetValidation {
+        const startTime = performance.now();
+        
+        // Use the existing type validation logic
+        const validation = this.validateTargetType(target);
+        
+        // Additional checks specific to auto-detection
+        if (validation.isValid) {
+            // Check if target is already destroyed
+            if (target.health <= 0) {
+                this.recordValidationTiming(startTime);
+                return {
+                    isValid: false,
+                    reason: 'invalid_type' // Destroyed targets are invalid
+                };
+            }
+
+            // Check if target has valid health values
+            if (isNaN(target.health) || isNaN(target.maxHealth) || target.maxHealth <= 0) {
+                this.recordValidationTiming(startTime);
+                return {
+                    isValid: false,
+                    reason: 'invalid_type'
+                };
+            }
+        }
+        
+        this.recordValidationTiming(startTime);
+        return validation;
+    }
+
+    /**
+     * Enhanced friendly unit detection for auto-detection
+     */
+    public isFriendlyUnitForAutoDetection(target: CombatTarget): boolean {
+        // Use existing friendly unit detection
+        const isFriendly = this.isFriendlyUnit(target);
+        
+        if (isFriendly) {
+            console.log(`🛡️ Auto-detection rejected friendly unit: ${target.id}`);
+        }
+        
+        return isFriendly;
+    }
+
+    /**
+     * Enhanced enemy target validation for auto-detection
+     */
+    public isValidEnemyTargetForAutoDetection(target: CombatTarget): boolean {
+        // Use existing enemy target validation
+        const isValidEnemy = this.isValidEnemyTarget(target);
+        
+        if (isValidEnemy) {
+            console.log(`🎯 Auto-detection accepted enemy target: ${target.id} (type: ${target.constructor.name})`);
+        } else {
+            console.log(`❌ Auto-detection rejected invalid target: ${target.id} (type: ${target.constructor.name})`);
+        }
+        
+        return isValidEnemy;
+    }
+
+    /**
+     * Get all potential targets from the game world
+     */
+    private getAllPotentialTargets(): CombatTarget[] {
+        const targets: CombatTarget[] = [];
+
+        try {
+            // Get Energy Parasites from ParasiteManager
+            const gameEngine = require('./GameEngine').GameEngine.getInstance();
+            const parasiteManager = gameEngine?.getParasiteManager();
+            
+            if (parasiteManager) {
+                const parasites = parasiteManager.getAllParasites();
+                targets.push(...parasites);
+            }
+
+            // TODO: Add AI units when they are implemented
+            // const aiUnitManager = gameEngine?.getAIUnitManager();
+            // if (aiUnitManager) {
+            //     const aiUnits = aiUnitManager.getAllEnemyUnits();
+            //     targets.push(...aiUnits);
+            // }
+
+        } catch (error) {
+            console.warn('Error getting potential targets:', error);
+        }
+
+        return targets;
     }
 
     /**
@@ -428,10 +1289,372 @@ export class CombatSystem {
     }
 
     /**
+     * Validate detection range configuration
+     */
+    public validateDetectionRangeConfig(): {
+        isValid: boolean;
+        detectionRange: number;
+        combatRange: number;
+        issues: string[];
+    } {
+        const issues: string[] = [];
+        const detectionRange = this.config.protectorDetectionRange;
+        const combatRange = this.config.protectorAttackRange;
+
+        // Detection range should be larger than combat range for smooth engagement
+        if (detectionRange <= combatRange) {
+            issues.push(`Detection range (${detectionRange}) should be larger than combat range (${combatRange})`);
+        }
+
+        // Detection range should be reasonable (not too large to avoid performance issues)
+        if (detectionRange > 50) {
+            issues.push(`Detection range (${detectionRange}) is very large and may impact performance`);
+        }
+
+        // Detection range should be positive
+        if (detectionRange <= 0) {
+            issues.push(`Detection range (${detectionRange}) must be positive`);
+        }
+
+        return {
+            isValid: issues.length === 0,
+            detectionRange,
+            combatRange,
+            issues
+        };
+    }
+
+    /**
+     * Update detection range with validation
+     */
+    public updateDetectionRange(newDetectionRange: number): boolean {
+        if (newDetectionRange <= 0) {
+            console.error(`❌ Invalid detection range: ${newDetectionRange}. Must be positive.`);
+            return false;
+        }
+
+        if (newDetectionRange <= this.config.protectorAttackRange) {
+            console.warn(`⚠️ Detection range (${newDetectionRange}) should be larger than combat range (${this.config.protectorAttackRange}) for optimal engagement`);
+        }
+
+        this.config.protectorDetectionRange = newDetectionRange;
+        console.log(`✅ Detection range updated to ${newDetectionRange} units`);
+        return true;
+    }
+
+    /**
+     * Get detection range for auto-attack
+     */
+    public getDetectionRange(): number {
+        return this.config.protectorDetectionRange;
+    }
+
+    /**
+     * Check for enemy detection during protector movement
+     * This method should be called during protector movement updates
+     */
+    public checkMovementDetection(protector: Protector): CombatTarget | null {
+        if (!this.config.autoAttackEnabled) {
+            return null;
+        }
+
+        // Only check detection if protector is moving and auto-attack is enabled
+        const protectorStats = protector.getProtectorStats();
+        if (protectorStats.combatState !== 'moving' || !protectorStats.autoAttackEnabled) {
+            return null;
+        }
+
+        // Detect nearby enemies
+        const nearbyEnemies = this.detectNearbyEnemies(protector, this.config.protectorDetectionRange);
+        
+        if (nearbyEnemies.length > 0) {
+            // Use consistent target selection
+            const selectedTarget = this.selectTargetConsistently(protector, nearbyEnemies);
+            
+            if (selectedTarget) {
+                console.log(`🎯 Movement detection triggered: ${protector.getId()} detected ${selectedTarget.id} (${nearbyEnemies.length} enemies in range)`);
+                return selectedTarget;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Prioritize targets by distance (closest first)
+     */
+    private prioritizeClosestTarget(protector: Protector, targets: CombatTarget[]): CombatTarget | null {
+        if (targets.length === 0) {
+            return null;
+        }
+
+        const protectorPosition = protector.getPosition();
+        let closestTarget = targets[0];
+        let closestDistance = Vector3.Distance(protectorPosition, closestTarget.position);
+
+        for (let i = 1; i < targets.length; i++) {
+            const distance = Vector3.Distance(protectorPosition, targets[i].position);
+            if (distance < closestDistance) {
+                closestTarget = targets[i];
+                closestDistance = distance;
+            }
+        }
+
+        return closestTarget;
+    }
+
+    /**
+     * Prioritize targets using comprehensive prioritization logic
+     * Returns targets sorted by priority (highest priority first)
+     */
+    public prioritizeTargets(protector: Protector, targets: CombatTarget[]): CombatTarget[] {
+        if (targets.length === 0) {
+            return [];
+        }
+
+        const protectorPosition = protector.getPosition();
+        
+        // Create priority objects with target and calculated priority score
+        const targetPriorities = targets.map(target => {
+            const distance = Vector3.Distance(protectorPosition, target.position);
+            const priority = this.calculateTargetPriority(target, distance);
+            
+            return {
+                target,
+                distance,
+                priority,
+                id: target.id
+            };
+        });
+
+        // Sort by priority (highest first), then by distance (closest first) as tiebreaker
+        targetPriorities.sort((a, b) => {
+            if (Math.abs(a.priority - b.priority) < 0.001) { // Priorities are essentially equal
+                return a.distance - b.distance; // Closer target wins
+            }
+            return b.priority - a.priority; // Higher priority wins
+        });
+
+        // Return sorted targets
+        return targetPriorities.map(tp => tp.target);
+    }
+
+    /**
+     * Calculate priority score for a target
+     * Higher score = higher priority
+     */
+    private calculateTargetPriority(target: CombatTarget, distance: number): number {
+        let priority = 100; // Base priority
+
+        // Distance factor (closer targets get higher priority)
+        const maxDetectionRange = this.config.protectorDetectionRange;
+        const distanceFactor = (maxDetectionRange - distance) / maxDetectionRange;
+        priority += distanceFactor * 50; // Up to 50 bonus points for proximity
+
+        // Health factor (weaker targets get slightly higher priority for quick elimination)
+        const healthRatio = target.health / target.maxHealth;
+        const healthFactor = (1 - healthRatio) * 20; // Up to 20 bonus points for low health
+        priority += healthFactor;
+
+        // Target type factor
+        if (target instanceof EnergyParasite) {
+            priority += 30; // Energy Parasites get priority due to energy reward
+        }
+
+        // TODO: Add AI unit type priorities when implemented
+        // Different AI unit types could have different threat levels
+
+        return priority;
+    }
+
+    /**
+     * Get the highest priority target from a list
+     */
+    public getHighestPriorityTarget(protector: Protector, targets: CombatTarget[]): CombatTarget | null {
+        const prioritizedTargets = this.prioritizeTargets(protector, targets);
+        return prioritizedTargets.length > 0 ? prioritizedTargets[0] : null;
+    }
+
+    /**
+     * Ensure consistent target selection behavior
+     * This method provides deterministic target selection for the same input
+     */
+    public selectTargetConsistently(protector: Protector, targets: CombatTarget[]): CombatTarget | null {
+        if (targets.length === 0) {
+            return null;
+        }
+
+        if (targets.length === 1) {
+            return targets[0];
+        }
+
+        // Use prioritization logic
+        const prioritizedTargets = this.prioritizeTargets(protector, targets);
+        
+        // If multiple targets have the same priority, use ID-based tiebreaker for consistency
+        const topTarget = prioritizedTargets[0];
+        const topPriority = this.calculateTargetPriority(topTarget, Vector3.Distance(protector.getPosition(), topTarget.position));
+        
+        // Find all targets with the same top priority
+        const topPriorityTargets = prioritizedTargets.filter(target => {
+            const distance = Vector3.Distance(protector.getPosition(), target.position);
+            const priority = this.calculateTargetPriority(target, distance);
+            return Math.abs(priority - topPriority) < 0.001;
+        });
+
+        if (topPriorityTargets.length === 1) {
+            return topPriorityTargets[0];
+        }
+
+        // Use lexicographic ID sorting for deterministic selection
+        topPriorityTargets.sort((a, b) => a.id.localeCompare(b.id));
+        
+        return topPriorityTargets[0];
+    }
+
+    /**
+     * Get combat range for attacks
+     */
+    public getCombatRange(): number {
+        return this.config.protectorAttackRange;
+    }
+
+    /**
      * Update combat configuration
      */
     public updateConfig(newConfig: Partial<CombatConfig>): void {
         this.config = { ...this.config, ...newConfig };
+    }
+
+    /**
+     * Get combat performance metrics
+     */
+    public getPerformanceMetrics(): CombatPerformanceMetrics {
+        return { ...this.performanceMetrics };
+    }
+
+    /**
+     * Update performance metrics
+     */
+    private updatePerformanceMetrics(): void {
+        const now = performance.now();
+        
+        // Update active combat count
+        this.performanceMetrics.activeCombatCount = this.activeCombats.size;
+        
+        // Reset metrics every interval
+        if (!this.lastMetricsReset || now - this.lastMetricsReset > this.metricsResetInterval) {
+            const timeDelta = (now - this.lastMetricsReset) / 1000; // seconds
+            
+            // Calculate attacks per second
+            this.performanceMetrics.attacksPerSecond = this.attackTimings.length / timeDelta;
+            
+            // Calculate average attack processing time
+            if (this.attackTimings.length > 0) {
+                const totalTime = this.attackTimings.reduce((sum, time) => sum + time, 0);
+                this.performanceMetrics.averageAttackProcessingTime = totalTime / this.attackTimings.length;
+            } else {
+                this.performanceMetrics.averageAttackProcessingTime = 0;
+            }
+            
+            // Calculate validations per second
+            this.performanceMetrics.targetValidationsPerSecond = this.validationTimings.length / timeDelta;
+            
+            // Reset timing arrays
+            this.attackTimings = [];
+            this.validationTimings = [];
+            this.lastMetricsReset = now;
+        }
+    }
+
+    /**
+     * Record attack timing for performance monitoring
+     */
+    private recordAttackTiming(startTime: number): void {
+        const processingTime = performance.now() - startTime;
+        this.attackTimings.push(processingTime);
+    }
+
+    /**
+     * Record validation timing for performance monitoring
+     */
+    private recordValidationTiming(startTime: number): void {
+        const processingTime = performance.now() - startTime;
+        this.validationTimings.push(processingTime);
+    }
+
+    /**
+     * Check combat performance and warn if issues detected
+     */
+    private checkCombatPerformance(): void {
+        const metrics = this.performanceMetrics;
+        
+        // Check if combat system is impacting frame time significantly
+        if (metrics.frameTimeImpact > 5.0) { // More than 5ms per frame
+            console.warn(`⚠️ Combat system high frame impact: ${metrics.frameTimeImpact.toFixed(2)}ms`);
+        }
+        
+        // Check if attack processing is taking too long
+        if (metrics.averageAttackProcessingTime > 2.0) { // More than 2ms per attack
+            console.warn(`⚠️ Combat attack processing slow: ${metrics.averageAttackProcessingTime.toFixed(2)}ms avg`);
+        }
+        
+        // Check if too many active combats
+        if (metrics.activeCombatCount > 20) { // More than 20 simultaneous combats
+            console.warn(`⚠️ High combat load: ${metrics.activeCombatCount} active combats`);
+        }
+        
+        // Log performance summary periodically during combat
+        if (metrics.activeCombatCount > 0 && Math.random() < 0.01) { // 1% chance per frame during combat
+            console.log(`⚔️ Combat Performance: ${metrics.activeCombatCount} combats, ${metrics.attacksPerSecond.toFixed(1)} attacks/s, ${metrics.frameTimeImpact.toFixed(2)}ms frame impact`);
+        }
+    }
+
+    /**
+     * Get combat performance summary for external monitoring
+     */
+    public getPerformanceSummary(): {
+        isPerformingWell: boolean;
+        activeCombats: number;
+        attacksPerSecond: number;
+        averageProcessingTime: number;
+        frameImpact: number;
+        recommendations: string[];
+    } {
+        const metrics = this.performanceMetrics;
+        const recommendations: string[] = [];
+        
+        // Determine if performing well
+        let isPerformingWell = true;
+        
+        if (metrics.frameTimeImpact > 5.0) {
+            isPerformingWell = false;
+            recommendations.push('Reduce number of simultaneous combat actions');
+        }
+        
+        if (metrics.averageAttackProcessingTime > 2.0) {
+            isPerformingWell = false;
+            recommendations.push('Optimize attack processing logic');
+        }
+        
+        if (metrics.activeCombatCount > 20) {
+            isPerformingWell = false;
+            recommendations.push('Limit maximum concurrent combat actions');
+        }
+        
+        if (metrics.targetValidationsPerSecond > 100) {
+            isPerformingWell = false;
+            recommendations.push('Cache target validation results');
+        }
+        
+        return {
+            isPerformingWell,
+            activeCombats: metrics.activeCombatCount,
+            attacksPerSecond: Math.round(metrics.attacksPerSecond * 10) / 10,
+            averageProcessingTime: Math.round(metrics.averageAttackProcessingTime * 100) / 100,
+            frameImpact: Math.round(metrics.frameTimeImpact * 100) / 100,
+            recommendations
+        };
     }
 
     /**
