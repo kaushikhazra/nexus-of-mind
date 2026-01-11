@@ -39,7 +39,7 @@ export class EnergyParasite implements CombatTarget {
     
     // Territorial behavior
     private territoryCenter: Vector3;
-    private territoryRadius: number = 15; // 15-unit radius territory
+    private territoryRadius: number = 100; // 100-unit radius territory
     private patrolTarget: Vector3;
     
     // State management
@@ -158,16 +158,13 @@ export class EnergyParasite implements CombatTarget {
      */
     public update(deltaTime: number, nearbyWorkers: Worker[]): void {
         const currentTime = Date.now();
-        
+
         // Reset movement flag at start of frame (will be set to true if movement occurs)
         this.isMoving = false;
-        
-        // Check if parasite should die from starvation
-        if (currentTime - this.lastFeedTime > this.maxLifetime) {
-            this.dispose();
-            return;
-        }
-        
+
+        // Parasites no longer starve - they only die when killed by Protectors
+        // and will respawn 15m away after 30 seconds
+
         // Update behavior based on current state
         switch (this.state) {
             case ParasiteState.SPAWNING:
@@ -460,6 +457,9 @@ export class EnergyParasite implements CombatTarget {
      * Hide the parasite (used while waiting to respawn)
      */
     public hide(): void {
+        // Remove drain beam if feeding
+        this.removeDrainBeam();
+
         // Hide parent node which hides all segments
         if (this.parentNode) {
             this.parentNode.setEnabled(false);

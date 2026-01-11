@@ -66,31 +66,52 @@ export interface CombatPerformanceMetrics {
 
 /**
  * CombatAction - Represents an ongoing combat action between a protector and target
+ *
+ * Combat phases:
+ * 1. detecting - Enemy detected, starting engagement
+ * 2. turning - Rotating to face the target
+ * 3. firing - Executing the laser attack
+ * 4. cooldown - Waiting before next attack cycle
  */
 export class CombatAction {
     public protectorId: string;
     public targetId: string;
-    public state: 'moving' | 'detecting' | 'engaging' | 'attacking' | 'resuming_movement' | 'completed';
+    public state: 'moving' | 'detecting' | 'turning' | 'firing' | 'cooldown' | 'engaging' | 'resuming_movement' | 'completed';
     public startTime: number;
     public lastAttackTime: number;
-    public originalDestination: Vector3 | null; // Where protector was originally moving
+    public phaseStartTime: number; // When current phase started
+    public originalDestination: Vector3 | null;
     public detectionTriggered: boolean;
+
+    // Phase durations (ms)
+    public static readonly TURN_DURATION = 300; // Time to turn towards target
+    public static readonly FIRE_DURATION = 250; // Laser beam duration
+    public static readonly COOLDOWN_DURATION = 1000; // Wait before next detection
 
     constructor(protectorId: string, targetId: string, originalDestination?: Vector3) {
         this.protectorId = protectorId;
         this.targetId = targetId;
-        this.state = 'moving';
+        this.state = 'detecting';
         this.startTime = performance.now();
+        this.phaseStartTime = performance.now();
         this.lastAttackTime = 0;
         this.originalDestination = originalDestination || null;
         this.detectionTriggered = false;
     }
 
     /**
-     * Update combat action state
+     * Update combat action state and reset phase timer
      */
-    public setState(newState: 'moving' | 'detecting' | 'engaging' | 'attacking' | 'resuming_movement' | 'completed'): void {
+    public setState(newState: 'moving' | 'detecting' | 'turning' | 'firing' | 'cooldown' | 'engaging' | 'resuming_movement' | 'completed'): void {
         this.state = newState;
+        this.phaseStartTime = performance.now();
+    }
+
+    /**
+     * Get time elapsed in current phase (ms)
+     */
+    public getPhaseElapsed(): number {
+        return performance.now() - this.phaseStartTime;
     }
 
     /**
@@ -98,14 +119,13 @@ export class CombatAction {
      */
     public recordAttack(): void {
         this.lastAttackTime = performance.now();
-        this.state = 'attacking';
     }
 
     /**
      * Check if action is completed or timed out
      */
     public isCompleted(): boolean {
-        return this.state === 'completed' || 
+        return this.state === 'completed' ||
                (performance.now() - this.startTime > 30000); // 30 second timeout
     }
 
@@ -301,9 +321,8 @@ export class CombatSystem {
         // Check if protector is in range
         const distance = Vector3.Distance(protector.getPosition(), target.position);
         if (distance <= this.config.protectorAttackRange) {
-            // In range - start attacking immediately
-            combatAction.setState('attacking');
-            this.executeAttack(protector, target, combatAction);
+            // In range - start detection phase (will turn, then fire)
+            combatAction.setState('detecting');
         } else {
             // Out of range - protector needs to move closer
             combatAction.setState('engaging');
@@ -321,16 +340,10 @@ export class CombatSystem {
             return false;
         }
 
-        // Validate the target for auto-attack
-        const validation = this.validateTarget(protector, detectedTarget);
-        if (!validation.isValid) {
-            console.warn(`❌ Auto-attack validation failed: ${validation.reason}`);
-            
-            // Show energy shortage feedback if that's the reason
-            if (validation.reason === 'insufficient_energy') {
-                this.showEnergyShortageUI(protector.getId(), validation.requiredEnergy || this.config.attackEnergyCost);
-            }
-            
+        // Validate the target for auto-attack (skip energy check - we check per-shot)
+        const targetValidation = this.validateTargetForAutoDetection(detectedTarget);
+        if (!targetValidation.isValid) {
+            console.warn(`❌ Auto-attack validation failed: ${targetValidation.reason}`);
             return false;
         }
 
@@ -344,7 +357,6 @@ export class CombatSystem {
         // Create new combat action with original destination for resumption
         const combatId = this.generateCombatId(protector.getId(), detectedTarget.id);
         const combatAction = new CombatAction(protector.getId(), detectedTarget.id, originalDestination);
-        combatAction.setState('detecting');
         combatAction.detectionTriggered = true;
         this.activeCombats.set(combatId, combatAction);
 
@@ -354,9 +366,8 @@ export class CombatSystem {
         // Check if target is in combat range
         const distance = Vector3.Distance(protector.getPosition(), detectedTarget.position);
         if (distance <= this.config.protectorAttackRange) {
-            // In range - start attacking immediately
-            combatAction.setState('attacking');
-            this.executeAttack(protector, detectedTarget, combatAction);
+            // In range - start detection phase (will turn, then fire)
+            combatAction.setState('detecting');
         } else {
             // Out of range - move to attack range first
             combatAction.setState('engaging');
@@ -622,13 +633,17 @@ export class CombatSystem {
      */
     public getProtectorsAttackingTarget(targetId: string): CombatAction[] {
         const attackingProtectors: CombatAction[] = [];
-        
+
         for (const combat of this.activeCombats.values()) {
-            if (combat.targetId === targetId && combat.state === 'attacking') {
+            // Check if in any active combat phase (detecting, turning, firing, cooldown)
+            const isInCombat = combat.targetId === targetId &&
+                (combat.state === 'detecting' || combat.state === 'turning' ||
+                 combat.state === 'firing' || combat.state === 'cooldown');
+            if (isInCombat) {
                 attackingProtectors.push(combat);
             }
         }
-        
+
         return attackingProtectors;
     }
 
@@ -994,16 +1009,19 @@ export class CombatSystem {
      */
     public update(deltaTime: number): void {
         const updateStartTime = performance.now();
-        
+
         // Update performance metrics
         this.updatePerformanceMetrics();
-        
+
         // Clean up completed or timed out combat actions
         const combatsToRemove: string[] = [];
-        
+
         for (const [combatId, combat] of this.activeCombats) {
             if (combat.isCompleted()) {
                 combatsToRemove.push(combatId);
+            } else {
+                // Process combat phases
+                this.processCombatPhase(combat);
             }
         }
 
@@ -1027,6 +1045,149 @@ export class CombatSystem {
         
         // Check for performance issues during combat
         this.checkCombatPerformance();
+    }
+
+    /**
+     * Update protector facing direction towards current combat target
+     */
+    private updateProtectorFacing(combat: CombatAction): void {
+        const protector = this.getProtectorById(combat.protectorId);
+        if (!protector) return;
+
+        // Find the current target position
+        const allTargets = this.getAllPotentialTargets();
+        const target = allTargets.find(t => t.id === combat.targetId);
+
+        if (target && target.health > 0) {
+            // Update facing to track the target's current position
+            protector.faceTarget(target.position);
+        }
+    }
+
+    /**
+     * Process combat phases: detecting -> turning -> firing -> cooldown -> loop
+     */
+    private processCombatPhase(combat: CombatAction): void {
+        const protector = this.getProtectorById(combat.protectorId);
+        if (!protector) {
+            combat.setState('completed');
+            return;
+        }
+
+        // Find the current target
+        const allTargets = this.getAllPotentialTargets();
+        const target = allTargets.find(t => t.id === combat.targetId);
+
+        // Check if target is still valid
+        if (!target || target.health <= 0) {
+            // Target destroyed - look for new targets
+            const nearbyEnemies = this.detectNearbyEnemies(protector, this.config.protectorDetectionRange);
+            if (nearbyEnemies.length > 0) {
+                const newTarget = this.selectTargetConsistently(protector, nearbyEnemies);
+                if (newTarget) {
+                    combat.targetId = newTarget.id;
+                    combat.setState('detecting'); // Start fresh detection cycle
+                    return;
+                }
+            }
+            // No more targets - complete combat
+            combat.setState('completed');
+            protector.clearFacingTarget();
+            this.resumeMovementAfterCombat(protector);
+            return;
+        }
+
+        // Check if still in range
+        const distance = Vector3.Distance(protector.getPosition(), target.position);
+        if (distance > this.config.protectorAttackRange) {
+            combat.setState('engaging');
+            this.moveProtectorToAttackRange(protector, target);
+            return;
+        }
+
+        const phaseElapsed = combat.getPhaseElapsed();
+
+        switch (combat.state) {
+            case 'detecting':
+                // Phase 1: Detection - immediately transition to turning
+                protector.faceTarget(target.position);
+                combat.setState('turning');
+                break;
+
+            case 'turning':
+                // Phase 2: Turning towards target
+                protector.faceTarget(target.position);
+                if (phaseElapsed >= CombatAction.TURN_DURATION) {
+                    // Done turning - fire!
+                    combat.setState('firing');
+                    this.executeAttackVisuals(protector, target, combat);
+                }
+                break;
+
+            case 'firing':
+                // Phase 3: Firing laser (visuals already triggered)
+                if (phaseElapsed >= CombatAction.FIRE_DURATION) {
+                    // Laser done - enter cooldown
+                    combat.setState('cooldown');
+                }
+                break;
+
+            case 'cooldown':
+                // Phase 4: Cooldown - wait before next detection cycle
+                if (phaseElapsed >= CombatAction.COOLDOWN_DURATION) {
+                    // Cooldown done - start new detection cycle
+                    combat.setState('detecting');
+                }
+                break;
+
+            case 'engaging':
+                // Moving to get in range - check if we've arrived
+                if (distance <= this.config.protectorAttackRange) {
+                    combat.setState('detecting');
+                }
+                break;
+
+            default:
+                // Other states (moving, resuming_movement, completed) - no action needed
+                break;
+        }
+    }
+
+    /**
+     * Execute attack visuals and damage (called during firing phase)
+     */
+    private executeAttackVisuals(protector: Protector, target: CombatTarget, combat: CombatAction): void {
+        // Check if we have enough energy
+        if (!this.energyManager.canConsumeEnergy(protector.getId(), this.config.attackEnergyCost)) {
+            // Not enough energy - show warning and skip attack
+            this.showEnergyShortageUI(protector.getId(), this.config.attackEnergyCost);
+            return;
+        }
+
+        // Consume energy
+        this.energyManager.consumeEnergy(protector.getId(), this.config.attackEnergyCost, 'combat_attack');
+
+        // Create laser beam visual effect
+        this.createAttackEffect(protector.getPosition(), target.position);
+
+        // Calculate and apply damage
+        const damage = this.calculateDamage(protector, target);
+        const targetDestroyed = target.takeDamage(damage);
+
+        // Record the attack
+        combat.recordAttack();
+
+        // Handle target destruction
+        if (targetDestroyed) {
+            this.createDestructionEffect(target.position);
+
+            const energyReward = this.getEnergyReward(target);
+            if (energyReward > 0) {
+                this.energyManager.generateEnergy(protector.getId(), energyReward, 'combat_victory');
+            }
+
+            this.handleTargetDestruction(target);
+        }
     }
 
     /**

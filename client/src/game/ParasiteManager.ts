@@ -164,7 +164,7 @@ export class ParasiteManager {
         let lastSpawn = this.lastSpawnAttempt.get(depositId);
         if (lastSpawn === undefined) {
             // First time seeing this deposit - randomly decide if this deposit can spawn parasites
-            const canSpawnParasites = Math.random() < 0.25; // 25% chance
+            const canSpawnParasites = Math.random() < 0.375; // 37.5% chance (50% more parasites)
             
             if (!canSpawnParasites) {
                 // Mark this deposit as non-spawning by setting a very high timestamp

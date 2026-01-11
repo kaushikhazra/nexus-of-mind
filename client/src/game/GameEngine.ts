@@ -457,26 +457,33 @@ export class GameEngine {
 
         // Get all active protectors
         const protectors = this.unitManager.getUnitsByType('protector') as Protector[];
-        
+
         for (const protector of protectors) {
+            // Skip if protector is already in combat
+            const activeCombats = this.combatSystem.getActiveCombats();
+            const isInCombat = activeCombats.some(c => c.protectorId === protector.getId());
+            if (isInCombat) {
+                continue;
+            }
+
             // Only check for auto-detection if protector is moving
             const protectorStats = protector.getProtectorStats();
             if (protectorStats.combatState === 'moving' && protectorStats.autoAttackEnabled) {
-                
+
                 // Check for enemy detection during movement
                 const detectedTarget = this.combatSystem.checkMovementDetection(protector);
-                
+
                 if (detectedTarget) {
                     // Get protector's original destination for movement resumption
                     const originalDestination = protector.getOriginalDestination();
-                    
+
                     // Initiate auto-attack with original destination tracking
                     const autoAttackInitiated = this.combatSystem.initiateAutoAttack(
-                        protector, 
-                        detectedTarget, 
+                        protector,
+                        detectedTarget,
                         originalDestination || undefined
                     );
-                    
+
                     if (autoAttackInitiated) {
                         console.log(`🎯 Auto-attack transition: ${protector.getId()} engaging ${detectedTarget.id}`);
                     }
