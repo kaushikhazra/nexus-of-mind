@@ -56,21 +56,25 @@
 - Two building types: Base (yellow pyramid), Power Plant (orange semi-cylinder)
 - Infinite world generation with mineral deposits and flora
 
-### Epic 2: Basic AI Opponent & Combat System
+### Epic 2: Basic AI Opponent & Combat System ✅ PARTIALLY COMPLETE
 **As a player, I want to:**
-- [US-006] Face an AI opponent that manages energy, builds bases and power plants, and produces units
-- [US-007] Engage in energy-based combat where weapons consume energy and different targets require different shots
-- [US-008] Use Protectors to attack any target (units, bases, power plants) with variable energy costs
+- [US-006] ✅ Face Energy Parasites that threaten my mining operations (Environmental Combat)
+- [US-007] ✅ Use Protectors with energy-based combat to defend my workers
+- [SPEC-001] ✅ Control protectors with intuitive movement-based auto-attack system
+- [US-008] Face an AI opponent that manages energy, builds bases and power plants, and produces units
 - [US-009] Loot enemy bases, resources, and energy reserves when I defeat them
 - [US-010] Defend my base with shields that consume energy but provide protection
 
 **Technical Requirements:**
-- AI decision-making for energy allocation and unit production
-- Combat system with energy consumption per shot
-- Variable damage system (different shots needed per target type)
-- Looting mechanics for stealing enemy resources
-- Shield system for bases with continuous energy drain
-- AI base discovery mechanics (hidden until scouted)
+- ✅ Environmental combat system with Energy Parasites
+- ✅ Movement-based auto-attack system for protectors
+- ✅ Energy consumption per shot (5 energy per attack)
+- ✅ Combat system with detection and engagement logic
+- [ ] AI decision-making for energy allocation and unit production
+- [ ] Variable damage system (different shots needed per target type)
+- [ ] Looting mechanics for stealing enemy resources
+- [ ] Shield system for bases with continuous energy drain
+- [ ] AI base discovery mechanics (hidden until scouted)
 
 ### Epic 3: Self-Learning AI System
 **As a player, I want to:**

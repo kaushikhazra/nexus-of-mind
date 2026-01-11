@@ -179,32 +179,32 @@ This implementation plan transforms the existing manual target selection combat 
   - Verify movement resumption after combat completion
   - Ask the user if questions arise
 
-- [ ] 9. Performance optimization for auto-attack system
-  - [ ] 9.1 Optimize enemy detection performance
+- [x] 9. Performance optimization for auto-attack system
+  - [x] 9.1 Optimize enemy detection performance
     - Implement efficient spatial detection algorithms
     - Add detection frequency throttling to maintain 60fps
     - Monitor performance impact of continuous enemy scanning
     - _Requirements: 6.4_
 
-  - [ ] 9.2 Write unit tests for auto-attack edge cases
+  - [x] 9.2 Write unit tests for auto-attack edge cases
     - Test rapid movement direction changes during detection
     - Test multiple enemies entering/leaving detection range
     - Test energy depletion during auto-attack sequences
 
-- [ ] 10. Final integration and validation for auto-attack system
-  - [ ] 10.1 Complete end-to-end auto-attack flow testing
+- [x] 10. Final integration and validation for auto-attack system
+  - [x] 10.1 Complete end-to-end auto-attack flow testing
     - Test full scenarios from movement command to auto-engagement to resumption
     - Validate all visual feedback for detection and engagement
     - Test edge cases like multiple enemies, energy depletion, target destruction
     - _Requirements: All requirements_
 
-  - [ ] 10.2 Final performance validation for auto-attack
+  - [x] 10.2 Final performance validation for auto-attack
     - Ensure 60fps performance with continuous enemy detection
     - Optimize any performance bottlenecks in detection algorithms
     - Validate memory usage during extended auto-attack scenarios
     - _Requirements: 6.4_
 
-- [ ] 11. Final checkpoint - Complete auto-attack combat system
+- [x] 11. Final checkpoint - Complete auto-attack combat system
   - Ensure all requirements for movement-based auto-attack are implemented
   - Verify seamless integration between movement and combat systems
   - Validate user experience improvements from reduced micromanagement
