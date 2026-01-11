@@ -5,7 +5,7 @@
  * Implements singleton pattern for centralized game engine management.
  */
 
-import { Engine, Scene, PointerEventTypes, Vector3 } from '@babylonjs/core';
+import { Engine, Scene, PointerEventTypes, Vector3, Matrix } from '@babylonjs/core';
 import { SceneManager } from '../rendering/SceneManager';
 import { CameraController } from '../rendering/CameraController';
 import { LightingSetup } from '../rendering/LightingSetup';
@@ -19,10 +19,12 @@ import { UnitRenderer } from '../rendering/UnitRenderer';
 import { BuildingManager } from './BuildingManager';
 import { BuildingRenderer } from '../rendering/BuildingRenderer';
 import { MiningAnalysisTooltip } from '../ui/MiningAnalysisTooltip';
+import { ProtectorSelectionUI } from '../ui/ProtectorSelectionUI';
 import { ParasiteManager } from './ParasiteManager';
 import { TreeRenderer } from '../rendering/TreeRenderer';
 import { Worker } from './entities/Worker';
 import { Protector } from './entities/Protector';
+import { CombatSystem } from './CombatSystem';
 
 export class GameEngine {
     private static instance: GameEngine | null = null;
@@ -55,12 +57,14 @@ export class GameEngine {
 
     // Combat system
     private parasiteManager: ParasiteManager | null = null;
+    private combatSystem: CombatSystem | null = null;
 
     // Vegetation system
     private treeRenderer: TreeRenderer | null = null;
 
     // UI systems
     private miningAnalysisTooltip: MiningAnalysisTooltip | null = null;
+    private protectorSelectionUI: ProtectorSelectionUI | null = null;
 
     private isInitialized: boolean = false;
     private isRunning: boolean = false;
@@ -86,7 +90,6 @@ export class GameEngine {
      */
     public async initialize(): Promise<void> {
         if (this.isInitialized) {
-            console.warn('GameEngine already initialized');
             return;
         }
 
@@ -117,7 +120,7 @@ export class GameEngine {
 
             // Initialize energy system
             this.energyManager = EnergyManager.getInstance();
-            this.energyManager.initialize(500); // Start with 500 energy (5x multiplier)
+            this.energyManager.initialize(500, 15); // Start with 500 energy, 15 minerals
 
             // Initialize game state
             this.gameState = GameState.getInstance();
@@ -138,6 +141,19 @@ export class GameEngine {
                 terrainGenerator: this.getTerrainGenerator()
             });
 
+            // Initialize central combat system with scene for visual effects
+            this.combatSystem = new CombatSystem(this.energyManager, this.scene);
+            
+            // Connect combat system to performance monitor for combat-specific monitoring
+            if (this.performanceMonitor) {
+                this.performanceMonitor.setCombatSystem(this.combatSystem);
+            }
+            
+            // Register combat system with UnitManager for auto-attack integration
+            if (this.unitManager) {
+                this.unitManager.setCombatSystem(this.combatSystem);
+            }
+
             // Initialize vegetation system
             this.treeRenderer = new TreeRenderer(this.scene);
 
@@ -152,8 +168,6 @@ export class GameEngine {
                     if (this.treeRenderer) {
                         terrainGen.setTreeRenderer(this.treeRenderer);
                     }
-                } else {
-                    console.warn('⚠️ Terrain generator not available after delay');
                 }
             }, 1000); // 1 second delay to ensure terrain is ready
 
@@ -170,6 +184,9 @@ export class GameEngine {
             // Initialize mining analysis tooltip
             this.initializeMiningAnalysisTooltip();
 
+            // Initialize protector selection UI
+            this.initializeProtectorSelectionUI();
+
             // Setup terrain integration with game state
             this.setupTerrainIntegration();
 
@@ -184,7 +201,6 @@ export class GameEngine {
             this.isInitialized = true;
 
         } catch (error) {
-            console.error('❌ Failed to initialize GameEngine:', error);
             throw error;
         }
     }
@@ -198,7 +214,6 @@ export class GameEngine {
         }
 
         if (this.isRunning) {
-            console.warn('GameEngine already running');
             return;
         }
 
@@ -244,6 +259,15 @@ export class GameEngine {
                         this.parasiteManager.update(deltaTime, mineralDeposits, workers, protectors);
                     }
 
+                    // Update central combat system with auto-attack integration
+                    if (this.combatSystem && this.unitManager) {
+                        // Handle movement-combat transitions for all protectors
+                        this.handleMovementCombatTransitions();
+                        
+                        // Update combat system
+                        this.combatSystem.update(deltaTime);
+                    }
+
                     // Update vegetation animations
                     if (this.treeRenderer) {
                         this.treeRenderer.updateAnimations();
@@ -256,7 +280,6 @@ export class GameEngine {
             this.isRunning = true;
 
         } catch (error) {
-            console.error('❌ Failed to start GameEngine:', error);
             throw error;
         }
     }
@@ -326,11 +349,17 @@ export class GameEngine {
      */
     private initializeMiningAnalysisTooltip(): void {
         if (!this.scene) {
-            console.error('❌ Cannot initialize mining analysis tooltip: Scene not available');
             return;
         }
 
         this.miningAnalysisTooltip = new MiningAnalysisTooltip(this.scene);
+    }
+
+    /**
+     * Initialize protector selection UI
+     */
+    private initializeProtectorSelectionUI(): void {
+        this.protectorSelectionUI = new ProtectorSelectionUI();
     }
 
     /**
@@ -404,6 +433,55 @@ export class GameEngine {
     }
 
     /**
+     * Get combat system
+     */
+    public getCombatSystem(): CombatSystem | null {
+        return this.combatSystem;
+    }
+    /**
+     * Handle movement-combat transitions for auto-attack system
+     * This method checks for enemy detection during protector movement
+     * and initiates auto-attack when enemies are detected within range
+     */
+    private handleMovementCombatTransitions(): void {
+        if (!this.combatSystem || !this.unitManager) {
+            return;
+        }
+
+        // Get all active protectors
+        const protectors = this.unitManager.getUnitsByType('protector') as Protector[];
+
+        for (const protector of protectors) {
+            // Skip if protector is already in combat
+            const activeCombats = this.combatSystem.getActiveCombats();
+            const isInCombat = activeCombats.some(c => c.protectorId === protector.getId());
+            if (isInCombat) {
+                continue;
+            }
+
+            // Only check for auto-detection if protector is moving
+            const protectorStats = protector.getProtectorStats();
+            if (protectorStats.combatState === 'moving' && protectorStats.autoAttackEnabled) {
+
+                // Check for enemy detection during movement
+                const detectedTarget = this.combatSystem.checkMovementDetection(protector);
+
+                if (detectedTarget) {
+                    // Get protector's original destination for movement resumption
+                    const originalDestination = protector.getOriginalDestination();
+
+                    // Initiate auto-attack with original destination tracking
+                    this.combatSystem.initiateAutoAttack(
+                        protector,
+                        detectedTarget,
+                        originalDestination || undefined
+                    );
+                }
+            }
+        }
+    }
+
+    /**
      * Handle protector attacking a parasite
      */
     public handleProtectorAttack(protectorId: string, targetPosition: Vector3): boolean {
@@ -424,7 +502,6 @@ export class GameEngine {
      */
     private setupMouseInteraction(): void {
         if (!this.scene || !this.unitManager) {
-            console.error('❌ Cannot setup mouse interaction: Scene or UnitManager not available');
             return;
         }
 
@@ -432,12 +509,46 @@ export class GameEngine {
         this.scene.onPointerObservable.add((pointerInfo) => {
             if (pointerInfo.type === PointerEventTypes.POINTERDOWN) {
                 this.handleMouseClick(pointerInfo);
+            } else if (pointerInfo.type === PointerEventTypes.POINTERMOVE) {
+                this.handleMouseMove();
             }
         });
     }
 
     /**
-     * Handle mouse click for unit selection and mining assignment
+     * Handle mouse move for hover detection (Protector tooltip)
+     */
+    private handleMouseMove(): void {
+        if (!this.scene || !this.unitManager || !this.protectorSelectionUI) return;
+
+        const pickInfo = this.scene.pick(this.scene.pointerX, this.scene.pointerY);
+
+        if (pickInfo && pickInfo.hit && pickInfo.pickedMesh) {
+            const meshName = pickInfo.pickedMesh.name;
+
+            // Check if hovering over a unit
+            if (meshName.startsWith('unit_')) {
+                const unitId = meshName.replace('unit_', '');
+                const unit = this.unitManager.getUnit(unitId);
+
+                if (unit && unit.getUnitType() === 'protector') {
+                    // Show tooltip for Protector
+                    this.protectorSelectionUI.show(
+                        unit as Protector,
+                        this.scene.pointerX,
+                        this.scene.pointerY
+                    );
+                    return;
+                }
+            }
+        }
+
+        // Hide tooltip if not hovering over a Protector
+        this.protectorSelectionUI.hide();
+    }
+
+    /**
+     * Handle mouse click for unit selection and combat/mining assignment
      */
     private handleMouseClick(pointerInfo: any): void {
         if (!this.scene || !this.unitManager) return;
@@ -446,8 +557,54 @@ export class GameEngine {
         const pickInfo = this.scene.pick(this.scene.pointerX, this.scene.pointerY);
 
         if (!pickInfo || !pickInfo.hit) {
-            // Clicked on empty space - clear selection
+            // Clicked on empty space - issue move commands to selected units
+            const selectedUnits = this.unitManager.getSelectedUnits();
+            if (selectedUnits.length > 0) {
+                // Get the world position where the user clicked
+                const ray = this.scene.createPickingRay(this.scene.pointerX, this.scene.pointerY, Matrix.Identity(), this.scene.activeCamera);
+                
+                // Intersect with ground plane (y = 0)
+                const groundPlane = new Vector3(0, 1, 0); // Normal pointing up
+                const groundPoint = new Vector3(0, 0, 0); // Point on plane
+                
+                // Calculate intersection with ground plane
+                const denominator = Vector3.Dot(ray.direction, groundPlane);
+                if (Math.abs(denominator) > 0.0001) {
+                    const t = Vector3.Dot(groundPoint.subtract(ray.origin), groundPlane) / denominator;
+                    if (t >= 0) {
+                        const clickPosition = ray.origin.add(ray.direction.scale(t));
+                        
+                        // Adjust height using terrain generator if available
+                        const terrainGenerator = this.getTerrainGenerator();
+                        if (terrainGenerator) {
+                            const terrainHeight = terrainGenerator.getHeightAtPosition(clickPosition.x, clickPosition.z);
+                            clickPosition.y = terrainHeight + 0.5; // Slightly above ground
+                        }
+                        
+                        // Issue move commands to selected units (only Protectors can move to empty terrain)
+                        let moveCommandsIssued = 0;
+                        let workersSkipped = 0;
+                        for (const unit of selectedUnits) {
+                            // Workers should only move when clicking on minerals, not empty terrain
+                            if (unit.getUnitType() === 'worker') {
+                                workersSkipped++;
+                                continue;
+                            }
+                            this.unitManager.issueCommand('move', clickPosition, undefined, undefined);
+                            moveCommandsIssued++;
+                        }
+
+                        // Clear selection to hide selection mesh after issuing move commands
+                        this.unitManager.clearSelection();
+                        this.protectorSelectionUI?.hide();
+                        return;
+                    }
+                }
+            }
+
+            // Clear selection if no units selected or click position calculation failed
             this.unitManager.clearSelection();
+            this.protectorSelectionUI?.hide();
             return;
         }
 
@@ -458,13 +615,22 @@ export class GameEngine {
         if (pickedMesh.name.startsWith('unit_')) {
             this.handleUnitClick(pickedMesh);
         }
-        // Check if clicked on a mineral deposit (chunk)
+        // Check if clicked on a parasite (combat target) - handle both parent and segments
+        else if (pickedMesh.name.startsWith('parasite_')) {
+            this.handleParasiteClick(pickedMesh);
+        }
+        // Check if clicked on a mineral deposit (mining target)
         else if (pickedMesh.name.startsWith('mineral_chunk_')) {
             this.handleMineralDepositClick(pickedMesh);
+        }
+        // Check if clicked on terrain (should be treated as movement command)
+        else if (pickedMesh.name.startsWith('terrainChunk_') || pickedMesh.name.startsWith('ground') || pickedMesh.name.startsWith('terrain')) {
+            this.handleTerrainClick(pickInfo);
         }
         // Clicked on something else - clear selection
         else {
             this.unitManager.clearSelection();
+            this.protectorSelectionUI?.hide();
         }
     }
 
@@ -479,12 +645,68 @@ export class GameEngine {
         const unit = this.unitManager.getUnit(unitId);
 
         if (!unit) {
-            console.warn(`⚠️ Unit not found for mesh: ${unitMesh.name}`);
             return;
         }
 
         // Select the clicked unit (single selection for now)
         this.unitManager.selectUnits([unitId]);
+    }
+
+    /**
+     * Handle clicking on a parasite (now issues move commands for auto-attack)
+     */
+    private handleParasiteClick(parasiteMesh: any): void {
+        if (!this.unitManager || !this.parasiteManager) return;
+
+        const selectedUnits = this.unitManager.getSelectedUnits();
+
+        if (selectedUnits.length === 0) {
+            return;
+        }
+
+        let parasiteId: string;
+        
+        // Handle both direct parasite mesh clicks and segment clicks
+        if (parasiteMesh.name.startsWith('parasite_segment_')) {
+            // Clicked on a segment - get the parent node
+            const parent = parasiteMesh.parent;
+            if (parent && parent.name.startsWith('parasite_')) {
+                parasiteId = parent.name.replace('parasite_', '');
+            } else {
+                // Fallback: extract from segment name (format: "parasite_segment_<parasiteId>_<segmentIndex>")
+                const nameParts = parasiteMesh.name.split('_');
+                if (nameParts.length >= 4) {
+                    parasiteId = nameParts.slice(2, -1).join('_');
+                } else {
+                    return;
+                }
+            }
+        } else if (parasiteMesh.name.startsWith('parasite_')) {
+            // Direct parasite mesh click
+            parasiteId = parasiteMesh.name.replace('parasite_', '');
+        } else {
+            return;
+        }
+        
+        // Verify parasite exists and get its position
+        const parasite = this.parasiteManager.getParasiteById(parasiteId);
+        if (!parasite) {
+            return;
+        }
+
+        // Get parasite position for movement command
+        const parasitePosition = parasite.getPosition();
+
+        // Issue move commands to selected protectors (auto-attack will trigger during movement)
+        let moveCommandsIssued = 0;
+        for (const unit of selectedUnits) {
+            if (unit.getUnitType() === 'protector') {
+                // Issue move command to parasite location - auto-attack will engage during movement
+                this.unitManager.issueCommand('move', parasitePosition);
+                moveCommandsIssued++;
+            }
+        }
+
     }
 
     /**
@@ -502,7 +724,6 @@ export class GameEngine {
         // Extract mineral deposit ID from mesh name (format: "mineral_chunk_<depositId>_<chunkIndex>")
         const nameParts = mineralMesh.name.split('_');
         if (nameParts.length < 4) {
-            console.warn(`⚠️ Invalid mineral chunk name format: ${mineralMesh.name}`);
             return;
         }
 
@@ -512,13 +733,11 @@ export class GameEngine {
         // Get the mineral deposit from terrain generator
         const terrainGenerator = this.getTerrainGenerator();
         if (!terrainGenerator) {
-            console.error('❌ Terrain generator not available for mineral deposit lookup');
             return;
         }
 
         const mineralDeposit = terrainGenerator.getMineralDepositById(depositId);
         if (!mineralDeposit) {
-            console.warn(`⚠️ Mineral deposit not found: ${depositId}`);
             return;
         }
 
@@ -534,6 +753,48 @@ export class GameEngine {
     }
 
     /**
+     * Handle clicking on terrain (treat as movement command)
+     */
+    private handleTerrainClick(pickInfo: any): void {
+        if (!this.unitManager) return;
+
+        const selectedUnits = this.unitManager.getSelectedUnits();
+        if (selectedUnits.length === 0) {
+            return;
+        }
+
+        // Get the world position where the user clicked on terrain
+        const clickPosition = pickInfo.pickedPoint;
+        if (!clickPosition) {
+            return;
+        }
+
+        // Adjust height using terrain generator if available
+        const terrainGenerator = this.getTerrainGenerator();
+        if (terrainGenerator) {
+            const terrainHeight = terrainGenerator.getHeightAtPosition(clickPosition.x, clickPosition.z);
+            clickPosition.y = terrainHeight + 0.5; // Slightly above ground
+        }
+
+        // Issue move commands to selected units (only Protectors can move to empty terrain)
+        let moveCommandsIssued = 0;
+        let workersSkipped = 0;
+        for (const unit of selectedUnits) {
+            // Workers should only move when clicking on minerals, not empty terrain
+            if (unit.getUnitType() === 'worker') {
+                workersSkipped++;
+                continue;
+            }
+            this.unitManager.issueCommand('move', clickPosition, undefined, undefined);
+            moveCommandsIssued++;
+        }
+
+        // Clear selection to hide selection mesh after issuing move commands
+        this.unitManager.clearSelection();
+        this.protectorSelectionUI?.hide();
+    }
+
+    /**
      * Dispose of all resources
      */
     public dispose(): void {
@@ -541,6 +802,7 @@ export class GameEngine {
 
         // Dispose components in reverse order
         this.treeRenderer?.dispose();
+        this.combatSystem?.dispose();
         this.parasiteManager?.dispose();
         this.buildingManager?.dispose();
         this.buildingRenderer?.dispose();
@@ -549,6 +811,7 @@ export class GameEngine {
         this.gameState?.dispose();
         this.energyDisplay?.dispose();
         this.miningAnalysisTooltip?.dispose();
+        this.protectorSelectionUI?.dispose();
         this.energyManager?.dispose();
         this.performanceMonitor?.dispose();
         this.materialManager?.dispose();

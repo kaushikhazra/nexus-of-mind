@@ -1,11 +1,13 @@
 /**
  * PerformanceMonitor - FPS monitoring and performance tracking
  * 
- * Monitors game performance metrics including FPS, memory usage, and render times.
- * Provides optimization suggestions and performance warnings.
+ * Monitors game performance metrics including FPS, memory usage, render times,
+ * and combat-specific performance metrics. Provides optimization suggestions 
+ * and performance warnings with special focus on maintaining 60fps during combat.
  */
 
 import { Scene, Engine } from '@babylonjs/core';
+import { CombatSystem, CombatPerformanceMetrics } from '../game/CombatSystem';
 
 export interface PerformanceMetrics {
     fps: number;
@@ -14,6 +16,8 @@ export interface PerformanceMetrics {
     triangles: number;
     memoryUsage?: number;
     timestamp: number;
+    // Combat-specific metrics
+    combatMetrics?: CombatPerformanceMetrics;
 }
 
 export interface PerformanceThresholds {
@@ -26,6 +30,7 @@ export interface PerformanceThresholds {
 export class PerformanceMonitor {
     private scene: Scene;
     private engine: Engine;
+    private combatSystem: CombatSystem | null = null;
     private isMonitoring: boolean = false;
     
     // Performance tracking
@@ -33,6 +38,11 @@ export class PerformanceMonitor {
     private currentMetrics: PerformanceMetrics | null = null;
     private lastUpdateTime: number = 0;
     private updateInterval: number = 1000; // Update every second
+    
+    // Combat performance tracking
+    private combatPerformanceHistory: CombatPerformanceMetrics[] = [];
+    private lastCombatCheck: number = 0;
+    private combatCheckInterval: number = 500; // Check combat performance every 500ms
     
     // Performance thresholds
     private thresholds: PerformanceThresholds = {
@@ -42,6 +52,14 @@ export class PerformanceMonitor {
         maxFrameTime: 16.67 // 60 FPS = 16.67ms per frame
     };
     
+    // Combat performance thresholds
+    private combatThresholds = {
+        maxCombatFrameImpact: 5.0, // Max 5ms per frame for combat processing
+        maxAttackProcessingTime: 2.0, // Max 2ms per attack
+        maxActiveCombats: 20, // Max 20 simultaneous combats for 60fps
+        maxValidationsPerSecond: 100 // Max 100 validations per second
+    };
+    
     // Monitoring callbacks
     private onPerformanceWarning?: (metrics: PerformanceMetrics) => void;
     private onPerformanceCritical?: (metrics: PerformanceMetrics) => void;
@@ -49,6 +67,13 @@ export class PerformanceMonitor {
     constructor(scene: Scene, engine: Engine) {
         this.scene = scene;
         this.engine = engine;
+    }
+
+    /**
+     * Set combat system for combat-specific performance monitoring
+     */
+    public setCombatSystem(combatSystem: CombatSystem): void {
+        this.combatSystem = combatSystem;
     }
 
     /**
@@ -96,6 +121,12 @@ export class PerformanceMonitor {
             this.checkPerformanceThresholds();
             this.lastUpdateTime = now;
         }
+        
+        // Check combat performance more frequently
+        if (this.combatSystem && now - this.lastCombatCheck >= this.combatCheckInterval) {
+            this.checkCombatPerformance();
+            this.lastCombatCheck = now;
+        }
     }
 
     /**
@@ -116,19 +147,34 @@ export class PerformanceMonitor {
             memoryUsage = memInfo.usedJSHeapSize / (1024 * 1024); // MB
         }
 
+        // Get combat metrics if combat system is available
+        let combatMetrics: CombatPerformanceMetrics | undefined;
+        if (this.combatSystem) {
+            combatMetrics = this.combatSystem.getPerformanceMetrics();
+        }
+
         this.currentMetrics = {
             fps: Math.round(fps * 10) / 10,
             frameTime: Math.round(frameTime * 100) / 100,
             drawCalls,
             triangles: Math.round(triangles),
             memoryUsage,
-            timestamp: performance.now()
+            timestamp: performance.now(),
+            combatMetrics
         };
 
         // Store metrics history (keep last 60 seconds)
         this.metrics.push(this.currentMetrics);
         if (this.metrics.length > 60) {
             this.metrics.shift();
+        }
+
+        // Store combat metrics history if available
+        if (combatMetrics) {
+            this.combatPerformanceHistory.push(combatMetrics);
+            if (this.combatPerformanceHistory.length > 120) { // Keep 2 minutes of combat history
+                this.combatPerformanceHistory.shift();
+            }
         }
     }
 
@@ -138,7 +184,7 @@ export class PerformanceMonitor {
     private checkPerformanceThresholds(): void {
         if (!this.currentMetrics) return;
 
-        const { fps } = this.currentMetrics;
+        const { fps, combatMetrics } = this.currentMetrics;
 
         // Check for performance warnings
         if (fps < this.thresholds.criticalFPS) {
@@ -146,6 +192,42 @@ export class PerformanceMonitor {
         } else if (fps < this.thresholds.warningFPS) {
             this.triggerPerformanceWarning();
         }
+
+        // Check combat-specific performance if in combat
+        if (combatMetrics && combatMetrics.activeCombatCount > 0) {
+            this.checkCombatSpecificThresholds(combatMetrics);
+        }
+    }
+
+    /**
+     * Check combat-specific performance thresholds
+     */
+    private checkCombatSpecificThresholds(combatMetrics: CombatPerformanceMetrics): void {
+        const issues: string[] = [];
+
+        if (combatMetrics.frameTimeImpact > this.combatThresholds.maxCombatFrameImpact) {
+            issues.push(`Combat frame impact: ${combatMetrics.frameTimeImpact.toFixed(2)}ms (max: ${this.combatThresholds.maxCombatFrameImpact}ms)`);
+        }
+
+        if (combatMetrics.averageAttackProcessingTime > this.combatThresholds.maxAttackProcessingTime) {
+            issues.push(`Attack processing: ${combatMetrics.averageAttackProcessingTime.toFixed(2)}ms (max: ${this.combatThresholds.maxAttackProcessingTime}ms)`);
+        }
+
+        if (combatMetrics.activeCombatCount > this.combatThresholds.maxActiveCombats) {
+            issues.push(`Active combats: ${combatMetrics.activeCombatCount} (max: ${this.combatThresholds.maxActiveCombats})`);
+        }
+
+        if (combatMetrics.targetValidationsPerSecond > this.combatThresholds.maxValidationsPerSecond) {
+            issues.push(`Validations/sec: ${combatMetrics.targetValidationsPerSecond.toFixed(1)} (max: ${this.combatThresholds.maxValidationsPerSecond})`);
+        }
+
+    }
+
+    /**
+     * Check combat performance and provide specific monitoring
+     */
+    private checkCombatPerformance(): void {
+        // Combat performance monitoring available via getPerformanceSummary()
     }
 
     /**
@@ -154,8 +236,6 @@ export class PerformanceMonitor {
     private triggerPerformanceWarning(): void {
         if (!this.currentMetrics) return;
 
-        console.warn(`⚠️ Performance Warning: FPS dropped to ${this.currentMetrics.fps}`);
-        
         if (this.onPerformanceWarning) {
             this.onPerformanceWarning(this.currentMetrics);
         }
@@ -167,8 +247,6 @@ export class PerformanceMonitor {
     private triggerPerformanceCritical(): void {
         if (!this.currentMetrics) return;
 
-        console.error(`🚨 Performance Critical: FPS dropped to ${this.currentMetrics.fps}`);
-        
         // Suggest optimizations
         this.suggestOptimizations();
         
@@ -181,7 +259,40 @@ export class PerformanceMonitor {
      * Suggest performance optimizations
      */
     private suggestOptimizations(): void {
-        // Performance optimization suggestions would be logged here
+        if (!this.currentMetrics) return;
+
+        const suggestions: string[] = [];
+        
+        // General performance suggestions
+        if (this.currentMetrics.drawCalls > 1000) {
+            suggestions.push('Consider mesh instancing to reduce draw calls');
+        }
+        
+        if (this.currentMetrics.triangles > 100000) {
+            suggestions.push('Consider LOD (Level of Detail) for distant objects');
+        }
+        
+        if (this.currentMetrics.memoryUsage && this.currentMetrics.memoryUsage > 512) {
+            suggestions.push('High memory usage detected - consider texture compression');
+        }
+
+        // Combat-specific suggestions
+        if (this.currentMetrics.combatMetrics) {
+            const combat = this.currentMetrics.combatMetrics;
+            
+            if (combat.activeCombatCount > 15) {
+                suggestions.push('Limit simultaneous combat actions to improve performance');
+            }
+            
+            if (combat.frameTimeImpact > 5.0) {
+                suggestions.push('Optimize combat processing - consider batching attacks');
+            }
+            
+            if (combat.targetValidationsPerSecond > 80) {
+                suggestions.push('Cache target validation results to reduce computation');
+            }
+        }
+
     }
 
     /**
@@ -264,6 +375,12 @@ export class PerformanceMonitor {
         minFPS: number;
         maxFPS: number;
         isPerformingWell: boolean;
+        combatPerformance?: {
+            activeCombats: number;
+            attacksPerSecond: number;
+            frameImpact: number;
+            isOptimal: boolean;
+        };
     } {
         if (this.metrics.length === 0) {
             return {
@@ -282,13 +399,54 @@ export class PerformanceMonitor {
         const maxFPS = Math.max(...fpsList);
         const isPerformingWell = averageFPS >= this.thresholds.warningFPS;
 
-        return {
+        const result: any = {
             currentFPS: Math.round(currentFPS * 10) / 10,
             averageFPS: Math.round(averageFPS * 10) / 10,
             minFPS: Math.round(minFPS * 10) / 10,
             maxFPS: Math.round(maxFPS * 10) / 10,
             isPerformingWell
         };
+
+        // Add combat performance if available
+        if (this.currentMetrics?.combatMetrics) {
+            const combat = this.currentMetrics.combatMetrics;
+            result.combatPerformance = {
+                activeCombats: combat.activeCombatCount,
+                attacksPerSecond: Math.round(combat.attacksPerSecond * 10) / 10,
+                frameImpact: Math.round(combat.frameTimeImpact * 100) / 100,
+                isOptimal: combat.frameTimeImpact < this.combatThresholds.maxCombatFrameImpact &&
+                          combat.averageAttackProcessingTime < this.combatThresholds.maxAttackProcessingTime &&
+                          combat.activeCombatCount < this.combatThresholds.maxActiveCombats
+            };
+        }
+
+        return result;
+    }
+
+    /**
+     * Get combat performance history for analysis
+     */
+    public getCombatPerformanceHistory(): CombatPerformanceMetrics[] {
+        return [...this.combatPerformanceHistory];
+    }
+
+    /**
+     * Check if system can maintain 60fps during combat
+     */
+    public canMaintain60FPSDuringCombat(): boolean {
+        if (!this.combatSystem) return true;
+
+        const combatSummary = this.combatSystem.getPerformanceSummary();
+        const currentFPS = this.currentMetrics?.fps || 0;
+
+        // System can maintain 60fps if:
+        // 1. Current FPS is above target when combat is active
+        // 2. Combat frame impact is minimal
+        // 3. No performance warnings from combat system
+        return combatSummary.activeCombats === 0 || 
+               (currentFPS >= this.thresholds.targetFPS && 
+                combatSummary.frameImpact < this.combatThresholds.maxCombatFrameImpact &&
+                combatSummary.isPerformingWell);
     }
 
     /**

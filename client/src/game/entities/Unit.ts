@@ -183,7 +183,6 @@ export abstract class Unit {
                     this.onActionCompleteCallbacks.forEach(callback => callback(this, 'mining'));
                 }
             } catch (error) {
-                console.error(`❌ Mining action error for ${this.id}:`, error);
                 this.stopMining();
             }
         }
@@ -215,7 +214,6 @@ export abstract class Unit {
                     this.onActionCompleteCallbacks.forEach(callback => callback(this, 'movement'));
                 }
             } catch (error) {
-                console.error(`❌ Movement action error for ${this.id}:`, error);
                 this.stopMovement();
             }
         }
@@ -230,7 +228,6 @@ export abstract class Unit {
                     this.onActionCompleteCallbacks.forEach(callback => callback(this, 'building'));
                 }
             } catch (error) {
-                console.error(`❌ Building action error for ${this.id}:`, error);
                 this.stopBuilding();
             }
         }
@@ -278,7 +275,6 @@ export abstract class Unit {
                 return false;
             }
         } catch (error) {
-            console.error(`❌ Failed to start mining for ${this.id}:`, error);
             return false;
         }
     }
@@ -402,7 +398,6 @@ export abstract class Unit {
                 return false;
             }
         } catch (error) {
-            console.error(`❌ Failed to start movement for mining for ${this.id}:`, error);
             return false;
         }
     }
@@ -440,7 +435,6 @@ export abstract class Unit {
                 return false;
             }
         } catch (error) {
-            console.error(`❌ Failed to start movement for ${this.id}:`, error);
             return false;
         }
     }
@@ -469,7 +463,6 @@ export abstract class Unit {
                 return false;
             }
         } catch (error) {
-            console.error(`❌ Failed to start building for ${this.id}:`, error);
             return false;
         }
     }

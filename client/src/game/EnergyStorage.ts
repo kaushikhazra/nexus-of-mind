@@ -78,7 +78,6 @@ export class EnergyStorage {
      */
     public addEnergy(amount: number, source: string = 'unknown'): number {
         if (amount <= 0) {
-            console.warn(`⚠️ Invalid energy amount for ${this.entityId}: ${amount}`);
             return 0;
         }
 
@@ -86,9 +85,8 @@ export class EnergyStorage {
         const efficientAmount = amount * this.efficiency;
         const availableSpace = this.capacity - this.currentEnergy;
         const actualAmount = Math.min(efficientAmount, availableSpace);
-        
+
         if (actualAmount <= 0) {
-            console.warn(`⚠️ Storage full for ${this.entityId}: ${this.currentEnergy}/${this.capacity}`);
             return 0;
         }
 
@@ -107,7 +105,6 @@ export class EnergyStorage {
      */
     public removeEnergy(amount: number, purpose: string = 'unknown'): boolean {
         if (amount < 0) {
-            console.warn(`⚠️ Invalid energy removal amount for ${this.entityId}: ${amount}`);
             return false;
         }
 
@@ -117,7 +114,6 @@ export class EnergyStorage {
         }
 
         if (!this.hasEnergy(amount)) {
-            console.warn(`⚠️ Insufficient energy in ${this.entityId}: need ${amount}, have ${this.currentEnergy}`);
             return false;
         }
 
@@ -139,12 +135,10 @@ export class EnergyStorage {
      */
     public transferTo(targetStorage: EnergyStorage, amount: number): boolean {
         if (!this.hasEnergy(amount)) {
-            console.warn(`⚠️ Cannot transfer ${amount} energy from ${this.entityId}: insufficient energy`);
             return false;
         }
 
         if (!targetStorage.canReceiveEnergy(amount)) {
-            console.warn(`⚠️ Cannot transfer ${amount} energy to ${targetStorage.entityId}: storage full or invalid amount`);
             return false;
         }
 
@@ -225,7 +219,6 @@ export class EnergyStorage {
      */
     public setCapacity(newCapacity: number): void {
         if (newCapacity < 0) {
-            console.warn(`⚠️ Invalid capacity for ${this.entityId}: ${newCapacity}`);
             return;
         }
 
@@ -245,7 +238,6 @@ export class EnergyStorage {
      */
     public setEfficiency(newEfficiency: number): void {
         if (newEfficiency < 0 || newEfficiency > 1) {
-            console.warn(`⚠️ Invalid efficiency for ${this.entityId}: ${newEfficiency} (must be 0-1)`);
             return;
         }
 

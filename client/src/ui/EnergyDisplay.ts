@@ -36,7 +36,7 @@ export class EnergyDisplay {
 
     constructor(config: EnergyDisplayConfig) {
         this.config = {
-            updateInterval: 100, // Update every 100ms for smooth display
+            updateInterval: 1000, // Update every 1 second
             showDetails: true,
             showHistory: false,
             ...config
@@ -51,9 +51,8 @@ export class EnergyDisplay {
      */
     private initialize(): void {
         this.container = document.getElementById(this.config.containerId);
-        
+
         if (!this.container) {
-            console.error(`⚠️ Energy display container not found: ${this.config.containerId}`);
             return;
         }
 

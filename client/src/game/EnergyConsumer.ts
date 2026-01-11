@@ -77,12 +77,10 @@ export abstract class EnergyConsumer {
      */
     protected reserveEnergy(amount: number): boolean {
         if (this.reservedEnergy > 0) {
-            console.warn(`⚠️ Energy already reserved for ${this.actionName}: ${this.reservedEnergy}`);
             return false;
         }
 
         if (!this.canExecute()) {
-            console.warn(`⚠️ Cannot reserve energy for ${this.actionName}: insufficient energy`);
             return false;
         }
 
@@ -108,7 +106,6 @@ export abstract class EnergyConsumer {
      */
     protected useReservedEnergy(amount: number): boolean {
         if (this.reservedEnergy < amount) {
-            console.warn(`⚠️ Insufficient reserved energy for ${this.actionName}: need ${amount}, have ${this.reservedEnergy}`);
             return false;
         }
 

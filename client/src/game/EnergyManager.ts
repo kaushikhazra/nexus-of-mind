@@ -1,8 +1,9 @@
 /**
- * EnergyManager - Global energy economy management and tracking
- * 
- * Manages the central energy economy system where energy powers all game actions.
- * Handles energy transactions, validation, and provides real-time energy tracking.
+ * EnergyManager - Global energy and materials economy management
+ *
+ * Manages the central economy system:
+ * - Energy: Powers all game actions (combat, buildings, etc.)
+ * - Materials: Mined from deposits, consumed by power plants to generate energy
  */
 
 export interface EnergyTransaction {
@@ -10,6 +11,7 @@ export interface EnergyTransaction {
     entityId: string;
     amount: number;
     type: 'generation' | 'consumption' | 'transfer';
+    resource: 'energy' | 'materials';
     action: string;
     timestamp: number;
     success: boolean;
@@ -17,6 +19,7 @@ export interface EnergyTransaction {
 
 export interface EnergyStats {
     totalEnergy: number;
+    totalMaterials: number;
     totalGeneration: number;
     totalConsumption: number;
     transactionCount: number;
@@ -26,24 +29,30 @@ export interface EnergyStats {
 
 export class EnergyManager {
     private static instance: EnergyManager | null = null;
-    
+
     // Energy tracking
     private totalSystemEnergy: number = 0;
     private energyGenerationRate: number = 0;
     private energyConsumptionRate: number = 0;
-    
+
+    // Materials tracking (mined resources used by power plants)
+    private totalMaterials: number = 0;
+    private materialsGenerationRate: number = 0;
+    private materialsConsumptionRate: number = 0;
+
     // Transaction history
     private transactions: EnergyTransaction[] = [];
     private transactionId: number = 0;
-    
+
     // Performance tracking
     private lastUpdateTime: number = 0;
     private updateInterval: number = 1000; // Update rates every second
-    
+
     // Event callbacks
     private onEnergyChangeCallbacks: ((stats: EnergyStats) => void)[] = [];
     private onLowEnergyCallbacks: ((entityId: string, currentEnergy: number) => void)[] = [];
     private onEnergyDepletedCallbacks: ((entityId: string) => void)[] = [];
+    private onMaterialsChangeCallbacks: ((materials: number) => void)[] = [];
 
     private constructor() {
     }
@@ -61,11 +70,13 @@ export class EnergyManager {
     /**
      * Initialize energy system with starting values
      */
-    public initialize(initialEnergy: number = 100): void {
+    public initialize(initialEnergy: number = 100, initialMaterials: number = 0): void {
         this.totalSystemEnergy = initialEnergy;
+        this.totalMaterials = initialMaterials;
         this.lastUpdateTime = performance.now();
 
         this.notifyEnergyChange();
+        this.notifyMaterialsChange();
     }
 
     /**
@@ -73,10 +84,9 @@ export class EnergyManager {
      */
     public canConsumeEnergy(entityId: string, amount: number): boolean {
         if (amount < 0) {
-            console.warn(`⚠️ Invalid energy amount: ${amount} (must be positive)`);
             return false;
         }
-        
+
         // For now, check against total system energy
         // Later this will check specific entity storage
         return this.totalSystemEnergy >= amount;
@@ -87,44 +97,40 @@ export class EnergyManager {
      */
     public consumeEnergy(entityId: string, amount: number, action: string): boolean {
         if (!this.canConsumeEnergy(entityId, amount)) {
-            this.recordTransaction(entityId, -amount, 'consumption', action, false);
-            console.warn(`⚠️ Insufficient energy for ${action}: need ${amount}, have ${this.totalSystemEnergy}`);
+            this.recordTransaction(entityId, -amount, 'consumption', 'energy', action, false);
             return false;
         }
 
         // Deduct energy
         this.totalSystemEnergy -= amount;
         this.energyConsumptionRate += amount;
-        
+
         // Record successful transaction
-        this.recordTransaction(entityId, -amount, 'consumption', action, true);
+        this.recordTransaction(entityId, -amount, 'consumption', 'energy', action, true);
 
         this.notifyEnergyChange();
-        
+
         // Check for low energy warnings
         this.checkEnergyLevels(entityId);
-        
+
         return true;
     }
 
     /**
-     * Generate energy (from mining, power plants, etc.)
+     * Generate energy (from power plants consuming materials)
      */
     public generateEnergy(entityId: string, amount: number, source: string): void {
         if (amount <= 0) {
-            console.warn(`⚠️ Invalid energy generation amount: ${amount}`);
             return;
         }
 
         // Add energy to system
         this.totalSystemEnergy += amount;
         this.energyGenerationRate += amount;
-        
+
         // Record transaction
-        this.recordTransaction(entityId, amount, 'generation', source, true);
-        
-        // Energy generation logged only occasionally to avoid spam
-        // console.log(`⚡ Energy generated: ${amount} from ${source} (total: ${this.totalSystemEnergy})`);
+        this.recordTransaction(entityId, amount, 'generation', 'energy', source, true);
+
         this.notifyEnergyChange();
     }
 
@@ -133,17 +139,83 @@ export class EnergyManager {
      */
     public transferEnergy(fromEntityId: string, toEntityId: string, amount: number): boolean {
         if (!this.canConsumeEnergy(fromEntityId, amount)) {
-            console.warn(`⚠️ Cannot transfer ${amount} energy from ${fromEntityId} to ${toEntityId}`);
             return false;
         }
 
         // For now, just record the transaction (no actual entity-to-entity transfer yet)
-        this.recordTransaction(fromEntityId, -amount, 'transfer', `transfer_to_${toEntityId}`, true);
-        this.recordTransaction(toEntityId, amount, 'transfer', `transfer_from_${fromEntityId}`, true);
+        this.recordTransaction(fromEntityId, -amount, 'transfer', 'energy', `transfer_to_${toEntityId}`, true);
+        this.recordTransaction(toEntityId, amount, 'transfer', 'energy', `transfer_from_${fromEntityId}`, true);
 
         this.notifyEnergyChange();
-        
+
         return true;
+    }
+
+    // ==================== MATERIALS MANAGEMENT ====================
+
+    /**
+     * Check if materials can be consumed
+     */
+    public canConsumeMaterials(amount: number): boolean {
+        if (amount < 0) {
+            return false;
+        }
+        return this.totalMaterials >= amount;
+    }
+
+    /**
+     * Generate materials (from mining)
+     */
+    public generateMaterials(entityId: string, amount: number, source: string): void {
+        if (amount <= 0) {
+            return;
+        }
+
+        this.totalMaterials += amount;
+        this.materialsGenerationRate += amount;
+
+        this.recordTransaction(entityId, amount, 'generation', 'materials', source, true);
+        this.notifyMaterialsChange();
+        this.notifyEnergyChange();
+    }
+
+    /**
+     * Consume materials (by power plants to generate energy)
+     */
+    public consumeMaterials(entityId: string, amount: number, action: string): boolean {
+        if (!this.canConsumeMaterials(amount)) {
+            return false;
+        }
+
+        this.totalMaterials -= amount;
+        this.materialsConsumptionRate += amount;
+
+        this.recordTransaction(entityId, -amount, 'consumption', 'materials', action, true);
+        this.notifyMaterialsChange();
+        this.notifyEnergyChange();
+
+        return true;
+    }
+
+    /**
+     * Get current total materials
+     */
+    public getTotalMaterials(): number {
+        return this.totalMaterials;
+    }
+
+    /**
+     * Notify listeners of materials changes
+     */
+    private notifyMaterialsChange(): void {
+        this.onMaterialsChangeCallbacks.forEach(callback => callback(this.totalMaterials));
+    }
+
+    /**
+     * Subscribe to materials change events
+     */
+    public onMaterialsChange(callback: (materials: number) => void): void {
+        this.onMaterialsChangeCallbacks.push(callback);
     }
 
     /**
@@ -168,10 +240,10 @@ export class EnergyManager {
     }
 
     /**
-     * Get comprehensive energy statistics
+     * Get comprehensive energy and materials statistics
      */
     public getEnergyStats(): EnergyStats {
-        const successfulTransactions = this.transactions.filter(t => t.success);
+        const successfulTransactions = this.transactions.filter(t => t.success && t.resource === 'energy');
         const totalGeneration = successfulTransactions
             .filter(t => t.type === 'generation')
             .reduce((sum, t) => sum + t.amount, 0);
@@ -181,6 +253,7 @@ export class EnergyManager {
 
         return {
             totalEnergy: this.totalSystemEnergy,
+            totalMaterials: this.totalMaterials,
             totalGeneration,
             totalConsumption,
             transactionCount: this.transactions.length,
@@ -197,27 +270,30 @@ export class EnergyManager {
     }
 
     /**
-     * Update energy rates (called from game loop)
+     * Update energy and materials rates (called from game loop)
      */
     public update(): void {
         const now = performance.now();
-        
+
         if (now - this.lastUpdateTime >= this.updateInterval) {
             // Reset rates for next measurement period
             this.energyGenerationRate = 0;
             this.energyConsumptionRate = 0;
+            this.materialsGenerationRate = 0;
+            this.materialsConsumptionRate = 0;
             this.lastUpdateTime = now;
         }
     }
 
     /**
-     * Record an energy transaction
+     * Record a transaction
      */
     private recordTransaction(
-        entityId: string, 
-        amount: number, 
-        type: EnergyTransaction['type'], 
-        action: string, 
+        entityId: string,
+        amount: number,
+        type: EnergyTransaction['type'],
+        resource: 'energy' | 'materials',
+        action: string,
         success: boolean
     ): void {
         const transaction: EnergyTransaction = {
@@ -225,13 +301,14 @@ export class EnergyManager {
             entityId,
             amount,
             type,
+            resource,
             action,
             timestamp: performance.now(),
             success
         };
 
         this.transactions.push(transaction);
-        
+
         // Keep only last 100 transactions for memory efficiency
         if (this.transactions.length > 100) {
             this.transactions.shift();
@@ -288,10 +365,14 @@ export class EnergyManager {
         this.totalSystemEnergy = 0;
         this.energyGenerationRate = 0;
         this.energyConsumptionRate = 0;
+        this.totalMaterials = 0;
+        this.materialsGenerationRate = 0;
+        this.materialsConsumptionRate = 0;
         this.transactions = [];
         this.transactionId = 0;
 
         this.notifyEnergyChange();
+        this.notifyMaterialsChange();
     }
 
     /**
@@ -301,6 +382,7 @@ export class EnergyManager {
         this.onEnergyChangeCallbacks = [];
         this.onLowEnergyCallbacks = [];
         this.onEnergyDepletedCallbacks = [];
+        this.onMaterialsChangeCallbacks = [];
         this.transactions = [];
 
         EnergyManager.instance = null;

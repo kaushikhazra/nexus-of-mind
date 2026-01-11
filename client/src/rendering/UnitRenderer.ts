@@ -77,6 +77,11 @@ export class UnitRenderer {
     private scoutAccentMaterial: StandardMaterial | null = null;
     private protectorAccentMaterial: StandardMaterial | null = null;
 
+    // Protector-specific materials
+    private protectorGunMaterial: StandardMaterial | null = null;
+    private protectorGunGlowMaterial: StandardMaterial | null = null;
+    private protectorVisorMaterial: StandardMaterial | null = null;
+
     constructor(scene: Scene, materialManager: MaterialManager) {
         this.scene = scene;
         this.materialManager = materialManager;
@@ -94,6 +99,8 @@ export class UnitRenderer {
         this.workerMaterial.specularColor = new Color3(0.2, 0.2, 0.2);
         this.workerMaterial.emissiveColor = this.unitConfigs.worker.color.scale(0.05);
         this.workerMaterial.alpha = 0.35; // More transparent to better show energy core
+        this.workerMaterial.needDepthPrePass = true; // Enable proper transparency sorting
+        this.workerMaterial.separateCullingPass = true; // Better transparency rendering
 
         // Scout material (Blue)
         this.scoutMaterial = new StandardMaterial('scoutMaterial', this.scene);
@@ -101,11 +108,14 @@ export class UnitRenderer {
         this.scoutMaterial.specularColor = new Color3(0.1, 0.1, 0.1);
         this.scoutMaterial.emissiveColor = this.unitConfigs.scout.color.scale(0.1);
 
-        // Protector material (Red)
+        // Protector material (Red, semi-transparent like worker)
         this.protectorMaterial = new StandardMaterial('protectorMaterial', this.scene);
         this.protectorMaterial.diffuseColor = this.unitConfigs.protector.color;
-        this.protectorMaterial.specularColor = new Color3(0.1, 0.1, 0.1);
-        this.protectorMaterial.emissiveColor = this.unitConfigs.protector.color.scale(0.1);
+        this.protectorMaterial.specularColor = new Color3(0.2, 0.2, 0.2);
+        this.protectorMaterial.emissiveColor = this.unitConfigs.protector.color.scale(0.05);
+        this.protectorMaterial.alpha = 0.35; // Semi-transparent to show energy core
+        this.protectorMaterial.needDepthPrePass = true; // Enable proper transparency sorting
+        this.protectorMaterial.separateCullingPass = true; // Better transparency rendering
 
         // Selection indicator material
         this.selectionMaterial = new StandardMaterial('selectionMaterial', this.scene);
@@ -131,6 +141,25 @@ export class UnitRenderer {
         this.protectorAccentMaterial = new StandardMaterial('protectorAccentMaterial', this.scene);
         this.protectorAccentMaterial.diffuseColor = this.unitConfigs.protector.accentColor;
         this.protectorAccentMaterial.specularColor = new Color3(0.2, 0.2, 0.2);
+
+        // Protector gun body material (dark metallic)
+        this.protectorGunMaterial = new StandardMaterial('protectorGunMaterial', this.scene);
+        this.protectorGunMaterial.diffuseColor = new Color3(0.2, 0.2, 0.25); // Dark gunmetal
+        this.protectorGunMaterial.specularColor = new Color3(0.4, 0.4, 0.5);
+        this.protectorGunMaterial.emissiveColor = new Color3(0.05, 0.05, 0.08);
+
+        // Protector gun glow material (energy barrel - cyan/blue)
+        this.protectorGunGlowMaterial = new StandardMaterial('protectorGunGlowMaterial', this.scene);
+        this.protectorGunGlowMaterial.diffuseColor = new Color3(0.2, 0.8, 1.0); // Cyan
+        this.protectorGunGlowMaterial.emissiveColor = new Color3(0.3, 0.9, 1.2); // Strong cyan glow
+        this.protectorGunGlowMaterial.specularColor = new Color3(0.5, 0.9, 1.0);
+        this.protectorGunGlowMaterial.disableLighting = true;
+
+        // Protector visor material (menacing red glow)
+        this.protectorVisorMaterial = new StandardMaterial('protectorVisorMaterial', this.scene);
+        this.protectorVisorMaterial.diffuseColor = new Color3(1.0, 0.2, 0.1); // Red
+        this.protectorVisorMaterial.emissiveColor = new Color3(0.8, 0.1, 0.0); // Strong red glow
+        this.protectorVisorMaterial.disableLighting = true;
     }
 
     /**
@@ -165,6 +194,9 @@ export class UnitRenderer {
             if (unitType === 'worker') {
                 // Create detailed worker robot
                 mesh = this.createWorkerMesh(unitId, config, rootNode);
+            } else if (unitType === 'protector') {
+                // Create detailed protector warrior
+                mesh = this.createProtectorMesh(unitId, config, rootNode);
             } else {
                 // Create simple sphere for other unit types
                 mesh = MeshBuilder.CreateSphere(`unit_${unitId}`, {
@@ -200,10 +232,10 @@ export class UnitRenderer {
             selectionIndicator.material = this.selectionMaterial;
             selectionIndicator.setEnabled(false); // Hidden by default
 
-            // Get energy core references for workers
+            // Get energy core references for workers and protectors
             let energyCore: Mesh | null = null;
             let energyCoreMaterial: StandardMaterial | null = null;
-            if (unitType === 'worker') {
+            if (unitType === 'worker' || unitType === 'protector') {
                 energyCore = (mesh as any).energyCore || null;
                 energyCoreMaterial = (mesh as any).energyCoreMaterial || null;
             }
@@ -266,16 +298,17 @@ export class UnitRenderer {
 
         // Create inner energy core (glowing sphere inside the body)
         const energyCore = MeshBuilder.CreateSphere(`energyCore_${unitId}`, {
-            diameter: radius * 1.2, // Slightly smaller than body
+            diameter: radius * 1.4, // Larger to be more visible through outer shell
             segments: 8
         }, this.scene);
         energyCore.parent = body;
         energyCore.position.y = 0; // Centered in body
+        energyCore.renderingGroupId = 1; // Render after outer shell for proper visibility
 
         // Energy core material - starts green (full energy), very bright like a light
         const coreMaterial = new StandardMaterial(`energyCoreMat_${unitId}`, this.scene);
         coreMaterial.diffuseColor = new Color3(0.5, 1.0, 0.5); // Bright green
-        coreMaterial.emissiveColor = new Color3(0.6, 1.5, 0.6); // Very strong green glow (>1 for bloom effect)
+        coreMaterial.emissiveColor = new Color3(0.8, 1.8, 0.8); // Very strong green glow (increased)
         coreMaterial.specularColor = new Color3(0.5, 0.5, 0.5); // Some specular for shine
         coreMaterial.disableLighting = true; // Make it self-illuminating
         energyCore.material = coreMaterial;
@@ -379,6 +412,206 @@ export class UnitRenderer {
     }
 
     /**
+     * Create detailed protector warrior mesh
+     * Design: Spherical body + combat visor + energy blade arm + shield arm + inner energy core
+     */
+    private createProtectorMesh(unitId: string, config: any, rootNode: TransformNode): Mesh {
+        const radius = config.radius;
+
+        // Create body (main sphere - semi-transparent)
+        const body = MeshBuilder.CreateSphere(`unit_${unitId}`, {
+            diameter: radius * 2,
+            segments: config.segments
+        }, this.scene);
+        body.parent = rootNode;
+        body.position.y = radius + 0.1; // Slightly above ground
+        body.material = this.protectorMaterial;
+
+        // Create inner energy core (glowing sphere inside the body)
+        const energyCore = MeshBuilder.CreateSphere(`energyCore_${unitId}`, {
+            diameter: radius * 1.2, // Slightly smaller than body
+            segments: 8
+        }, this.scene);
+        energyCore.parent = body;
+        energyCore.position.y = 0; // Centered in body
+
+        // Energy core material - purple for protector (combat energy)
+        const coreMaterial = new StandardMaterial(`energyCoreMat_${unitId}`, this.scene);
+        coreMaterial.diffuseColor = new Color3(0.8, 0.2, 1.0); // Bright purple
+        coreMaterial.emissiveColor = new Color3(0.9, 0.3, 1.2); // Strong purple glow
+        coreMaterial.specularColor = new Color3(0.5, 0.5, 0.5);
+        coreMaterial.disableLighting = true;
+        energyCore.material = coreMaterial;
+
+        // Store reference to energy core on the body mesh for later access
+        (body as any).energyCore = energyCore;
+        (body as any).energyCoreMaterial = coreMaterial;
+
+        // Create combat visor (angular, menacing - replaces worker's camera)
+        const visor = this.createCombatVisor(`visor_${unitId}`, radius);
+        visor.parent = body;
+        visor.position.z = radius * 0.75; // In front of the body
+        visor.position.y = radius * 0.15; // Slightly above center
+
+        // Create left laser gun (pointing forward toward visor direction)
+        const leftGun = this.createLaserGun(`leftGun_${unitId}`, radius);
+        leftGun.parent = body;
+        leftGun.position.x = radius * 0.7; // Left side
+        leftGun.position.y = -radius * 0.1;
+        leftGun.position.z = radius * 0.2; // Slightly forward
+        leftGun.rotation.x = Math.PI / 2; // Tilt forward (barrel points toward visor)
+
+        // Create right laser gun (pointing forward toward visor direction)
+        const rightGun = this.createLaserGun(`rightGun_${unitId}`, radius);
+        rightGun.parent = body;
+        rightGun.position.x = -radius * 0.7; // Right side
+        rightGun.position.y = -radius * 0.1;
+        rightGun.position.z = radius * 0.2; // Slightly forward
+        rightGun.rotation.x = Math.PI / 2; // Tilt forward (barrel points toward visor)
+
+        return body;
+    }
+
+    /**
+     * Create combat visor for the protector (angular, menacing design)
+     */
+    private createCombatVisor(name: string, bodyRadius: number): Mesh {
+        // Create visor base (angular box shape)
+        const visorBase = MeshBuilder.CreateBox(`${name}_base`, {
+            width: bodyRadius * 0.8,
+            height: bodyRadius * 0.25,
+            depth: bodyRadius * 0.3
+        }, this.scene);
+        visorBase.material = this.protectorAccentMaterial;
+
+        // Create visor slit (glowing red eye)
+        const visorSlit = MeshBuilder.CreateBox(`${name}_slit`, {
+            width: bodyRadius * 0.6,
+            height: bodyRadius * 0.08,
+            depth: bodyRadius * 0.15
+        }, this.scene);
+        visorSlit.parent = visorBase;
+        visorSlit.position.z = bodyRadius * 0.1; // Front of visor
+        visorSlit.material = this.protectorVisorMaterial;
+
+        // Create side angular plates for menacing look
+        const leftPlate = MeshBuilder.CreateBox(`${name}_leftPlate`, {
+            width: bodyRadius * 0.15,
+            height: bodyRadius * 0.35,
+            depth: bodyRadius * 0.2
+        }, this.scene);
+        leftPlate.parent = visorBase;
+        leftPlate.position.x = bodyRadius * 0.45;
+        leftPlate.position.y = bodyRadius * 0.05;
+        leftPlate.rotation.z = -Math.PI / 8; // Angle outward
+        leftPlate.material = this.protectorAccentMaterial;
+
+        const rightPlate = MeshBuilder.CreateBox(`${name}_rightPlate`, {
+            width: bodyRadius * 0.15,
+            height: bodyRadius * 0.35,
+            depth: bodyRadius * 0.2
+        }, this.scene);
+        rightPlate.parent = visorBase;
+        rightPlate.position.x = -bodyRadius * 0.45;
+        rightPlate.position.y = bodyRadius * 0.05;
+        rightPlate.rotation.z = Math.PI / 8; // Angle outward
+        rightPlate.material = this.protectorAccentMaterial;
+
+        return visorBase;
+    }
+
+    /**
+     * Create laser gun for the protector
+     */
+    private createLaserGun(name: string, bodyRadius: number): Mesh {
+        // Create arm/mount segment
+        const arm = MeshBuilder.CreateCylinder(`${name}_arm`, {
+            diameter: bodyRadius * 0.12,
+            height: bodyRadius * 0.5,
+            tessellation: 6
+        }, this.scene);
+        arm.rotation.z = Math.PI / 2; // Horizontal
+        arm.position.x = bodyRadius * 0.3;
+        arm.material = this.protectorAccentMaterial;
+
+        // Create gun body (main housing)
+        const gunBody = MeshBuilder.CreateBox(`${name}_body`, {
+            width: bodyRadius * 0.6,
+            height: bodyRadius * 0.2,
+            depth: bodyRadius * 0.18
+        }, this.scene);
+        gunBody.parent = arm;
+        gunBody.position.x = bodyRadius * 0.45;
+        gunBody.material = this.protectorGunMaterial;
+
+        // Create gun barrel (cylinder)
+        const barrel = MeshBuilder.CreateCylinder(`${name}_barrel`, {
+            diameter: bodyRadius * 0.1,
+            height: bodyRadius * 0.5,
+            tessellation: 8
+        }, this.scene);
+        barrel.parent = gunBody;
+        barrel.position.x = bodyRadius * 0.4;
+        barrel.position.z = 0;
+        barrel.rotation.z = Math.PI / 2; // Point forward
+        barrel.material = this.protectorGunMaterial;
+
+        // Create barrel tip (glowing energy muzzle)
+        const muzzle = MeshBuilder.CreateCylinder(`${name}_muzzle`, {
+            diameter: bodyRadius * 0.14,
+            height: bodyRadius * 0.08,
+            tessellation: 8
+        }, this.scene);
+        muzzle.parent = barrel;
+        muzzle.position.y = bodyRadius * 0.28;
+        muzzle.material = this.protectorGunGlowMaterial;
+
+        // Create inner barrel glow (energy core of the gun)
+        const innerGlow = MeshBuilder.CreateCylinder(`${name}_innerGlow`, {
+            diameter: bodyRadius * 0.06,
+            height: bodyRadius * 0.52,
+            tessellation: 8
+        }, this.scene);
+        innerGlow.parent = barrel;
+        innerGlow.position.y = 0;
+        innerGlow.material = this.protectorGunGlowMaterial;
+
+        // Create gun top detail (sight/sensor)
+        const sight = MeshBuilder.CreateBox(`${name}_sight`, {
+            width: bodyRadius * 0.15,
+            height: bodyRadius * 0.08,
+            depth: bodyRadius * 0.06
+        }, this.scene);
+        sight.parent = gunBody;
+        sight.position.y = bodyRadius * 0.12;
+        sight.position.x = bodyRadius * 0.1;
+        sight.material = this.protectorAccentMaterial;
+
+        // Create small red indicator light on sight
+        const indicator = MeshBuilder.CreateSphere(`${name}_indicator`, {
+            diameter: bodyRadius * 0.04,
+            segments: 4
+        }, this.scene);
+        indicator.parent = sight;
+        indicator.position.y = bodyRadius * 0.04;
+        indicator.position.x = bodyRadius * 0.05;
+        indicator.material = this.protectorVisorMaterial; // Red glow
+
+        // Create gun grip/handle detail
+        const grip = MeshBuilder.CreateBox(`${name}_grip`, {
+            width: bodyRadius * 0.08,
+            height: bodyRadius * 0.15,
+            depth: bodyRadius * 0.1
+        }, this.scene);
+        grip.parent = gunBody;
+        grip.position.y = -bodyRadius * 0.15;
+        grip.position.x = -bodyRadius * 0.1;
+        grip.material = this.protectorAccentMaterial;
+
+        return arm;
+    }
+
+    /**
      * Update unit visual based on unit state
      */
     public updateUnitVisual(unitVisual: UnitVisual): void {
@@ -408,21 +641,41 @@ export class UnitRenderer {
     }
 
     /**
-     * Update unit facing direction based on movement
+     * Update unit facing direction based on movement or combat target
      */
     private updateFacingDirection(unitVisual: UnitVisual, currentPosition: Vector3): void {
-        const lastPosition = unitVisual.lastPosition;
+        const unit = unitVisual.unit;
+        let targetRotationY: number | null = null;
 
-        // Calculate movement direction (ignoring Y axis for ground movement)
-        const deltaX = currentPosition.x - lastPosition.x;
-        const deltaZ = currentPosition.z - lastPosition.z;
-        const moveDistance = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
+        // Check if this is a Protector with a combat facing target
+        if (unit.getUnitType() === 'protector') {
+            const protector = unit as any; // Cast to access Protector-specific methods
+            if (protector.getFacingTarget) {
+                const facingTarget = protector.getFacingTarget();
+                if (facingTarget) {
+                    // Face the combat target
+                    const deltaX = facingTarget.x - currentPosition.x;
+                    const deltaZ = facingTarget.z - currentPosition.z;
+                    targetRotationY = Math.atan2(deltaX, deltaZ);
+                }
+            }
+        }
 
-        // Only rotate if moved a meaningful distance (avoid jitter)
-        if (moveDistance > 0.01) {
-            // Calculate target rotation angle (facing movement direction)
-            const targetRotationY = Math.atan2(deltaX, deltaZ);
+        // If no combat target, face movement direction
+        if (targetRotationY === null) {
+            const lastPosition = unitVisual.lastPosition;
+            const deltaX = currentPosition.x - lastPosition.x;
+            const deltaZ = currentPosition.z - lastPosition.z;
+            const moveDistance = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
 
+            // Only rotate if moved a meaningful distance (avoid jitter)
+            if (moveDistance > 0.01) {
+                targetRotationY = Math.atan2(deltaX, deltaZ);
+            }
+        }
+
+        // Apply rotation if we have a target
+        if (targetRotationY !== null) {
             // Smoothly interpolate rotation for natural turning
             const currentRotationY = unitVisual.mesh.rotation.y;
             const rotationDiff = targetRotationY - currentRotationY;
@@ -432,8 +685,8 @@ export class UnitRenderer {
             while (normalizedDiff > Math.PI) normalizedDiff -= Math.PI * 2;
             while (normalizedDiff < -Math.PI) normalizedDiff += Math.PI * 2;
 
-            // Smooth rotation (lerp factor controls turn speed)
-            const turnSpeed = 0.15;
+            // Smooth rotation (lerp factor controls turn speed) - faster for combat
+            const turnSpeed = 0.2;
             unitVisual.mesh.rotation.y += normalizedDiff * turnSpeed;
         }
 
@@ -448,9 +701,12 @@ export class UnitRenderer {
         const energyStats = unitVisual.unit.getEnergyStorage().getStats();
         const energyPercentage = energyStats.percentage;
 
-        // Update inner energy core color (for workers) - bright like a light
+        // Update inner energy core color - bright like a light
         if (unitVisual.energyCoreMaterial) {
-            const coreColor = this.getEnergyColor(energyPercentage);
+            const unitType = unitVisual.unit.getUnitType();
+            const coreColor = unitType === 'protector'
+                ? this.getProtectorEnergyColor(energyPercentage)
+                : this.getEnergyColor(energyPercentage);
             unitVisual.energyCoreMaterial.diffuseColor = coreColor;
             unitVisual.energyCoreMaterial.emissiveColor = coreColor.scale(1.5); // Extra bright glow
         }
@@ -481,6 +737,21 @@ export class UnitRenderer {
                 0.0                     // no blue
             );
         }
+    }
+
+    /**
+     * Get protector energy color based on percentage (bright purple -> grey)
+     */
+    private getProtectorEnergyColor(percentage: number): Color3 {
+        // Purple color scheme: bright purple at full, grey at empty
+        // Full energy: bright vibrant purple (0.8, 0.2, 1.0)
+        // Empty energy: grey (0.3, 0.3, 0.3) - powered down look
+
+        return new Color3(
+            0.3 + (percentage * 0.5),  // 0.3 -> 0.8 (red component)
+            0.3 - (percentage * 0.1),  // 0.3 -> 0.2 (green: grey at 0, low at full)
+            0.3 + (percentage * 0.7)   // 0.3 -> 1.0 (blue: grey at 0, purple at full)
+        );
     }
 
     /**
@@ -819,5 +1090,10 @@ export class UnitRenderer {
         this.workerAccentMaterial?.dispose();
         this.scoutAccentMaterial?.dispose();
         this.protectorAccentMaterial?.dispose();
+
+        // Dispose protector-specific materials
+        this.protectorGunMaterial?.dispose();
+        this.protectorGunGlowMaterial?.dispose();
+        this.protectorVisorMaterial?.dispose();
     }
 }

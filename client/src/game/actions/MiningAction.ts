@@ -112,16 +112,13 @@ export class MiningAction extends EnergyConsumer {
             return this.createResult(false, 0, energyCost, 'Failed to consume mining energy');
         }
 
-        // Extract minerals and convert to energy
-        const extractedEnergy = this.currentTarget.mine(deltaTime);
-        
-        if (extractedEnergy > 0) {
-            // Add extracted energy to the system
-            this.energyManager.generateEnergy(this.entityId, extractedEnergy, 'mining');
-            this.totalEnergyGenerated += extractedEnergy;
+        // Extract minerals (materials, not energy directly)
+        const extractedMaterials = this.currentTarget.mine(deltaTime);
 
-            // Reduced logging - only log occasionally to avoid flooding
-            // console.log(`⛏️ Mined ${extractedEnergy.toFixed(2)} energy (net: +${(extractedEnergy - energyCost).toFixed(2)})`);
+        if (extractedMaterials > 0) {
+            // Add extracted materials to the system (power plants convert to energy)
+            this.energyManager.generateMaterials(this.entityId, extractedMaterials, 'mining');
+            this.totalEnergyGenerated += extractedMaterials; // Track total mined
         }
 
         // Check if deposit is depleted

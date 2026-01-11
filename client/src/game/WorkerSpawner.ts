@@ -67,7 +67,6 @@ export class WorkerSpawner {
             };
 
         } catch (error) {
-            console.error('❌ Error spawning worker:', error);
             return {
                 success: false,
                 message: `Spawn error: ${error}`
@@ -87,7 +86,6 @@ export class WorkerSpawner {
             return this.calculateSpawnNearBase(basePosition);
         } else {
             // No base found, spawn at origin with offset
-            console.warn('⚠️ No base building found, spawning at origin');
             return this.calculateSpawnAtOrigin();
         }
     }
@@ -120,7 +118,6 @@ export class WorkerSpawner {
             return null;
             
         } catch (error) {
-            console.error('❌ Error finding base position:', error);
             return null;
         }
     }
@@ -140,8 +137,6 @@ export class WorkerSpawner {
         let spawnY = basePosition.y; // Default to base height
         if (this.terrainGenerator) {
             spawnY = this.terrainGenerator.getHeightAtPosition(spawnX, spawnZ);
-        } else {
-            console.warn('No terrain generator available, using base height');
         }
 
         const spawnPosition = new Vector3(spawnX, spawnY, spawnZ);
@@ -161,8 +156,6 @@ export class WorkerSpawner {
         let spawnY = 0; // Default to ground level
         if (this.terrainGenerator) {
             spawnY = this.terrainGenerator.getHeightAtPosition(offsetX, offsetZ);
-        } else {
-            console.warn('No terrain generator available, using ground level');
         }
 
         const spawnPosition = new Vector3(offsetX, spawnY, offsetZ);
@@ -206,7 +199,6 @@ export class WorkerSpawner {
             const spawnPosition = this.findSpawnPosition();
             return spawnPosition !== null;
         } catch (error) {
-            console.error('❌ Error checking spawn capability:', error);
             return false;
         }
     }

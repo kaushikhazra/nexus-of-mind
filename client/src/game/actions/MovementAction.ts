@@ -38,11 +38,11 @@ export class MovementAction extends EnergyConsumer {
     private totalEnergyConsumed: number = 0;
     private currentWaypointIndex: number = 0;
     
-    // Unit type energy costs
+    // Unit type energy costs - all movement is free
     public static readonly UNIT_MOVEMENT_COSTS: { [key: string]: number } = {
-        worker: 0,      // No energy cost for movement (testing configuration)
-        scout: 0.3,     // Scouts are more energy efficient
-        protector: 0.8  // Protectors consume more energy due to weight
+        worker: 0,
+        scout: 0,
+        protector: 0
     };
 
     constructor(entityId: string, unitType: string, initialPosition: Vector3, config?: Partial<MovementActionConfig>) {

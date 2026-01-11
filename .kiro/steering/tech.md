@@ -201,6 +201,17 @@
 7. **Clean up**: Delete feature branch locally and remotely
 8. **Push develop**: `git push origin develop`
 
+**Spec Development Workflow**:
+1. **Check current branch**: Ensure you're on `develop` branch
+2. **Create spec feature branch**: `git checkout -b feature/spec-name`
+   - Format: `feature/protector-combat-system`
+   - Use kebab-case spec name from `.kiro/specs/` folder
+3. **Implement ALL spec tasks**: Complete every task in `tasks.md` before merging
+4. **Task-by-task commits**: Commit after each completed task for progress tracking
+5. **Complete spec validation**: Ensure all requirements met, tests passing
+6. **Merge only when complete**: Merge to develop only when entire spec is done
+7. **Clean up**: Delete feature branch after successful merge
+
 **Commit Message Format**:
 ```
 feat: US-XXX - Brief description
@@ -222,10 +233,11 @@ Ready for: Next user story or specific next steps
 
 **Important Rules**:
 - **Never commit directly to main or develop**
-- **Always use feature branches for user stories**
+- **Always use feature branches for user stories and specs**
 - **Use `--no-ff` for merge commits to maintain history**
 - **Delete feature branches after successful merge**
 - **Update documentation before merging**
+- **For specs: Only merge when ALL tasks are completed**
 
 **Pre-Implementation Checklist**:
 - [ ] Implementation plan created in `.agents/plans/`

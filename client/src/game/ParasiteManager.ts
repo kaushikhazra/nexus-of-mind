@@ -28,20 +28,32 @@ export interface ParasiteSpawnConfig {
     activeMiningMultiplier: number; // Spawn rate multiplier when workers present
 }
 
+// Pending respawn tracking
+interface PendingRespawn {
+    parasiteId: string;
+    deathTime: number;
+    respawnPosition: Vector3;
+}
+
 export class ParasiteManager {
     private scene: Scene;
     private materialManager: MaterialManager;
     private terrainGenerator: any = null;
     private parasites: Map<string, EnergyParasite> = new Map();
-    
+
+    // Respawn configuration
+    private readonly RESPAWN_DELAY = 30000; // 30 seconds delay before respawn
+    private readonly RESPAWN_DISTANCE = 15; // 15 meters away from death point
+    private pendingRespawns: PendingRespawn[] = [];
+
     // Spawning configuration
     private spawnConfig: ParasiteSpawnConfig = {
         baseSpawnInterval: 0,        // Immediate spawn - no delay!
         maxParasitesPerDeposit: 1,   // Max 1 parasite per deposit
-        spawnRadius: 15,             // Spawn within 15 units of deposit
+        spawnRadius: 65,             // Spawn 65 units from deposit (outside 50-unit detection range)
         activeMiningMultiplier: 1.5  // Only slightly faster when workers mining
     };
-    
+
     // Spawn tracking
     private lastSpawnAttempt: Map<string, number> = new Map(); // depositId -> timestamp
     private depositParasiteCount: Map<string, number> = new Map(); // depositId -> count
@@ -73,19 +85,49 @@ export class ParasiteManager {
      */
     public update(deltaTime: number, mineralDeposits: MineralDeposit[], workers: Worker[], protectors: Protector[]): void {
         const currentTime = Date.now();
-        
+
         // Update existing parasites
         this.updateParasites(deltaTime, workers);
-        
+
         // Handle spawning for each mineral deposit
         for (const deposit of mineralDeposits) {
             if (deposit.isVisible() && !deposit.isDepleted()) {
                 this.updateSpawning(deposit, workers, currentTime);
             }
         }
-        
-        // Clean up dead parasites
+
+        // Process pending respawns
+        this.processPendingRespawns(currentTime);
+
+        // Clean up dead parasites (adds them to pending respawn queue)
         this.cleanupDeadParasites();
+    }
+
+    /**
+     * Process pending respawns after delay has passed
+     */
+    private processPendingRespawns(currentTime: number): void {
+        const readyToRespawn: PendingRespawn[] = [];
+        const stillPending: PendingRespawn[] = [];
+
+        for (const pending of this.pendingRespawns) {
+            if (currentTime - pending.deathTime >= this.RESPAWN_DELAY) {
+                readyToRespawn.push(pending);
+            } else {
+                stillPending.push(pending);
+            }
+        }
+
+        // Update pending list
+        this.pendingRespawns = stillPending;
+
+        // Process respawns
+        for (const pending of readyToRespawn) {
+            const parasite = this.parasites.get(pending.parasiteId);
+            if (parasite) {
+                parasite.respawn(pending.respawnPosition);
+            }
+        }
     }
     
     /**
@@ -121,7 +163,7 @@ export class ParasiteManager {
         let lastSpawn = this.lastSpawnAttempt.get(depositId);
         if (lastSpawn === undefined) {
             // First time seeing this deposit - randomly decide if this deposit can spawn parasites
-            const canSpawnParasites = Math.random() < 0.25; // 25% chance
+            const canSpawnParasites = Math.random() < 0.375; // 37.5% chance (50% more parasites)
             
             if (!canSpawnParasites) {
                 // Mark this deposit as non-spawning by setting a very high timestamp
@@ -191,7 +233,6 @@ export class ParasiteManager {
         if (this.terrainGenerator) {
             parasite.setTerrainGenerator(this.terrainGenerator);
         } else {
-            console.warn('⚠️ ParasiteManager: No terrain generator available for parasite');
         }
         
         this.parasites.set(parasite.getId(), parasite);
@@ -205,9 +246,13 @@ export class ParasiteManager {
     }
     
     /**
-     * Handle protector attacking a parasite
+     * Handle protector attacking a parasite (DEPRECATED - use CombatSystem instead)
+     * This method is kept for backward compatibility but should not be used
+     * with the new CombatSystem integration.
      */
     public handleProtectorAttack(protector: Protector, targetPosition: Vector3): boolean {
+        // Deprecated: Use CombatSystem.initiateAttack instead
+        
         // Find parasite at target position
         const targetParasite = this.findParasiteAt(targetPosition, 2.0); // 2 unit tolerance
         
@@ -215,6 +260,15 @@ export class ParasiteManager {
             return false; // No parasite found
         }
         
+        // Delegate to CombatSystem for proper handling
+        const gameEngine = require('./GameEngine').GameEngine.getInstance();
+        const combatSystem = gameEngine?.getCombatSystem();
+        
+        if (combatSystem) {
+            return combatSystem.initiateAttack(protector, targetParasite);
+        }
+        
+        // Fallback to old behavior if CombatSystem not available
         // Check if protector is in range
         const distance = Vector3.Distance(protector.getPosition(), targetParasite.getPosition());
         if (distance > 15) { // 15 unit attack range
@@ -248,6 +302,48 @@ export class ParasiteManager {
     }
     
     /**
+     * Handle parasite destruction (called by CombatSystem)
+     * Instead of destroying, respawn the parasite 15m away from death point
+     */
+    public handleParasiteDestruction(parasiteId: string): void {
+        const parasite = this.parasites.get(parasiteId);
+        if (!parasite) {
+            return; // Parasite not found
+        }
+
+        // Check if already pending respawn
+        if (this.pendingRespawns.some(p => p.parasiteId === parasiteId)) {
+            return; // Already queued for respawn
+        }
+
+        // Calculate respawn position 15m away in a random direction
+        const deathPosition = parasite.getPosition();
+        const randomAngle = Math.random() * Math.PI * 2;
+
+        const respawnX = deathPosition.x + Math.cos(randomAngle) * this.RESPAWN_DISTANCE;
+        const respawnZ = deathPosition.z + Math.sin(randomAngle) * this.RESPAWN_DISTANCE;
+
+        // Get terrain height at respawn position
+        let respawnY = 0.5;
+        if (this.terrainGenerator && this.terrainGenerator.getHeightAtPosition) {
+            respawnY = this.terrainGenerator.getHeightAtPosition(respawnX, respawnZ) + 0.5;
+        }
+
+        const respawnPosition = new Vector3(respawnX, respawnY, respawnZ);
+
+        // Hide the parasite while waiting to respawn
+        parasite.hide();
+
+        // Add to pending respawn queue
+        this.pendingRespawns.push({
+            parasiteId,
+            deathTime: Date.now(),
+            respawnPosition
+        });
+
+    }
+
+    /**
      * Find parasite at a specific position
      */
     private findParasiteAt(position: Vector3, tolerance: number): EnergyParasite | null {
@@ -263,36 +359,36 @@ export class ParasiteManager {
     }
     
     /**
-     * Clean up dead parasites
+     * Clean up dead parasites - respawn them 15m away instead of removing
      */
     private cleanupDeadParasites(): void {
-        const deadParasites: string[] = [];
-        
         for (const [id, parasite] of this.parasites.entries()) {
             if (!parasite.isAlive()) {
-                // Update deposit count
-                const depositId = parasite.getHomeDeposit().getId();
-                const currentCount = this.depositParasiteCount.get(depositId) || 0;
-                this.depositParasiteCount.set(depositId, Math.max(0, currentCount - 1));
-                
-                parasite.dispose();
-                deadParasites.push(id);
+                // Respawn 15m away instead of disposing
+                this.handleParasiteDestruction(id);
             }
         }
-        
-        // Remove from tracking
-        for (const id of deadParasites) {
-            this.parasites.delete(id);
-        }
-        
-        // Dead parasites cleaned up silently
     }
     
+    /**
+     * Get parasite by ID
+     */
+    public getParasiteById(parasiteId: string): EnergyParasite | null {
+        return this.parasites.get(parasiteId) || null;
+    }
+
     /**
      * Get all active parasites
      */
     public getParasites(): EnergyParasite[] {
         return Array.from(this.parasites.values()).filter(p => p.isAlive());
+    }
+
+    /**
+     * Get all active parasites (alias for CombatSystem compatibility)
+     */
+    public getAllParasites(): EnergyParasite[] {
+        return this.getParasites();
     }
     
     /**
