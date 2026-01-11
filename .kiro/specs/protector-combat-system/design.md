@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Protector Combat System extends the existing unit framework to provide strategic combat capabilities. Building on the current Energy Parasite environmental combat foundation, this system enables player-controlled offensive actions through Protector units with energy-based economics and visual feedback systems.
+The Protector Combat System extends the existing unit framework to provide automatic combat capabilities with movement-based commands. Building on the current Energy Parasite environmental combat foundation, this system enables intuitive player control through click-to-move commands with automatic enemy detection and engagement, reducing micromanagement while maintaining strategic depth.
 
 ## Architecture
 
@@ -16,51 +16,62 @@ The combat system integrates with existing game components:
 
 ### Combat Flow Architecture
 ```
-Player Input → Target Selection → Range Validation → Movement (if needed) → Attack Execution → Damage Resolution → Visual Feedback → Energy Transaction
+Player Click → Movement Command → Enemy Detection (10 units) → Auto-Engagement → Range Validation → Attack Execution → Damage Resolution → Visual Feedback → Energy Transaction → Resume Movement
 ```
 
 ## Components and Interfaces
 
 ### CombatSystem Class
-**Purpose**: Central coordinator for all combat actions and state management
+**Purpose**: Central coordinator for movement-based combat with automatic enemy detection
 
 **Key Methods**:
-- `initiateAttack(protector: Protector, target: CombatTarget): boolean`
+- `initiateAutoAttack(protector: Protector, detectedTarget: CombatTarget): boolean`
+- `detectNearbyEnemies(protector: Protector, detectionRange: number): CombatTarget[]`
 - `validateTarget(target: Entity): TargetValidation`
 - `calculateDamage(attacker: Protector, target: CombatTarget): number`
 - `executeAttack(protector: Protector, target: CombatTarget): AttackResult`
 - `handleTargetDestruction(target: CombatTarget): void`
+- `resumeMovementAfterCombat(protector: Protector): void`
 
 **Properties**:
 - `activeCombats: Map<string, CombatAction>`
-- `combatRange: number = 8` // Units
+- `detectionRange: number = 10` // Units - auto-detection range
+- `combatRange: number = 8` // Units - attack range
 - `attackEnergyCost: number = 5`
 
 ### CombatAction Class
-**Purpose**: Represents an ongoing combat action between a protector and target
+**Purpose**: Represents an ongoing combat action with movement integration
 
 **Properties**:
 - `protectorId: string`
 - `targetId: string`
-- `state: 'approaching' | 'attacking' | 'completed'`
+- `state: 'moving' | 'detecting' | 'engaging' | 'attacking' | 'resuming_movement' | 'completed'`
 - `startTime: number`
 - `lastAttackTime: number`
+- `originalDestination: Vector3` // Where protector was originally moving
+- `detectionTriggered: boolean`
 
 ### Enhanced Protector Class
-**Purpose**: Extends existing Protector unit with combat capabilities
+**Purpose**: Extends existing Protector unit with automatic combat and movement integration
 
 **New Methods**:
-- `attackTarget(target: CombatTarget): void`
+- `moveToLocation(destination: Vector3): void`
+- `detectNearbyEnemies(): CombatTarget[]`
+- `autoEngageTarget(target: CombatTarget): void`
+- `isInDetectionRange(target: CombatTarget): boolean`
 - `isInCombatRange(target: CombatTarget): boolean`
-- `moveToAttackRange(target: CombatTarget): void`
-- `executeAttack(target: CombatTarget): void`
+- `prioritizeTargets(targets: CombatTarget[]): CombatTarget`
+- `resumeOriginalMovement(): void`
 
 **New Properties**:
-- `combatRange: number = 8`
+- `detectionRange: number = 10` // Auto-detection range
+- `combatRange: number = 8` // Attack range
 - `attackDamage: number = 1`
 - `attackCooldown: number = 1000` // milliseconds
 - `currentTarget: CombatTarget | null`
-- `combatState: 'idle' | 'approaching' | 'attacking'`
+- `originalDestination: Vector3 | null`
+- `combatState: 'moving' | 'detecting' | 'engaging' | 'attacking'`
+- `autoAttackEnabled: boolean = true`
 
 ### CombatTarget Interface
 **Purpose**: Unified interface for all attackable entities
@@ -77,21 +88,25 @@ interface CombatTarget {
 ```
 
 ### CombatUI Class
-**Purpose**: Manages combat-related user interface elements
+**Purpose**: Manages combat-related user interface for movement-based combat
 
 **Features**:
-- Attack cursor states (valid/invalid target)
-- Combat range indicators
+- Movement destination indicators
+- Detection range visualization (10 units)
+- Combat range indicators (8 units)
+- Auto-engagement status displays
 - Energy cost previews
 - Damage number displays
 - Combat status indicators
+- Enemy detection highlights
 
 ## Data Models
 
 ### Combat Configuration
 ```typescript
 interface CombatConfig {
-    protectorAttackRange: number; // 8 units
+    protectorDetectionRange: number; // 10 units - auto-detection
+    protectorAttackRange: number; // 8 units - attack range
     attackEnergyCost: number; // 5 energy per attack
     attackCooldown: number; // 1000ms between attacks
     parasiteReward: number; // 10 energy for destroying parasite
@@ -100,6 +115,7 @@ interface CombatConfig {
         scout: number; // 12 energy
         protector: number; // 20 energy
     };
+    autoAttackEnabled: boolean; // Global auto-attack toggle
 }
 ```
 
@@ -149,56 +165,68 @@ After reviewing all testable properties from the prework analysis, I identified 
 
 ### Correctness Properties
 
-Property 1: Attack Initiation
-*For any* valid protector-target combination, when an attack is initiated, the combat system should create a combat action and begin the attack sequence
+Property 1: Movement Command Execution
+*For any* valid destination click, the protector should initiate movement to that location and maintain movement state until interrupted by enemy detection or arrival
 **Validates: Requirements 1.1**
 
-Property 2: Damage Application Consistency
+Property 2: Automatic Enemy Detection
+*For any* enemy within 10 units of a moving protector, the detection system should identify the enemy and trigger auto-engagement
+**Validates: Requirements 2.1**
+
+Property 3: Target Prioritization Consistency
+*For any* scenario with multiple enemies detected, the protector should consistently prioritize the closest enemy for engagement
+**Validates: Requirements 2.2**
+
+Property 4: Damage Application Consistency
 *For any* protector attacking any valid target, damage should be applied consistently according to the target type and the target should be destroyed when health reaches zero
 **Validates: Requirements 1.2, 1.3**
 
-Property 3: Energy Consumption Per Attack
+Property 5: Energy Consumption Per Attack
 *For any* attack action, exactly 5 energy should be consumed from the global energy pool regardless of target type or attack outcome
 **Validates: Requirements 1.4, 4.1**
 
-Property 4: Energy Validation Prevents Attacks
-*For any* protector with insufficient energy (less than 5), attempting to attack any target should be prevented by the combat system
-**Validates: Requirements 1.5, 4.4**
+Property 6: Energy Validation Prevents Attacks
+*For any* protector with insufficient energy (less than 5), auto-attack should be prevented but movement should continue
+**Validates: Requirements 1.6, 4.4**
 
-Property 5: Target Classification Accuracy
+Property 7: Target Classification Accuracy
 *For any* entity in the game world, the target validation system should correctly classify Energy_Parasites and AI_Units as valid targets and friendly units as invalid targets
 **Validates: Requirements 2.3, 2.4, 2.5**
 
-Property 6: Range-Based Combat Behavior
-*For any* protector-target combination, if the target is within combat range the protector should attack immediately, otherwise it should move to attack range first
+Property 8: Range-Based Engagement Behavior
+*For any* detected enemy, if within combat range (8 units) the protector should attack immediately, otherwise move to attack range first
 **Validates: Requirements 3.1, 3.2, 3.3**
 
-Property 7: Dynamic Target Pursuit
-*For any* moving target during protector approach, the protector should continuously adjust its path to maintain pursuit until within attack range
-**Validates: Requirements 3.4**
+Property 9: Movement Resumption After Combat
+*For any* completed combat action, the protector should resume movement to its original destination if the destination was not reached
+**Validates: Requirements 3.4, 2.6**
 
-Property 8: Energy Reward Consistency
+Property 10: Detection Range Validation
+*For any* protector, the detection range (10 units) should be larger than combat range (8 units) to ensure smooth engagement transitions
+**Validates: Requirements 3.5**
+
+Property 11: Energy Reward Consistency
 *For any* target destruction, the energy reward should be consistent based on target type (10 for parasites, type-specific for AI units)
 **Validates: Requirements 4.2, 4.3**
 
-Property 9: Comprehensive UI Feedback
-*For any* combat interaction (target selection, range indication, attack execution), appropriate visual feedback should be displayed including cursors, range indicators, and combat effects
-**Validates: Requirements 2.1, 2.2, 2.6, 3.5, 4.5, 5.1, 5.2, 5.3, 5.4, 5.5**
+Property 12: Comprehensive Visual Feedback
+*For any* combat interaction (enemy detection, auto-engagement, attack execution), appropriate visual feedback should be displayed including detection indicators, range displays, and combat effects
+**Validates: Requirements 5.1, 5.2, 5.3, 5.4, 5.5, 5.6**
 
-Property 10: Multi-Protector Damage Coordination
+Property 13: Multi-Protector Damage Coordination
 *For any* scenario where multiple protectors attack the same target, damage should be properly accumulated and the target should be destroyed when total damage exceeds health
 **Validates: Requirements 6.1**
 
-Property 11: Target Destruction Cleanup
-*For any* target that is destroyed, all pending attacks on that target should be cancelled and combat state should be properly cleaned up
+Property 14: Target Destruction Cleanup
+*For any* target that is destroyed, all pending attacks on that target should be cancelled and protectors should resume their original movement
 **Validates: Requirements 6.2**
 
-Property 12: Protector Destruction Cleanup
+Property 15: Protector Destruction Cleanup
 *For any* protector that is destroyed during combat, its combat state should be properly cleaned up and any ongoing attacks should be cancelled
 **Validates: Requirements 6.3**
 
-Property 13: Combat Interruption Handling
-*For any* combat action that is interrupted (target out of range, energy depletion, unit destruction), the system should handle state transitions gracefully without errors
+Property 16: Combat Interruption Handling
+*For any* combat action that is interrupted (target out of range, energy depletion, unit destruction), the system should handle state transitions gracefully and resume movement when appropriate
 **Validates: Requirements 6.5**
 
 ## Error Handling

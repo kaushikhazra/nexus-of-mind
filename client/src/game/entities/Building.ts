@@ -76,39 +76,16 @@ export class Building {
 
     /**
      * Update building (called each frame)
+     * Note: Energy generation is handled by BuildingManager using materials
      */
     public update(deltaTime: number): void {
         if (!this.isActive) {
             return;
         }
 
-        // Generate energy if building is complete and has generation capability
-        if (this.isComplete() && this.energyGeneration > 0) {
-            this.generateEnergy(deltaTime);
-        }
-
         // Check health status
         if (this.health <= 0) {
             this.destroy();
-        }
-    }
-
-    /**
-     * Generate energy
-     */
-    private generateEnergy(deltaTime: number): void {
-        const energyGenerated = this.energyGeneration * deltaTime;
-
-        if (this.energyStorage) {
-            // Add to building's own storage first
-            const stored = this.energyStorage.addEnergy(energyGenerated, 'building_generation');
-            if (stored > 0) {
-                this.onEnergyGeneratedCallbacks.forEach(callback => callback(this, stored));
-            }
-        } else {
-            // If no storage, add directly to global energy system
-            // This would need integration with EnergyManager
-            this.onEnergyGeneratedCallbacks.forEach(callback => callback(this, energyGenerated));
         }
     }
 

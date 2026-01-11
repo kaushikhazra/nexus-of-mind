@@ -120,7 +120,6 @@ export class BuildingManager {
         // Validate placement
         const placement = this.validatePlacement(buildingTypeId, position, constructorId);
         if (!placement.isValid) {
-            console.warn(`⚠️ Cannot place building: ${placement.reason}`);
             return null;
         }
 
@@ -133,7 +132,6 @@ export class BuildingManager {
             const result = await constructionAction.startConstruction();
             
             if (!result.success) {
-                console.error(`❌ Failed to start construction: ${result.reason}`);
                 building.dispose();
                 return null;
             }
@@ -145,7 +143,6 @@ export class BuildingManager {
             // Create visual representation
             const buildingVisual = this.buildingRenderer.createBuildingVisual(building);
             if (!buildingVisual) {
-                console.error(`❌ Failed to create visual for building ${building.getId()}`);
                 this.buildings.delete(building.getId());
                 this.constructionActions.delete(building.getId());
                 building.dispose();
@@ -159,7 +156,6 @@ export class BuildingManager {
             return building;
 
         } catch (error) {
-            console.error(`❌ Failed to start building construction:`, error);
             return null;
         }
     }
@@ -231,6 +227,9 @@ export class BuildingManager {
             }
         }
 
+        // Transfer energy from power plants to global pool
+        this.transferPowerPlantEnergy();
+
         // Update construction actions
         for (const [buildingId, constructionAction] of this.constructionActions.entries()) {
             const building = this.buildings.get(buildingId);
@@ -247,6 +246,35 @@ export class BuildingManager {
 
         // Update building renderer
         this.buildingRenderer.updateAllVisuals();
+    }
+
+    // Conversion rate: materials consumed per second by power plants
+    private static readonly MATERIALS_CONSUMPTION_RATE = 1.0; // 1 material/second per power plant
+    // Conversion ratio: energy produced per material consumed
+    private static readonly MATERIALS_TO_ENERGY_RATIO = 5.0; // 5 energy per 1 material
+
+    /**
+     * Power plants consume materials to generate energy
+     */
+    private transferPowerPlantEnergy(): void {
+        for (const building of this.buildings.values()) {
+            if (building.isComplete() && building.getEnergyGeneration() > 0) {
+                // Calculate materials needed for this frame
+                // Using deltaTime approximation (assuming ~60fps)
+                const deltaTime = 1 / 60;
+                const materialsNeeded = BuildingManager.MATERIALS_CONSUMPTION_RATE * deltaTime;
+
+                // Check if we have materials to consume
+                if (this.energyManager.canConsumeMaterials(materialsNeeded)) {
+                    // Consume materials
+                    if (this.energyManager.consumeMaterials(building.getId(), materialsNeeded, 'power_plant_conversion')) {
+                        // Generate energy from materials
+                        const energyGenerated = materialsNeeded * BuildingManager.MATERIALS_TO_ENERGY_RATIO;
+                        this.energyManager.generateEnergy(building.getId(), energyGenerated, 'power_plant');
+                    }
+                }
+            }
+        }
     }
 
     /**

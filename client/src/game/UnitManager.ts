@@ -13,11 +13,12 @@ import { Protector } from './entities/Protector';
 import { GameState } from './GameState';
 import { UnitRenderer, UnitVisual } from '../rendering/UnitRenderer';
 import { GameEngine } from './GameEngine';
+import { CombatSystem } from './CombatSystem';
 
 export interface UnitCommand {
     id: string;
     unitId: string;
-    commandType: 'move' | 'mine' | 'build' | 'attack' | 'patrol' | 'stop';
+    commandType: 'move' | 'mine' | 'build' | 'patrol' | 'stop';
     targetPosition?: Vector3;
     targetId?: string;
     parameters?: any;
@@ -38,6 +39,7 @@ export class UnitManager {
     private gameState: GameState;
     private unitRenderer: UnitRenderer;
     private terrainGenerator: any = null;
+    private combatSystem: CombatSystem | null = null;
 
     // Unit management
     private units: Map<string, Unit> = new Map();
@@ -73,6 +75,13 @@ export class UnitManager {
     }
 
     /**
+     * Set combat system for auto-attack integration
+     */
+    public setCombatSystem(combatSystem: CombatSystem): void {
+        this.combatSystem = combatSystem;
+    }
+
+    /**
      * Create a new unit
      */
     public createUnit(unitType: 'worker' | 'scout' | 'protector', position: Vector3): Unit | null {
@@ -91,7 +100,6 @@ export class UnitManager {
                     unit = new Protector(position);
                     break;
                 default:
-                    console.error(`❌ Unknown unit type: ${unitType}`);
                     return null;
             }
 
@@ -109,7 +117,6 @@ export class UnitManager {
             // Create visual representation
             const unitVisual = this.unitRenderer.createUnitVisual(unit);
             if (!unitVisual) {
-                console.error(`❌ Failed to create visual for unit ${unit.getId()}`);
                 this.units.delete(unit.getId());
                 return null;
             }
@@ -120,10 +127,18 @@ export class UnitManager {
             // Setup unit event callbacks
             this.setupUnitCallbacks(unit);
 
+            // Register protectors with combat system
+            if (unitType === 'protector') {
+                const gameEngine = GameEngine.getInstance();
+                const combatSystem = gameEngine?.getCombatSystem();
+                if (combatSystem) {
+                    combatSystem.registerProtector(unit as Protector);
+                }
+            }
+
             return unit;
 
         } catch (error) {
-            console.error(`❌ Failed to create ${unitType} unit:`, error);
             return null;
         }
     }
@@ -150,6 +165,15 @@ export class UnitManager {
      */
     private handleUnitDestroyed(unit: Unit): void {
         const unitId = unit.getId();
+
+        // Unregister protectors from combat system
+        if (unit instanceof Protector) {
+            const gameEngine = GameEngine.getInstance();
+            const combatSystem = gameEngine?.getCombatSystem();
+            if (combatSystem) {
+                combatSystem.unregisterProtector(unitId);
+            }
+        }
 
         // Remove from selection
         this.selectedUnits.delete(unitId);
@@ -310,8 +334,15 @@ export class UnitManager {
             switch (command.commandType) {
                 case 'move':
                     if (command.targetPosition) {
-                        unit.startMovement(command.targetPosition);
-                        return true;
+                        // Use moveToLocation for Protectors to enable auto-attack during movement
+                        if (unit instanceof Protector) {
+                            const success = await unit.moveToLocation(command.targetPosition);
+                            return success;
+                        } else {
+                            // Use regular movement for other unit types
+                            unit.startMovement(command.targetPosition);
+                            return true;
+                        }
                     }
                     break;
 
@@ -327,8 +358,6 @@ export class UnitManager {
                                 const success = await unit.startMining(target);
                                 return true;
                             }
-                        } else {
-                            console.error('❌ Terrain generator not available for mining command');
                         }
                     }
                     break;
@@ -337,26 +366,6 @@ export class UnitManager {
                     if (command.targetPosition && command.parameters?.buildingType) {
                         unit.startBuilding(command.parameters.buildingType, command.targetPosition);
                         return true;
-                    }
-                    break;
-
-                case 'attack':
-                    if (command.targetId && unit instanceof Protector) {
-                        // Get combat system from GameEngine
-                        const gameEngine = GameEngine.getInstance();
-                        const combatSystem = gameEngine?.getCombatSystem();
-                        
-                        if (combatSystem) {
-                            // Find target by ID (for now, check parasites)
-                            const parasiteManager = gameEngine?.getParasiteManager();
-                            if (parasiteManager) {
-                                const target = parasiteManager.getParasiteById(command.targetId);
-                                if (target) {
-                                    const success = combatSystem.initiateAttack(unit as Protector, target);
-                                    return success;
-                                }
-                            }
-                        }
                     }
                     break;
 
@@ -377,7 +386,6 @@ export class UnitManager {
             }
 
         } catch (error) {
-            console.error(`❌ Error executing command ${command.id}:`, error);
             return true; // Remove failed commands
         }
 

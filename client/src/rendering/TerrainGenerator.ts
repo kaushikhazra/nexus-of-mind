@@ -223,7 +223,7 @@ export class TerrainGenerator {
             const depositConfig: MineralDepositConfig = {
                 position: new Vector3(worldX, worldY, worldZ),
                 capacity: Math.round(capacity),
-                extractionRate: 1.5 + random() * 1.0, // 1.5-2.5 energy/second
+                extractionRate: 2.8 + random() * 0.3, // 2.8-3.1 minerals/second
                 biome,
                 visible: isVisible,
                 size: 0.8 + random() * 0.4 // 0.8-1.2 size variation

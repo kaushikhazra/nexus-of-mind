@@ -125,10 +125,6 @@ export class Protector extends Unit {
         // Start movement to the destination
         const success = await this.startMovement(destination);
         
-        if (success) {
-            console.log(`🚶 Moving to location: ${this.getId()} → (${destination.x.toFixed(1)}, ${destination.z.toFixed(1)})`);
-        }
-
         return success;
     }
 
@@ -229,17 +225,12 @@ export class Protector extends Unit {
         if (distanceToDestination <= 1.0) {
             this.originalDestination = null;
             this.combatState = 'moving';
-            console.log(`✅ Already at destination: ${this.getId()}`);
             return true;
         }
 
         // Resume movement to original destination
         this.combatState = 'moving';
         const success = await this.startMovement(this.originalDestination);
-        
-        if (success) {
-            console.log(`🚶 Resuming movement: ${this.getId()} → (${this.originalDestination.x.toFixed(1)}, ${this.originalDestination.z.toFixed(1)})`);
-        }
 
         return success;
     }
@@ -560,8 +551,8 @@ export class Protector extends Unit {
         
         // Resume original movement if available (async call, don't wait)
         if (this.originalDestination) {
-            this.resumeOriginalMovement().catch(error => {
-                console.warn(`Failed to resume movement for ${this.getId()}:`, error);
+            this.resumeOriginalMovement().catch(() => {
+                // Failed to resume movement
             });
         } else {
             this.combatState = 'moving';
@@ -606,8 +597,6 @@ export class Protector extends Unit {
             const closestEnemy = this.prioritizeTargets(nearbyEnemies);
             
             if (closestEnemy) {
-                console.log(`👁️ Enemy detected: ${this.getId()} detected ${closestEnemy.id} at ${Vector3.Distance(this.getPosition(), closestEnemy.position).toFixed(1)} units`);
-                
                 // Automatically engage the detected enemy
                 this.autoEngageTarget(closestEnemy);
             }

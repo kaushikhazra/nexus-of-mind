@@ -93,8 +93,8 @@ export class GameState {
         this.gameStartTime = performance.now();
         this.isGameActive = true;
 
-        // Initialize energy system with starting energy
-        this.energyManager.initialize(500);
+        // Initialize energy system with starting energy and minerals
+        this.energyManager.initialize(500, 15);
     }
 
     /**
@@ -108,12 +108,10 @@ export class GameState {
         });
 
         this.energyManager.onLowEnergy((entityId, currentEnergy) => {
-            console.warn(`⚠️ Low energy warning for ${entityId}: ${currentEnergy} energy remaining`);
             // TODO: Trigger low energy UI warnings or AI responses
         });
 
         this.energyManager.onEnergyDepleted((entityId) => {
-            console.error(`❌ Energy depleted for ${entityId}`);
             // TODO: Handle energy depletion (stop actions, emergency protocols)
         });
     }
@@ -159,15 +157,11 @@ export class GameState {
             const result = await unit.currentAction.executeAction(deltaTime);
             
             if (!result.success) {
-                console.warn(`⚠️ Unit ${unit.id} action failed: ${result.reason}`);
-                
                 // Clear failed action
                 unit.currentAction.dispose();
                 unit.currentAction = undefined;
             }
         } catch (error) {
-            console.error(`❌ Error updating unit ${unit.id} action:`, error);
-            
             // Clear problematic action
             if (unit.currentAction) {
                 unit.currentAction.dispose();

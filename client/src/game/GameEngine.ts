@@ -90,7 +90,6 @@ export class GameEngine {
      */
     public async initialize(): Promise<void> {
         if (this.isInitialized) {
-            console.warn('GameEngine already initialized');
             return;
         }
 
@@ -121,7 +120,7 @@ export class GameEngine {
 
             // Initialize energy system
             this.energyManager = EnergyManager.getInstance();
-            this.energyManager.initialize(500); // Start with 500 energy (5x multiplier)
+            this.energyManager.initialize(500, 15); // Start with 500 energy, 15 minerals
 
             // Initialize game state
             this.gameState = GameState.getInstance();
@@ -169,8 +168,6 @@ export class GameEngine {
                     if (this.treeRenderer) {
                         terrainGen.setTreeRenderer(this.treeRenderer);
                     }
-                } else {
-                    console.warn('⚠️ Terrain generator not available after delay');
                 }
             }, 1000); // 1 second delay to ensure terrain is ready
 
@@ -204,7 +201,6 @@ export class GameEngine {
             this.isInitialized = true;
 
         } catch (error) {
-            console.error('❌ Failed to initialize GameEngine:', error);
             throw error;
         }
     }
@@ -218,7 +214,6 @@ export class GameEngine {
         }
 
         if (this.isRunning) {
-            console.warn('GameEngine already running');
             return;
         }
 
@@ -285,7 +280,6 @@ export class GameEngine {
             this.isRunning = true;
 
         } catch (error) {
-            console.error('❌ Failed to start GameEngine:', error);
             throw error;
         }
     }
@@ -355,7 +349,6 @@ export class GameEngine {
      */
     private initializeMiningAnalysisTooltip(): void {
         if (!this.scene) {
-            console.error('❌ Cannot initialize mining analysis tooltip: Scene not available');
             return;
         }
 
@@ -478,15 +471,11 @@ export class GameEngine {
                     const originalDestination = protector.getOriginalDestination();
 
                     // Initiate auto-attack with original destination tracking
-                    const autoAttackInitiated = this.combatSystem.initiateAutoAttack(
+                    this.combatSystem.initiateAutoAttack(
                         protector,
                         detectedTarget,
                         originalDestination || undefined
                     );
-
-                    if (autoAttackInitiated) {
-                        console.log(`🎯 Auto-attack transition: ${protector.getId()} engaging ${detectedTarget.id}`);
-                    }
                 }
             }
         }
@@ -513,7 +502,6 @@ export class GameEngine {
      */
     private setupMouseInteraction(): void {
         if (!this.scene || !this.unitManager) {
-            console.error('❌ Cannot setup mouse interaction: Scene or UnitManager not available');
             return;
         }
 
@@ -606,13 +594,6 @@ export class GameEngine {
                             moveCommandsIssued++;
                         }
 
-                        if (moveCommandsIssued > 0) {
-                            console.log(`🚶 Issued ${moveCommandsIssued} move commands to (${clickPosition.x.toFixed(1)}, ${clickPosition.z.toFixed(1)})`);
-                        }
-                        if (workersSkipped > 0) {
-                            console.log(`💡 ${workersSkipped} worker(s) ignored - click on minerals to move workers`);
-                        }
-                        
                         // Clear selection to hide selection mesh after issuing move commands
                         this.unitManager.clearSelection();
                         this.protectorSelectionUI?.hide();
@@ -622,10 +603,6 @@ export class GameEngine {
             }
 
             // Clear selection if no units selected or click position calculation failed
-            const currentSelectedUnits = this.unitManager.getSelectedUnits();
-            if (currentSelectedUnits.length > 0) {
-                console.log(`👋 Cleared selection of ${currentSelectedUnits.length} unit(s)`);
-            }
             this.unitManager.clearSelection();
             this.protectorSelectionUI?.hide();
             return;
@@ -652,10 +629,6 @@ export class GameEngine {
         }
         // Clicked on something else - clear selection
         else {
-            const currentSelectedUnits = this.unitManager.getSelectedUnits();
-            if (currentSelectedUnits.length > 0) {
-                console.log(`👋 Cleared selection - clicked on: ${pickedMesh.name}`);
-            }
             this.unitManager.clearSelection();
             this.protectorSelectionUI?.hide();
         }
@@ -672,19 +645,11 @@ export class GameEngine {
         const unit = this.unitManager.getUnit(unitId);
 
         if (!unit) {
-            console.warn(`⚠️ Unit not found for mesh: ${unitMesh.name}`);
             return;
         }
 
         // Select the clicked unit (single selection for now)
         this.unitManager.selectUnits([unitId]);
-        console.log(`👆 Selected ${unit.getUnitType()}: ${unitId}`);
-
-        if (unit.getUnitType() === 'protector') {
-            console.log(`💡 Protector selected! Click anywhere to move - auto-attack will engage enemies during movement.`);
-        } else if (unit.getUnitType() === 'worker') {
-            console.log(`💡 Worker selected! Click on mineral deposits (blue crystals) to mine them.`);
-        }
     }
 
     /**
@@ -713,7 +678,6 @@ export class GameEngine {
                 if (nameParts.length >= 4) {
                     parasiteId = nameParts.slice(2, -1).join('_');
                 } else {
-                    console.warn(`⚠️ Invalid parasite segment name format: ${parasiteMesh.name}`);
                     return;
                 }
             }
@@ -721,14 +685,12 @@ export class GameEngine {
             // Direct parasite mesh click
             parasiteId = parasiteMesh.name.replace('parasite_', '');
         } else {
-            console.warn(`⚠️ Invalid parasite mesh name: ${parasiteMesh.name}`);
             return;
         }
         
         // Verify parasite exists and get its position
         const parasite = this.parasiteManager.getParasiteById(parasiteId);
         if (!parasite) {
-            console.warn(`⚠️ Parasite not found: ${parasiteId}`);
             return;
         }
 
@@ -745,11 +707,6 @@ export class GameEngine {
             }
         }
 
-        if (moveCommandsIssued > 0) {
-            console.log(`🎯 Issued ${moveCommandsIssued} move commands toward parasite ${parasiteId} (auto-attack will engage)`);
-        } else {
-            console.log(`⚠️ No protectors selected to move toward parasite ${parasiteId}. Select protectors first!`);
-        }
     }
 
     /**
@@ -767,7 +724,6 @@ export class GameEngine {
         // Extract mineral deposit ID from mesh name (format: "mineral_chunk_<depositId>_<chunkIndex>")
         const nameParts = mineralMesh.name.split('_');
         if (nameParts.length < 4) {
-            console.warn(`⚠️ Invalid mineral chunk name format: ${mineralMesh.name}`);
             return;
         }
 
@@ -777,13 +733,11 @@ export class GameEngine {
         // Get the mineral deposit from terrain generator
         const terrainGenerator = this.getTerrainGenerator();
         if (!terrainGenerator) {
-            console.error('❌ Terrain generator not available for mineral deposit lookup');
             return;
         }
 
         const mineralDeposit = terrainGenerator.getMineralDepositById(depositId);
         if (!mineralDeposit) {
-            console.warn(`⚠️ Mineral deposit not found: ${depositId}`);
             return;
         }
 
@@ -812,7 +766,6 @@ export class GameEngine {
         // Get the world position where the user clicked on terrain
         const clickPosition = pickInfo.pickedPoint;
         if (!clickPosition) {
-            console.warn('⚠️ Could not determine click position on terrain');
             return;
         }
 
@@ -834,13 +787,6 @@ export class GameEngine {
             }
             this.unitManager.issueCommand('move', clickPosition, undefined, undefined);
             moveCommandsIssued++;
-        }
-
-        if (moveCommandsIssued > 0) {
-            console.log(`🚶 Issued ${moveCommandsIssued} move commands to (${clickPosition.x.toFixed(1)}, ${clickPosition.z.toFixed(1)})`);
-        }
-        if (workersSkipped > 0) {
-            console.log(`💡 ${workersSkipped} worker(s) ignored - click on minerals to move workers`);
         }
 
         // Clear selection to hide selection mesh after issuing move commands

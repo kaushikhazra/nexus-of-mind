@@ -39,7 +39,7 @@ export class EnergyParasite implements CombatTarget {
     
     // Territorial behavior
     private territoryCenter: Vector3;
-    private territoryRadius: number = 100; // 100-unit radius territory
+    private territoryRadius: number = 50; // 50-unit radius territory (detection range)
     private patrolTarget: Vector3;
     
     // State management
@@ -450,7 +450,6 @@ export class EnergyParasite implements CombatTarget {
     public onDestroyed(): void {
         // Notify ParasiteManager of destruction for proper cleanup
         // This will be called by CombatSystem when the parasite is destroyed
-        console.log(`🎯 EnergyParasite ${this.id} killed - will respawn nearby`);
     }
 
     /**
@@ -523,8 +522,6 @@ export class EnergyParasite implements CombatTarget {
 
         // Generate new patrol target around new territory
         this.patrolTarget = this.generatePatrolTarget();
-
-        console.log(`🔄 Parasite ${this.id} respawned at (${newPosition.x.toFixed(1)}, ${newPosition.z.toFixed(1)})`);
     }
     
     // Getters

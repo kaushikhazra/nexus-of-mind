@@ -1,25 +1,24 @@
 /**
- * MineralReserveUI - Display mineral reserves information
- * 
- * Shows mineral reserve statistics below the energy bar.
- * Simple display without mining operations or help text.
+ * MineralReserveUI - Display current mineral (materials) count
+ *
+ * Shows the player's current mineral reserves below the energy bar.
  */
 
-import { Scene } from '@babylonjs/core';
-import { TerrainGenerator } from '../rendering/TerrainGenerator';
+import { EnergyManager } from '../game/EnergyManager';
 
 export interface MineralReserveUIConfig {
     containerId: string;
-    terrainGenerator: TerrainGenerator;
 }
 
 export class MineralReserveUI {
     private config: MineralReserveUIConfig;
     private container: HTMLElement | null = null;
     private reservePanel: HTMLElement | null = null;
+    private energyManager: EnergyManager;
 
     constructor(config: MineralReserveUIConfig) {
         this.config = config;
+        this.energyManager = EnergyManager.getInstance();
         this.initialize();
     }
 
@@ -43,23 +42,13 @@ export class MineralReserveUI {
             document.body.appendChild(this.container);
         }
 
-        // Create mineral reserve panel (linear format like energy bar)
+        // Create simple mineral display panel
         this.reservePanel = document.createElement('div');
         this.reservePanel.className = 'mineral-reserve-panel';
         this.reservePanel.innerHTML = `
             <div class="reserve-content">
-                <span class="reserve-stat">
-                    <span class="stat-label">VIS</span>
-                    <span class="stat-value" id="visible-deposits">0</span>
-                </span>
-                <span class="reserve-stat">
-                    <span class="stat-label">CAP</span>
-                    <span class="stat-value" id="total-capacity">0E</span>
-                </span>
-                <span class="reserve-stat">
-                    <span class="stat-label">AVG</span>
-                    <span class="stat-value" id="avg-capacity">0E</span>
-                </span>
+                <span class="mineral-label">Mineral:</span>
+                <span class="mineral-value" id="mineral-count">0</span>
             </div>
         `;
 
@@ -78,7 +67,7 @@ export class MineralReserveUI {
                 top: 68px;
                 right: 20px;
                 height: 40px;
-                min-width: 250px;
+                min-width: 120px;
                 background: rgba(0, 10, 20, 0.2);
                 border: 1px solid rgba(0, 255, 255, 0.4);
                 border-radius: 6px;
@@ -96,83 +85,48 @@ export class MineralReserveUI {
                 align-items: center;
                 width: 100%;
                 padding: 6px 12px;
-                gap: 20px;
+                gap: 8px;
             }
 
-            .reserve-stat {
-                display: flex;
-                align-items: center;
-                gap: 5px;
+            .mineral-label {
+                color: #00ffff;
+                opacity: 0.9;
                 font-size: 12px;
                 letter-spacing: 0.5px;
             }
 
-            .stat-label {
-                color: #00ffff;
-                opacity: 0.8;
-                font-weight: normal;
-                text-transform: uppercase;
-            }
-
-            .stat-value {
+            .mineral-value {
                 color: #00ff88;
                 font-weight: bold;
+                font-size: 14px;
                 text-shadow: 0 0 5px rgba(0, 255, 136, 0.6);
-                min-width: 30px;
-                text-align: right;
             }
         `;
         document.head.appendChild(style);
     }
 
     /**
-     * Setup update timer for reserve statistics
+     * Setup update timer for mineral display
      */
     private setupUpdateTimer(): void {
-        // Update stats every 2 seconds
+        // Update every 500ms for responsive feel
         setInterval(() => {
-            this.updateReserveStats();
-        }, 2000);
-        
+            this.updateMineralDisplay();
+        }, 500);
+
         // Initial update
-        this.updateReserveStats();
+        this.updateMineralDisplay();
     }
 
     /**
-     * Update mineral reserve statistics display
+     * Update mineral count display
      */
-    private updateReserveStats(): void {
-        const visibleDepositsElement = document.getElementById('visible-deposits');
-        const totalCapacityElement = document.getElementById('total-capacity');
-        const avgCapacityElement = document.getElementById('avg-capacity');
+    private updateMineralDisplay(): void {
+        const mineralElement = document.getElementById('mineral-count');
 
-        // Get mineral deposit data
-        const visibleDeposits = this.config.terrainGenerator.getVisibleMineralDeposits();
-        const totalDeposits = this.config.terrainGenerator.getAllMineralDeposits();
-
-        // Calculate statistics
-        let totalCapacity = 0;
-        let totalRemaining = 0;
-        
-        for (const deposit of visibleDeposits) {
-            const stats = deposit.getStats();
-            totalCapacity += stats.capacity;
-            totalRemaining += stats.remaining;
-        }
-
-        const avgCapacity = visibleDeposits.length > 0 ? Math.round(totalCapacity / visibleDeposits.length) : 0;
-
-        // Update display
-        if (visibleDepositsElement) {
-            visibleDepositsElement.textContent = visibleDeposits.length.toString();
-        }
-
-        if (totalCapacityElement) {
-            totalCapacityElement.textContent = `${Math.round(totalRemaining)}E`;
-        }
-
-        if (avgCapacityElement) {
-            avgCapacityElement.textContent = `${avgCapacity}E`;
+        if (mineralElement) {
+            const totalMaterials = this.energyManager.getTotalMaterials();
+            mineralElement.textContent = Math.floor(totalMaterials).toString();
         }
     }
 
@@ -189,7 +143,6 @@ export class MineralReserveUI {
      * Dispose mineral reserve UI and cleanup resources
      */
     public dispose(): void {
-        // Remove UI elements
         if (this.container) {
             this.container.remove();
             this.container = null;

@@ -49,7 +49,7 @@ export class BuildingAction extends EnergyConsumer {
             name: 'Power Plant',
             energyCost: 30,
             constructionTime: 8, // 8 seconds
-            energyStorage: 200,
+            energyStorage: 1000,
             energyGeneration: 2.0 // 2 energy per second
         }
     };

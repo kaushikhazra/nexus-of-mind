@@ -50,7 +50,7 @@ export class ParasiteManager {
     private spawnConfig: ParasiteSpawnConfig = {
         baseSpawnInterval: 0,        // Immediate spawn - no delay!
         maxParasitesPerDeposit: 1,   // Max 1 parasite per deposit
-        spawnRadius: 15,             // Spawn within 15 units of deposit
+        spawnRadius: 65,             // Spawn 65 units from deposit (outside 50-unit detection range)
         activeMiningMultiplier: 1.5  // Only slightly faster when workers mining
     };
 
@@ -126,7 +126,6 @@ export class ParasiteManager {
             const parasite = this.parasites.get(pending.parasiteId);
             if (parasite) {
                 parasite.respawn(pending.respawnPosition);
-                console.log(`🔄 Parasite ${pending.parasiteId} respawned after 30s delay`);
             }
         }
     }
@@ -234,7 +233,6 @@ export class ParasiteManager {
         if (this.terrainGenerator) {
             parasite.setTerrainGenerator(this.terrainGenerator);
         } else {
-            console.warn('⚠️ ParasiteManager: No terrain generator available for parasite');
         }
         
         this.parasites.set(parasite.getId(), parasite);
@@ -253,7 +251,7 @@ export class ParasiteManager {
      * with the new CombatSystem integration.
      */
     public handleProtectorAttack(protector: Protector, targetPosition: Vector3): boolean {
-        console.warn('⚠️ ParasiteManager.handleProtectorAttack is deprecated. Use CombatSystem.initiateAttack instead.');
+        // Deprecated: Use CombatSystem.initiateAttack instead
         
         // Find parasite at target position
         const targetParasite = this.findParasiteAt(targetPosition, 2.0); // 2 unit tolerance
@@ -343,7 +341,6 @@ export class ParasiteManager {
             respawnPosition
         });
 
-        console.log(`💀 Parasite ${parasiteId} killed - will respawn in 30s at (${respawnX.toFixed(1)}, ${respawnZ.toFixed(1)})`);
     }
 
     /**

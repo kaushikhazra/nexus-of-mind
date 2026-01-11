@@ -138,7 +138,7 @@ export class Scout extends Unit {
             this.lastActionTime = performance.now();
 
         } catch (error) {
-            console.error(`❌ Discovery error for scout ${this.getId()}:`, error);
+            // Discovery error
         }
 
         return discoveredCount;
