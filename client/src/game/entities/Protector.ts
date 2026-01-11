@@ -9,22 +9,37 @@
 import { Vector3 } from '@babylonjs/core';
 import { Unit, UnitConfig } from './Unit';
 import { CombatTarget } from '../CombatSystem';
+import { EnergyManager } from '../EnergyManager';
+import { EnergyParasite } from './EnergyParasite';
 
 export class Protector extends Unit {
     // Protector-specific properties
     private attackDamage: number = 25; // Base attack damage
-    private attackRange: number = 6.0; // Combat range
+    private attackRange: number = 8.0; // Combat range (matches design specification)
+    private detectionRange: number = 10.0; // Auto-detection range (larger than combat range)
     private defenseRating: number = 5; // Damage reduction
     private shieldActive: boolean = false;
     private shieldStrength: number = 50; // Shield hit points
     private maxShieldStrength: number = 50;
     private combatExperience: number = 0; // Gained through combat
 
-    // Combat state
+    // Combat state for movement-based auto-attack
     private currentTarget: CombatTarget | null = null;
     private lastAttackTime: number = 0;
     private attackCooldown: number = 2.0; // 2 seconds between attacks
     private isInCombat: boolean = false;
+    private isPursuing: boolean = false; // Track if currently pursuing a moving target
+    private pursuitStartTime: number = 0;
+    private maxPursuitTime: number = 15000; // 15 seconds max pursuit time
+    private lastTargetPosition: Vector3 | null = null;
+    
+    // Movement-based auto-attack properties
+    private originalDestination: Vector3 | null = null; // Where protector was originally moving
+    private combatState: 'moving' | 'detecting' | 'engaging' | 'attacking' = 'moving';
+    private autoAttackEnabled: boolean = true;
+
+    // Energy management
+    private energyManager: EnergyManager;
 
     constructor(position: Vector3, config?: Partial<UnitConfig>) {
         const protectorConfig: UnitConfig = {
@@ -37,12 +52,15 @@ export class Protector extends Unit {
                 efficiency: 0.9 // Slightly less efficient due to armor weight
             },
             maxHealth: 120, // Highest health of all units
-            movementSpeed: 3.0, // Slowest movement due to armor
+            movementSpeed: 7.0, // Same speed as other units
             actionCooldown: 1.0, // Moderate action cooldown
             ...config
         };
 
         super(protectorConfig);
+        
+        // Initialize energy manager
+        this.energyManager = EnergyManager.getInstance();
     }
 
     /**
@@ -84,6 +102,189 @@ export class Protector extends Unit {
             'base_defense',
             'heavy_armor'
         ];
+    }
+
+    /**
+     * Move to a specific location (click-to-move command)
+     */
+    public async moveToLocation(destination: Vector3): Promise<boolean> {
+        if (!this.canPerformAction()) {
+            return false;
+        }
+
+        // Store original destination for potential resumption after combat
+        this.originalDestination = destination.clone();
+        this.combatState = 'moving';
+
+        // Start movement to the destination
+        const success = await this.startMovement(destination);
+        
+        if (success) {
+            console.log(`🚶 Moving to location: ${this.getId()} → (${destination.x.toFixed(1)}, ${destination.z.toFixed(1)})`);
+        }
+
+        return success;
+    }
+
+    /**
+     * Detect nearby enemies within detection range
+     */
+    public detectNearbyEnemies(): CombatTarget[] {
+        if (!this.autoAttackEnabled) {
+            return [];
+        }
+
+        // Get CombatSystem instance to use its detection method
+        const gameEngine = require('../GameEngine').GameEngine.getInstance();
+        const combatSystem = gameEngine?.getCombatSystem();
+        
+        if (!combatSystem) {
+            return [];
+        }
+
+        return combatSystem.detectNearbyEnemies(this, this.detectionRange);
+    }
+
+    /**
+     * Check if target is within detection range
+     */
+    public isInDetectionRange(target: CombatTarget): boolean {
+        const distance = Vector3.Distance(this.getPosition(), target.position);
+        return distance <= this.detectionRange;
+    }
+
+    /**
+     * Check if target is within combat range
+     */
+    public isInCombatRange(target: CombatTarget): boolean {
+        const distance = Vector3.Distance(this.getPosition(), target.position);
+        return distance <= this.attackRange;
+    }
+
+    /**
+     * Prioritize targets by distance (closest first)
+     */
+    public prioritizeTargets(targets: CombatTarget[]): CombatTarget | null {
+        if (targets.length === 0) {
+            return null;
+        }
+
+        const protectorPosition = this.getPosition();
+        let closestTarget = targets[0];
+        let closestDistance = Vector3.Distance(protectorPosition, closestTarget.position);
+
+        for (let i = 1; i < targets.length; i++) {
+            const distance = Vector3.Distance(protectorPosition, targets[i].position);
+            if (distance < closestDistance) {
+                closestTarget = targets[i];
+                closestDistance = distance;
+            }
+        }
+
+        return closestTarget;
+    }
+
+    /**
+     * Automatically engage a detected target
+     */
+    public autoEngageTarget(target: CombatTarget): boolean {
+        if (!this.autoAttackEnabled || !this.canPerformAction()) {
+            return false;
+        }
+
+        // Get CombatSystem instance to initiate auto-attack
+        const gameEngine = require('../GameEngine').GameEngine.getInstance();
+        const combatSystem = gameEngine?.getCombatSystem();
+        
+        if (!combatSystem) {
+            return false;
+        }
+
+        // Set combat state
+        this.combatState = 'detecting';
+        this.currentTarget = target;
+
+        // Initiate auto-attack through combat system
+        return combatSystem.initiateAutoAttack(this, target, this.originalDestination);
+    }
+
+    /**
+     * Resume original movement after combat completion
+     */
+    public async resumeOriginalMovement(): Promise<boolean> {
+        if (!this.originalDestination) {
+            return false;
+        }
+
+        const currentPosition = this.getPosition();
+        const distanceToDestination = Vector3.Distance(currentPosition, this.originalDestination);
+        
+        // Check if already at destination (within 1 unit tolerance)
+        if (distanceToDestination <= 1.0) {
+            this.originalDestination = null;
+            this.combatState = 'moving';
+            console.log(`✅ Already at destination: ${this.getId()}`);
+            return true;
+        }
+
+        // Resume movement to original destination
+        this.combatState = 'moving';
+        const success = await this.startMovement(this.originalDestination);
+        
+        if (success) {
+            console.log(`🚶 Resuming movement: ${this.getId()} → (${this.originalDestination.x.toFixed(1)}, ${this.originalDestination.z.toFixed(1)})`);
+        }
+
+        return success;
+    }
+
+    /**
+     * Get detection range
+     */
+    public getDetectionRange(): number {
+        return this.detectionRange;
+    }
+
+    /**
+     * Get combat range
+     */
+    public getCombatRange(): number {
+        return this.attackRange;
+    }
+
+    /**
+     * Set auto-attack enabled/disabled
+     */
+    public setAutoAttackEnabled(enabled: boolean): void {
+        this.autoAttackEnabled = enabled;
+    }
+
+    /**
+     * Check if auto-attack is enabled
+     */
+    public isAutoAttackEnabled(): boolean {
+        return this.autoAttackEnabled;
+    }
+
+    /**
+     * Get current combat state
+     */
+    public getCombatState(): 'moving' | 'detecting' | 'engaging' | 'attacking' {
+        return this.combatState;
+    }
+
+    /**
+     * Set combat state
+     */
+    public setCombatState(state: 'moving' | 'detecting' | 'engaging' | 'attacking'): void {
+        this.combatState = state;
+    }
+
+    /**
+     * Get original destination
+     */
+    public getOriginalDestination(): Vector3 | null {
+        return this.originalDestination;
     }
 
     /**
@@ -300,13 +501,18 @@ export class Protector extends Unit {
             ...baseStats,
             attackDamage: this.attackDamage,
             attackRange: this.attackRange,
+            detectionRange: this.detectionRange,
             defenseRating: this.defenseRating,
             shieldActive: this.shieldActive,
             shieldStrength: this.shieldStrength,
             maxShieldStrength: this.maxShieldStrength,
             combatExperience: this.combatExperience,
             isInCombat: this.isInCombat,
-            currentTarget: this.currentTarget?.id || null
+            isPursuing: this.isPursuing,
+            currentTarget: this.currentTarget?.id || null,
+            combatState: this.combatState,
+            autoAttackEnabled: this.autoAttackEnabled,
+            originalDestination: this.originalDestination
         };
     }
 
@@ -323,6 +529,15 @@ export class Protector extends Unit {
     public exitCombat(): void {
         this.isInCombat = false;
         this.currentTarget = null;
+        
+        // Resume original movement if available (async call, don't wait)
+        if (this.originalDestination) {
+            this.resumeOriginalMovement().catch(error => {
+                console.warn(`Failed to resume movement for ${this.getId()}:`, error);
+            });
+        } else {
+            this.combatState = 'moving';
+        }
     }
 
     /**
@@ -333,6 +548,11 @@ export class Protector extends Unit {
 
         // Update shield
         this.updateShield(deltaTime);
+
+        // Auto-detection during movement
+        if (this.combatState === 'moving' && this.autoAttackEnabled && this.currentMovementAction) {
+            this.updateAutoDetection();
+        }
 
         // Check combat state timeout
         if (this.isInCombat) {
@@ -347,6 +567,26 @@ export class Protector extends Unit {
     }
 
     /**
+     * Update auto-detection during movement
+     */
+    private updateAutoDetection(): void {
+        // Detect nearby enemies
+        const nearbyEnemies = this.detectNearbyEnemies();
+        
+        if (nearbyEnemies.length > 0) {
+            // Prioritize closest enemy
+            const closestEnemy = this.prioritizeTargets(nearbyEnemies);
+            
+            if (closestEnemy) {
+                console.log(`👁️ Enemy detected: ${this.getId()} detected ${closestEnemy.id} at ${Vector3.Distance(this.getPosition(), closestEnemy.position).toFixed(1)} units`);
+                
+                // Automatically engage the detected enemy
+                this.autoEngageTarget(closestEnemy);
+            }
+        }
+    }
+
+    /**
      * Enhanced dispose with protector-specific cleanup
      */
     public dispose(): void {
@@ -355,6 +595,11 @@ export class Protector extends Unit {
 
         // Clear combat state
         this.exitCombat();
+
+        // Clear movement-based auto-attack state
+        this.originalDestination = null;
+        this.combatState = 'moving';
+        this.autoAttackEnabled = false;
 
         super.dispose();
     }
