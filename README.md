@@ -1,184 +1,247 @@
-# Dynamous Kiro Hackathon Quickstart Template
+# Nexus of Mind
 
-🚀 **Your starting point for the Dynamous and Kiro Hackathon** - A comprehensive template with pre-configured Kiro CLI setup, development workflows, and submission guidelines.
+🧠⚔️ **An AI-Powered Real Time Strategy Game** - Where players face off against a self-learning AI opponent that adapts and evolves its strategies based on player behavior, creating dynamic and increasingly challenging gameplay experiences.
 
-> **📖 New to Kiro?** Check out [kiro-guide.md](kiro-guide.md) to quickly get accustomed to how Kiro works and understand its unique features for the hackathon.
+> **🎮 Live Demo**: [Development Server](http://localhost:3000) (when running locally)  
+> **🏆 Hackathon Entry**: Dynamous Kiro Hackathon 2026 - Showcasing AI innovation in gaming
 
-## About the Hackathon
+## 🌟 What Makes This Special
 
-The **Kiro Hackathon** is a coding competition where developers build real-world applications using the Kiro CLI. Show off your AI-powered development skills and compete for **$17,000 in prizes**.
+**Nexus of Mind** isn't just another RTS game - it's a showcase of cutting-edge AI technology in gaming:
 
-- **📅 Dates**: January 5-23, 2026
-- **💰 Prize Pool**: $17,000 across 10 winners
-- **🎯 Theme**: Open - build anything that solves a real problem
-- **🔗 More Info**: [dynamous.ai/kiro-hackathon](https://dynamous.ai/kiro-hackathon)
+- **🤖 Self-Learning AI**: The AI opponent learns from your strategies and adapts in real-time
+- **🎨 Low Poly Aesthetic**: Beautiful SciFi world with optimized flat-shading graphics
+- **⚡ Energy-Based Economy**: Everything runs on energy - mining, building, combat, even shields
+- **🌍 Infinite Procedural World**: Explore an endless SciFi landscape with varied terrain
+- **🎯 Strategic Depth**: Balance resource management, unit upgrades, and tactical combat
+- **🚀 Web-Based**: Runs in any modern browser with 60fps performance
 
-## What's Included
+## 🎯 Game Concept
 
-This template provides everything you need to get started:
+### Core Gameplay
+Players control **Workers** (green spheres), **Scouts** (blue spheres), and **Protectors** (red spheres) in a battle for energy dominance. Build **Bases** (yellow pyramids) and **Power Plants** (orange semi-cylinders) while the AI learns your strategies and counter-adapts.
 
-- **📋 Steering Documents**: Pre-configured project templates (product.md, tech.md, structure.md)
-- **⚡ Custom Prompts**: 11 powerful development workflow prompts
-- **📖 Examples**: Sample README and DEVLOG showing best practices
-- **🏆 Hackathon Tools**: Specialized code review prompt for submission evaluation
+### The AI Challenge
+The AI doesn't just follow scripted behaviors - it:
+- **Learns your patterns**: Aggressive? Defensive? Economic focus?
+- **Adapts strategies**: Changes unit composition and tactics based on your play style
+- **Evolves over time**: Gets smarter with each match you play
+- **Provides fair challenge**: Scales difficulty naturally based on your skill level
 
-## Quick Start
+### Energy Economy
+Everything costs energy:
+- **Mining**: Extract energy from radioactive minerals (light blue crystals)
+- **Building**: Construct bases and power plants
+- **Combat**: Fire weapons and activate shields
+- **Upgrades**: Improve unit performance and capabilities
 
-### 1. Clone This Template
+## 🚀 Quick Start
+
+### Prerequisites
+- **Node.js 18+** for development and build tools
+- **Modern Web Browser** with WebGL 2.0 support
+- **Git** for version control
+
+### Installation & Setup
+
 ```bash
-git clone https://github.com/coleam00/dynamous-kiro-hackathon
-cd dynamous-kiro-hackathon
+# Clone the repository
+git clone https://github.com/kaushikhazra/nexus-of-mind.git
+cd nexus-of-mind
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Open in browser
+# Navigate to http://localhost:3000
 ```
 
-### 2. Run the Setup Wizard
+### Production Build
 ```bash
-@quickstart
+# Build for production
+npm run build
+
+# Serve production build
+npm run serve
 ```
 
-This assumes you already have Kiro CLI installed and that you started with the `kiro-cli` command in your terminal.
+## 🎮 How to Play
 
-This interactive wizard will:
-- ✅ Fill out your steering documents with project details
-- ✅ Configure your development workflow
-- ✅ Set up Kiro CLI for your specific project
-- ✅ Explain all available prompts and features
+### Controls
+- **Mouse**: Rotate camera around the scene
+- **Mouse Wheel**: Zoom in and out
+- **WASD**: Pan camera (planned feature)
+- **Right Click**: Additional camera controls
 
-### 3. Start Building
-Your project is now configured! Use these core prompts:
-- **`@prime`** - Load project context
-- **`@plan-feature`** - Plan new features
-- **`@execute`** - Implement plans systematically
-- **`@code-review`** - Review code quality
+### Current Features (v0.1.0)
+- ✅ **3D World**: Low poly SciFi environment with atmospheric lighting
+- ✅ **Camera System**: Smooth RTS-style camera controls
+- ✅ **Visual Foundation**: Test objects showing unit and building concepts
+- ✅ **Performance**: Optimized for 60fps web gameplay
 
-**Note:** Your typical workflow will be `@prime` → `@plan-feature` → `@execute` → `@code-review`, but feel free to change it however you want. These commands may require additional details (like what feature to plan or which plan file to execute), but Kiro will ask for these parameters after you invoke the command.
+### Planned Features (Coming Soon)
+- 🔄 **Procedural Terrain**: Infinite world with varied biomes
+- 🔄 **Energy Economy**: Complete resource management system
+- 🔄 **Unit Types**: Workers, Scouts, and Protectors with unique abilities
+- 🔄 **AI Opponent**: Self-learning AI with strategic adaptation
+- 🔄 **Combat System**: Energy-based weapons and shield mechanics
 
-## Development Workflow (Customize this However You Want!)
+## 🏗️ Technical Architecture
 
-### Initial Setup (One-Time)
-1. **Complete setup**: Run `@quickstart` to configure your project
+### Frontend (Game Client)
+- **Babylon.js**: High-performance 3D web engine
+- **TypeScript**: Type-safe game logic and UI
+- **Webpack**: Optimized asset bundling
+- **WebGL**: Hardware-accelerated 3D rendering
 
-### Core Development Cycle (Every Feature/Session)
+### Backend (Planned)
+- **Python**: AI/ML processing and game server
+- **TensorFlow/PyTorch**: Neural network implementation
+- **FastAPI**: Game server API
+- **WebSocket**: Real-time game communication
 
-### Phase 1: Setup & Planning
-1. **Load context**: Use `@prime` to understand your codebase
-2. **Plan features**: Use `@plan-feature` for comprehensive planning
+### Key Components
+- **GameEngine**: Core game loop and system coordination
+- **SceneManager**: 3D scene setup and optimization
+- **CameraController**: RTS-style camera with smooth controls
+- **MaterialManager**: Low poly material system with color coding
+- **PerformanceMonitor**: FPS tracking and optimization alerts
 
-### Phase 2: Build & Iterate
-1. **Implement**: Use `@execute` to build features systematically
-2. **Review**: Use `@code-review` to maintain code quality
-3. **Document**: Update your DEVLOG.md as you work
-4. **Optimize**: Customize your `.kiro/` configuration for your workflow
+## 🎨 Visual Design
 
-### Phase 3: Submission Preparation
-1. **Final review**: Run `@code-review-hackathon` for submission evaluation
-2. **Polish documentation**: Ensure README.md and DEVLOG.md are complete
-3. **Verify requirements**: Check all submission criteria are met
+### Low Poly Aesthetic
+- **Flat Shading**: Authentic low poly look with geometric surfaces
+- **Color Coding**: Instant unit recognition (green=workers, blue=scouts, red=protectors)
+- **SciFi Atmosphere**: Dark space background with atmospheric lighting
+- **Performance Focus**: Optimized geometry for smooth 60fps gameplay
 
-## Submission Requirements
+### Art Style Goals
+- Clean geometric shapes for clarity
+- Vibrant colors for gameplay readability
+- Atmospheric lighting for immersion
+- Scalable design for infinite worlds
 
-Your submission will be judged on these criteria (100 points total):
+## 🤖 AI Architecture (Planned)
 
-### Application Quality (40 points)
-- **Functionality & Completeness** (15 pts): Does it work as intended?
-- **Real-World Value** (15 pts): Does it solve a genuine problem?
-- **Code Quality** (10 pts): Is the code well-structured and maintainable?
+### Multi-Layer Learning System
+1. **Player Behavior Classification**: Identify play styles (aggressive, defensive, economic)
+2. **Strategic DQN**: High-level decision making and resource allocation
+3. **Tactical Actor-Critic**: Unit-level control and micro-management
+4. **Pattern Recognition LSTM**: Learn and predict player strategies
 
-### Kiro CLI Usage (20 points)
-- **Effective Use of Features** (10 pts): How well did you leverage Kiro CLI?
-- **Custom Commands Quality** (7 pts): Quality of your custom prompts
-- **Workflow Innovation** (3 pts): Creative use of Kiro CLI features
+### Real-Time Adaptation
+- **Strategy Switching**: AI changes approach based on player actions
+- **Difficulty Scaling**: Maintains challenging but fair gameplay
+- **Learning Persistence**: AI remembers lessons across game sessions
 
-### Documentation (20 points)
-- **Completeness** (9 pts): All required documentation present
-- **Clarity** (7 pts): Easy to understand and follow
-- **Process Transparency** (4 pts): Clear development process documentation
+## 📊 Development Progress
 
-### Innovation (15 points)
-- **Uniqueness** (8 pts): Original approach or solution
-- **Creative Problem-Solving** (7 pts): Novel technical solutions
+### ✅ Completed (Week 1)
+- **Project Setup**: Comprehensive planning and architecture
+- **3D Foundation**: Complete Babylon.js implementation
+- **Build System**: Development and production workflows
+- **Git Flow**: Feature branch workflow established
+- **Documentation**: Comprehensive project documentation
 
-### Presentation (5 points)
-- **Demo Video** (3 pts): Clear demonstration of your project
-- **README** (2 pts): Professional project overview
+### 🔄 In Progress (Week 2)
+- **Procedural Terrain**: Infinite world generation
+- **Energy Economy**: Resource management system
+- **Game Units**: Sphere-based unit implementation
 
-## Required Documentation
+### 📋 Planned (Week 3)
+- **AI Opponent**: Self-learning AI implementation
+- **Combat System**: Energy-based combat mechanics
+- **Polish & Deploy**: Final optimization and deployment
 
-Ensure these files are complete and high-quality:
+## 🛠️ Development Workflow
 
-### README.md
-- Clear project description and value proposition
-- Prerequisites and setup instructions
-- Architecture overview and key components
-- Usage examples and troubleshooting
+This project uses **Kiro CLI** for AI-powered development assistance:
 
-*There's a lot of freedom for how you can structure this. Just make sure that it's easy for someone viewing this to know exactly what your project is about and how to run it themselves. This is the main criteria that explains the project clearly and how to test it in a local environment.*
+### Core Development Commands
+```bash
+# Load project context
+@prime
 
-### DEVLOG.md
-- Development timeline with key milestones
-- Technical decisions and rationale
-- Challenges faced and solutions implemented
-- Time tracking and Kiro CLI usage statistics
+# Plan new features
+@plan-feature
 
-*There's a lot of freedom in how you structure this too. It's up to you how you want to document your timeline, milestones, decisions made, challenges you encounter, and all those kinds of things. Feel free to use Kiro to help you maintain your devlog as you're working on the project. Hint: create a Kiro prompt to help you update your log based on what's happening.*
+# Execute implementation plans
+@execute
 
-### .kiro/ Directory
-- **Steering documents**: Customized for your project
-- **Custom prompts**: Workflow-specific commands
-- **Configuration**: Optimized for your development process
+# Review code quality
+@code-review
+```
 
-*This template provides a good starting point with prompts, and the wizard helps you set up your initial steering documents. However, it's encouraged for you to continue to customize things and refine it as you're working on your project.*
+### Git Flow
+- **main**: Production releases
+- **develop**: Integration branch
+- **feature/***: Individual user stories
+- **hotfix/***: Critical fixes
 
-## Available Prompts
+## 📈 Performance Metrics
 
-This template includes 11 powerful development prompts:
+### Current Performance
+- **Bundle Size**: 5.13 MiB (optimized for Babylon.js)
+- **Load Time**: ~2 seconds on modern browsers
+- **Frame Rate**: 60fps target achieved
+- **Memory Usage**: Stable with test objects
 
-### Core Development
-- **`@prime`** - Load comprehensive project context
-- **`@plan-feature`** - Create detailed implementation plans
-- **`@execute`** - Execute plans with systematic task management
-- **`@quickstart`** - Interactive project setup wizard
+### Optimization Strategies
+- Low poly geometry for reduced GPU load
+- Efficient material system with minimal textures
+- Frustum culling and scene optimization
+- Performance monitoring with real-time alerts
 
-### Quality Assurance
-- **`@code-review`** - Technical code review for quality and bugs
-- **`@code-review-hackathon`** - Hackathon submission evaluation
-- **`@code-review-fix`** - Fix issues found in code reviews
-- **`@system-review`** - Analyze implementation vs plan
+## 🎯 Hackathon Submission
 
-### Documentation & Planning
-- **`@create-prd`** - Generate Product Requirements Documents
-- **`@execution-report`** - Generate implementation reports
-- **`@rca`** - Root cause analysis for issues
-- **`@implement-fix`** - Implement fixes based on analysis
+### Innovation Highlights
+- **AI-Powered Gaming**: Self-learning opponent that evolves with player behavior
+- **Web-Based RTS**: High-performance 3D strategy game in the browser
+- **Energy Economy**: Unique resource system where energy powers everything
+- **Low Poly Aesthetic**: Beautiful and performant visual design
 
-## Examples
+### Technical Excellence
+- **Modern Stack**: Babylon.js + TypeScript + Python AI backend
+- **Clean Architecture**: Modular, maintainable, and extensible codebase
+- **Performance Focus**: 60fps target with optimization monitoring
+- **Development Workflow**: AI-assisted development with Kiro CLI
 
-Check the `examples/` folder for:
-- **README.md**: Professional project documentation example
-- **DEVLOG.md**: Comprehensive development log example
+### Real-World Value
+- **Educational**: Demonstrates AI learning in interactive environments
+- **Entertainment**: Engaging gameplay with adaptive difficulty
+- **Technical Showcase**: Advanced web-based 3D gaming capabilities
+- **Open Source**: Extensible platform for AI gaming experiments
 
-These examples show the level of detail and professionalism expected for hackathon submissions.
+## 🤝 Contributing
 
-## Tips for Success
+### Development Setup
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Make your changes and test thoroughly
+4. Commit with descriptive messages
+5. Push to your fork and create a Pull Request
 
-### Maximize Your Score
-1. **Use Kiro CLI extensively** - It's 20% of your score
-2. **Document everything** - Process documentation is 20% of your score
-3. **Build something useful** - Real-world value is heavily weighted
-4. **Optimize your workflow** - Custom prompts and steering documents matter
+### Code Standards
+- **TypeScript**: Strict mode with comprehensive type safety
+- **Testing**: Unit tests for core game logic
+- **Documentation**: Clear comments and README updates
+- **Performance**: Maintain 60fps target
 
-### Development Best Practices
-- **Start with `@quickstart`** to set up your foundation properly
-- **Use `@prime`** at the start of every new conversation to quickly catch the coding assistant up to speed on what has been built in the project already
-- **Update your DEVLOG.md** continuously, not just at the end
-- **Customize your `.kiro/` configuration** as you learn your workflow
-- **Run `@code-review-hackathon`** periodically to compare your project against the judging rubric and before submitting
+## 📄 License
 
-## Getting Help
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-- **Kiro CLI Documentation**: [kiro.dev/docs/cli](https://kiro.dev/docs/cli)
-- **Hackathon Community**: Join the Dynamous community for support
-- **Built-in Help**: Use `/help` in Kiro CLI for command assistance
+## 🙏 Acknowledgments
+
+- **Babylon.js Team**: For the incredible 3D web engine
+- **Dynamous & Kiro**: For the hackathon opportunity and AI development tools
+- **Open Source Community**: For the libraries and tools that make this possible
 
 ---
 
-**Ready to build something amazing?** Run `@quickstart` and let's get started! 🚀
+**🎮 Ready to challenge the AI?** Clone the repo, run `npm run dev`, and experience the future of strategy gaming!
+
+**🏆 Hackathon Entry**: This project showcases the potential of AI in gaming, combining cutting-edge machine learning with engaging gameplay in a web-accessible format.

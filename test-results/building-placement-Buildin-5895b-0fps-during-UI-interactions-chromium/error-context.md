@@ -1,0 +1,42 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e4]:
+    - generic [ref=e5]: ◊ CONSTRUCTION ◊
+    - generic [ref=e6]:
+      - button "BUILD BASE 50J" [ref=e7] [cursor=pointer]:
+        - generic [ref=e8]: BUILD BASE
+        - generic [ref=e9]: 50J
+      - button "BUILD POWER PLANT 75J" [ref=e10] [cursor=pointer]:
+        - generic [ref=e11]: BUILD POWER PLANT
+        - generic [ref=e12]: 75J
+    - generic [ref=e13]: Select a building to construct
+  - generic [ref=e18]:
+    - generic [ref=e19]: 100J
+    - generic [ref=e20]: +GEN 0.0
+    - generic [ref=e21]: "-CON 0.0"
+    - generic [ref=e22]: EFF 0%
+    - generic [ref=e23]: NET 0.0
+  - iframe [ref=e24]:
+    - generic [ref=f2e2]:
+      - generic [ref=f2e3]: "Compiled with problems:"
+      - button "Dismiss" [ref=f2e4] [cursor=pointer]: ×
+      - generic [ref=f2e5]:
+        - generic [ref=f2e6]:
+          - generic [ref=f2e7] [cursor=pointer]: ERROR in ./client/src/rendering/CameraController.ts (C:\Projects\sandbox\test_kiro\DKH-RTS-Game-Nesus-Of-Mind\client\src\rendering\CameraController.ts) 136:11-26
+          - generic [ref=f2e8]:
+            - text: "[tsl]"
+            - generic [ref=f2e9]: ERROR
+            - generic [ref=f2e10]: in
+            - generic [ref=f2e11]: C:\Projects\sandbox\test_kiro\DKH-RTS-Game-Nesus-Of-Mind\client\src\rendering\CameraController.ts(136,12)
+            - generic [ref=f2e12]: "TS2393: Duplicate function implementation."
+        - generic [ref=f2e13]:
+          - generic [ref=f2e14] [cursor=pointer]: ERROR in ./client/src/rendering/CameraController.ts (C:\Projects\sandbox\test_kiro\DKH-RTS-Game-Nesus-Of-Mind\client\src\rendering\CameraController.ts) 196:11-26
+          - generic [ref=f2e15]:
+            - text: "[tsl]"
+            - generic [ref=f2e16]: ERROR
+            - generic [ref=f2e17]: in
+            - generic [ref=f2e18]: C:\Projects\sandbox\test_kiro\DKH-RTS-Game-Nesus-Of-Mind\client\src\rendering\CameraController.ts(196,12)
+            - generic [ref=f2e19]: "TS2393: Duplicate function implementation."
+```

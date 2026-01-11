@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus of Mind - AI-Powered RTS</title>
+    <meta name="description" content="An AI-powered Real Time Strategy game where players face off against a self-learning AI opponent">
+    
+    <!-- SciFi Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: radial-gradient(ellipse at center, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            font-family: 'Exo 2', 'Arial', sans-serif;
+        }
+        
+        #gameCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            outline: none;
+            cursor: default;
+        }
+        
+        #loadingScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(ellipse at center, rgba(10, 10, 10, 0.95) 0%, rgba(26, 26, 46, 0.95) 50%, rgba(22, 33, 62, 0.95) 100%),
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(0, 255, 255, 0.03) 2px,
+                    rgba(0, 255, 255, 0.03) 4px
+                );
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #00ffff;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+        
+        #loadingScreen h1 {
+            font-family: 'Orbitron', monospace;
+            font-size: 48px;
+            font-weight: 900;
+            margin-bottom: 20px;
+            text-align: center;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            text-shadow: 
+                0 0 20px rgba(0, 255, 255, 0.8),
+                0 0 40px rgba(0, 255, 255, 0.4);
+            animation: titleGlow 2s infinite ease-in-out alternate;
+        }
+        
+        #loadingText {
+            font-family: 'Exo 2', sans-serif;
+            font-size: 18px;
+            font-weight: 300;
+            margin-bottom: 30px;
+            text-align: center;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #00ccff;
+        }
+        
+        #loadingBar {
+            width: 400px;
+            height: 8px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid #00ffff;
+            border-radius: 6px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 
+                0 0 20px rgba(0, 255, 255, 0.3),
+                inset 0 0 10px rgba(0, 255, 255, 0.1);
+        }
+        
+        #loadingProgress {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, 
+                rgba(0, 255, 255, 0.9) 0%, 
+                rgba(0, 255, 0, 0.9) 50%, 
+                rgba(255, 255, 0, 0.9) 100%);
+            transition: width 0.5s ease;
+            position: relative;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.6);
+        }
+        
+        #loadingProgress::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                rgba(255, 255, 255, 0.6) 50%, 
+                transparent 100%);
+            animation: loadingFlow 1.5s infinite linear;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        @keyframes titleGlow {
+            0% { 
+                text-shadow: 
+                    0 0 20px rgba(0, 255, 255, 0.8),
+                    0 0 40px rgba(0, 255, 255, 0.4);
+            }
+            100% { 
+                text-shadow: 
+                    0 0 30px rgba(0, 255, 255, 1),
+                    0 0 60px rgba(0, 255, 255, 0.6);
+            }
+        }
+        
+        @keyframes loadingFlow {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+        
+        /* SciFi scrollbar for any overflow elements */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #00ffff, #00ccff);
+            border-radius: 4px;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, #00ffff, #ffffff);
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loadingScreen">
+        <h1>◊ Nexus of Mind ◊</h1>
+        <div id="loadingText">Initializing Neural Core...</div>
+        <div id="loadingBar">
+            <div id="loadingProgress"></div>
+        </div>
+    </div>
+    
+    <!-- Game Canvas -->
+    <canvas id="gameCanvas"></canvas>
+    
+    <!-- Building Placement UI -->
+    <div id="building-placement-ui" style="
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        z-index: 1000;
+    "></div>
+    
+    <!-- Mineral Reserve UI -->
+    <div id="mineral-reserve-ui" style="
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1000;
+    "></div>
+    
+    <!-- Worker Creation UI -->
+    <div id="worker-creation-ui" style="
+        position: fixed;
+        top: 200px;
+        left: 20px;
+        z-index: 1000;
+    "></div>
+    
+    <!-- Game will be injected here by webpack -->
+</body>
+</html>

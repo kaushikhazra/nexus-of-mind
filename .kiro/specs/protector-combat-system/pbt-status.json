@@ -1,0 +1,25 @@
+{
+  "6.5 Write property test for target destruction cleanup": {
+    "status": "fail",
+    "testName": "Property 11: Target Destruction Cleanup",
+    "timestamp": "2026-01-10T15:48:00.000Z",
+    "failureReason": "Property failed - tests expect combat actions to be created but CombatSystem correctly rejects targets with negative health. Test logic needs to be fixed to use valid targets."
+  },
+  "6.6 Write property test for protector destruction cleanup": {
+    "status": "fail",
+    "testName": "Property 12: Protector Destruction Cleanup",
+    "timestamp": "2026-01-10T15:48:00.000Z",
+    "failureReason": "Property failed - tests expect combat actions to be created but CombatSystem correctly rejects targets with negative health. Test logic needs to be fixed to use valid targets."
+  },
+  "6.7 Write property test for combat interruption handling": {
+    "status": "fail",
+    "testName": "Property 13: Combat Interruption Handling",
+    "timestamp": "2026-01-10T15:48:00.000Z",
+    "failureReason": "Property failed - tests expect combat actions to be created but CombatSystem correctly rejects targets with negative health. Test logic needs to be fixed to use valid targets."
+  },
+  "6.4 Write property test for multi-protector coordination": {
+    "status": "pass",
+    "testName": "Property 10: Multi-Protector Damage Coordination",
+    "timestamp": "2026-01-09T19:02:48.636Z"
+  }
+}
