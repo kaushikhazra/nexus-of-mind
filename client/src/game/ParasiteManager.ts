@@ -19,6 +19,15 @@ import { Worker } from './entities/Worker';
 import { Protector } from './entities/Protector';
 import { DistributionTracker } from './types/DistributionTracker';
 import { ParasiteType, DEFAULT_SPAWN_DISTRIBUTION } from './types/ParasiteTypes';
+import { TerritoryManager, Territory } from './TerritoryManager';
+import { Queen } from './entities/Queen';
+
+export interface TerritorialParasiteConfig {
+    territory: Territory;
+    queen: Queen | null;
+    spawnStrategy: 'defensive' | 'aggressive' | 'balanced';
+    spawnRate: number; // Multiplier for base spawn rate
+}
 
 export interface ParasiteManagerConfig {
     scene: Scene;
@@ -45,6 +54,10 @@ export class ParasiteManager {
     private materialManager: MaterialManager;
     private terrainGenerator: any = null;
     private parasites: Map<string, EnergyParasite | CombatParasite> = new Map();
+    
+    // Territory integration
+    private territoryManager: TerritoryManager | null = null;
+    private territorialConfigs: Map<string, TerritorialParasiteConfig> = new Map();
     
     // Distribution tracking for spawn ratios
     private distributionTracker: DistributionTracker;
@@ -183,6 +196,15 @@ export class ParasiteManager {
                     this.parasitesByDeposit.set(depositId, new Set());
                 }
                 this.parasitesByDeposit.get(depositId)!.add(parasite.getId());
+                
+                // Add to Queen control if respawning in a Queen-controlled territory
+                if (this.territoryManager) {
+                    const respawnPosition = pending.respawnPosition;
+                    const territory = this.territoryManager.getTerritoryAt(respawnPosition.x, respawnPosition.z);
+                    if (territory?.queen && territory.queen.isActiveQueen()) {
+                        territory.queen.addControlledParasite(parasite.getId());
+                    }
+                }
             }
         }
     }
@@ -251,9 +273,39 @@ export class ParasiteManager {
     }
     
     /**
-     * Handle parasite spawning for a mineral deposit with performance limits
+     * Set territory manager for territorial control integration
      */
-    private updateSpawning(deposit: MineralDeposit, workers: Worker[], currentTime: number): void {
+    public setTerritoryManager(territoryManager: TerritoryManager): void {
+        this.territoryManager = territoryManager;
+    }
+
+    /**
+     * Configure territorial spawning for a specific territory
+     */
+    public configureTerritorialSpawning(territoryId: string, config: TerritorialParasiteConfig): void {
+        this.territorialConfigs.set(territoryId, config);
+    }
+
+    /**
+     * Override spawning to respect territorial control
+     */
+    protected updateSpawning(deposit: MineralDeposit, workers: Worker[], currentTime: number): void {
+        // Check if this deposit is in a territory
+        const territory = this.territoryManager?.getTerritoryAt(deposit.getPosition().x, deposit.getPosition().z);
+        
+        if (territory) {
+            // Use territorial spawning logic
+            this.updateTerritorialSpawning(deposit, workers, currentTime, territory);
+        } else {
+            // Use original spawning logic for non-territorial areas
+            this.updateOriginalSpawning(deposit, workers, currentTime);
+        }
+    }
+
+    /**
+     * Original spawning logic (renamed from updateSpawning)
+     */
+    private updateOriginalSpawning(deposit: MineralDeposit, workers: Worker[], currentTime: number): void {
         const depositId = deposit.getId();
         
         // Check performance limits first
@@ -313,6 +365,306 @@ export class ParasiteManager {
         // Attempt to spawn parasite
         this.spawnParasite(deposit);
         this.lastSpawnAttempt.set(depositId, currentTime);
+    }
+
+    /**
+     * Territorial spawning logic - respects Queen control and territory status
+     */
+    private updateTerritorialSpawning(deposit: MineralDeposit, workers: Worker[], currentTime: number, territory: Territory): void {
+        const depositId = deposit.getId();
+        
+        // Don't spawn parasites in liberated territories (requirement 4.2)
+        if (territory.controlStatus === 'liberated') {
+            return;
+        }
+        
+        // Check if territory has an active Queen
+        const queen = territory.queen;
+        if (!queen || !queen.isActiveQueen()) {
+            // No active Queen - use original spawning logic but with reduced rate
+            this.updateOriginalSpawning(deposit, workers, currentTime);
+            return;
+        }
+        
+        // Check performance limits first
+        const activeParasiteCount = this.getParasites().length;
+        if (activeParasiteCount >= this.maxActiveParasites) {
+            return; // Don't spawn if at performance limit
+        }
+        
+        // Get territorial configuration
+        const territorialConfig = this.territorialConfigs.get(territory.id);
+        const spawnRateMultiplier = territorialConfig?.spawnRate || 1.0;
+        
+        // Check if we've reached max parasites for this deposit
+        const currentCount = this.depositParasiteCount.get(depositId) || 0;
+        if (currentCount >= this.spawnConfig.maxParasitesPerDeposit) {
+            return;
+        }
+        
+        // Check if enough time has passed since last spawn attempt
+        let lastSpawn = this.lastSpawnAttempt.get(depositId);
+        if (lastSpawn === undefined) {
+            // First time seeing this deposit in this territory
+            // Queen-controlled territories have higher spawn probability
+            const canSpawnParasites = Math.random() < 0.75; // 75% chance (higher than normal)
+            
+            if (!canSpawnParasites) {
+                this.lastSpawnAttempt.set(depositId, Number.MAX_SAFE_INTEGER);
+                return;
+            }
+            
+            this.lastSpawnAttempt.set(depositId, currentTime);
+            return;
+        }
+        
+        // Skip deposits marked as non-spawning
+        if (lastSpawn === Number.MAX_SAFE_INTEGER) {
+            return;
+        }
+        
+        // Calculate spawn interval based on Queen control and activity
+        const workersNearDeposit = workers.filter(worker => {
+            const distance = Vector3.Distance(worker.getPosition(), deposit.getPosition());
+            return distance <= 20;
+        });
+        
+        const hasActiveMiners = workersNearDeposit.length > 0;
+        let spawnInterval = hasActiveMiners 
+            ? this.spawnConfig.baseSpawnInterval / this.spawnConfig.activeMiningMultiplier
+            : this.spawnConfig.baseSpawnInterval;
+        
+        // Apply territorial spawn rate multiplier
+        spawnInterval = spawnInterval / spawnRateMultiplier;
+        
+        // Increase spawn interval if performance optimization is active
+        if (this.renderingOptimizationLevel > 0) {
+            spawnInterval *= (1 + this.renderingOptimizationLevel * 0.5);
+        }
+        
+        if (currentTime - lastSpawn < spawnInterval) {
+            return;
+        }
+        
+        // Attempt to spawn parasite under Queen control
+        this.spawnTerritorialParasite(deposit, territory, queen);
+        this.lastSpawnAttempt.set(depositId, currentTime);
+    }
+
+    /**
+     * Spawn a parasite under Queen control within a territory
+     */
+    private spawnTerritorialParasite(deposit: MineralDeposit, territory: Territory, queen: Queen): void {
+        const depositPosition = deposit.getPosition();
+        
+        // Generate random spawn position near deposit
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 5 + Math.random() * (this.spawnConfig.spawnRadius - 5);
+        
+        const spawnOffset = new Vector3(
+            Math.cos(angle) * distance,
+            0.5,
+            Math.sin(angle) * distance
+        );
+        
+        const spawnPosition = depositPosition.add(spawnOffset);
+        
+        // Get territorial configuration for spawn strategy
+        const territorialConfig = this.territorialConfigs.get(territory.id);
+        const spawnStrategy = territorialConfig?.spawnStrategy || 'balanced';
+        
+        // Determine parasite type based on spawn strategy
+        let parasiteType: ParasiteType;
+        switch (spawnStrategy) {
+            case 'defensive':
+                // More combat parasites for defense
+                parasiteType = Math.random() < 0.6 ? ParasiteType.COMBAT : ParasiteType.ENERGY;
+                break;
+            case 'aggressive':
+                // Even more combat parasites for aggression
+                parasiteType = Math.random() < 0.8 ? ParasiteType.COMBAT : ParasiteType.ENERGY;
+                break;
+            case 'balanced':
+            default:
+                // Use distribution tracker for balanced spawning
+                parasiteType = this.distributionTracker.getNextParasiteType();
+                break;
+        }
+        
+        // Create parasite using factory pattern
+        const parasite = this.createParasite(parasiteType, {
+            position: spawnPosition,
+            scene: this.scene,
+            materialManager: this.materialManager,
+            homeDeposit: deposit
+        });
+        
+        // Set terrain generator with fallback
+        if (this.terrainGenerator) {
+            parasite.setTerrainGenerator(this.terrainGenerator);
+        }
+        
+        this.parasites.set(parasite.getId(), parasite);
+        
+        // Add parasite to Queen's control (requirement 2.3)
+        queen.addControlledParasite(parasite.getId());
+        
+        // Record spawn in distribution tracker
+        this.distributionTracker.recordSpawn(parasiteType, deposit.getId());
+        
+        // Update enhanced tracking
+        const depositId = deposit.getId();
+        const currentCount = this.depositParasiteCount.get(depositId) || 0;
+        this.depositParasiteCount.set(depositId, currentCount + 1);
+        
+        // Update type tracking
+        const currentTypeCount = this.parasiteCountByType.get(parasiteType) || 0;
+        this.parasiteCountByType.set(parasiteType, currentTypeCount + 1);
+        
+        // Update deposit-specific tracking
+        if (!this.parasitesByDeposit.has(depositId)) {
+            this.parasitesByDeposit.set(depositId, new Set());
+        }
+        this.parasitesByDeposit.get(depositId)!.add(parasite.getId());
+    }
+
+    /**
+     * Explode all parasites in a territory (requirement 2.6)
+     */
+    public explodeParasitesInTerritory(territoryId: string): void {
+        if (!this.territoryManager) return;
+        
+        const territory = this.territoryManager.getTerritory(territoryId);
+        if (!territory) return;
+        
+        const parasitesToExplode: string[] = [];
+        
+        // Find all parasites in the territory
+        for (const [parasiteId, parasite] of this.parasites.entries()) {
+            if (parasite.isAlive()) {
+                const parasitePosition = parasite.getPosition();
+                if (this.territoryManager.isPositionInTerritory(parasitePosition, territoryId)) {
+                    parasitesToExplode.push(parasiteId);
+                }
+            }
+        }
+        
+        // Remove all parasites in the territory immediately
+        for (const parasiteId of parasitesToExplode) {
+            const parasite = this.parasites.get(parasiteId);
+            if (parasite) {
+                // Remove from Queen control if applicable
+                if (territory.queen) {
+                    territory.queen.removeControlledParasite(parasiteId);
+                }
+                
+                // Update tracking
+                const parasiteType = parasite instanceof CombatParasite ? ParasiteType.COMBAT : ParasiteType.ENERGY;
+                const depositId = parasite.getHomeDeposit().getId();
+                
+                // Update deposit tracking
+                const currentCount = this.depositParasiteCount.get(depositId) || 0;
+                this.depositParasiteCount.set(depositId, Math.max(0, currentCount - 1));
+                
+                // Update type tracking
+                const currentTypeCount = this.parasiteCountByType.get(parasiteType) || 0;
+                this.parasiteCountByType.set(parasiteType, Math.max(0, currentTypeCount - 1));
+                
+                // Update deposit-specific tracking
+                const depositParasites = this.parasitesByDeposit.get(depositId);
+                if (depositParasites) {
+                    depositParasites.delete(parasiteId);
+                }
+                
+                // Dispose the parasite
+                parasite.dispose();
+                this.parasites.delete(parasiteId);
+            }
+        }
+        
+        // Clear territory parasite count
+        territory.parasiteCount = 0;
+        
+        console.log(`💥 Exploded ${parasitesToExplode.length} parasites in territory ${territoryId}`);
+    }
+
+    /**
+     * Get all parasites in a specific territory
+     */
+    public getParasitesInTerritory(territoryId: string): (EnergyParasite | CombatParasite)[] {
+        if (!this.territoryManager) return [];
+        
+        const territory = this.territoryManager.getTerritory(territoryId);
+        if (!territory) return [];
+        
+        const territoryParasites: (EnergyParasite | CombatParasite)[] = [];
+        
+        for (const parasite of this.parasites.values()) {
+            if (parasite.isAlive()) {
+                const parasitePosition = parasite.getPosition();
+                if (this.territoryManager.isPositionInTerritory(parasitePosition, territoryId)) {
+                    territoryParasites.push(parasite);
+                }
+            }
+        }
+        
+        return territoryParasites;
+    }
+
+    /**
+     * Transfer parasite control from one Queen to another
+     */
+    public transferParasiteControl(parasiteId: string, newQueen: Queen): void {
+        const parasite = this.parasites.get(parasiteId);
+        if (!parasite || !parasite.isAlive()) return;
+        
+        // Remove from current Queen's control
+        const currentTerritory = this.territoryManager?.getTerritoryAt(
+            parasite.getPosition().x, 
+            parasite.getPosition().z
+        );
+        
+        if (currentTerritory?.queen) {
+            currentTerritory.queen.removeControlledParasite(parasiteId);
+        }
+        
+        // Add to new Queen's control
+        newQueen.addControlledParasite(parasiteId);
+    }
+
+    /**
+     * Check if spawning should occur in a territory
+     */
+    private shouldSpawnInTerritory(territory: Territory): boolean {
+        // Don't spawn in liberated territories
+        if (territory.controlStatus === 'liberated') {
+            return false;
+        }
+        
+        // Don't spawn if no active Queen
+        if (!territory.queen || !territory.queen.isActiveQueen()) {
+            return false;
+        }
+        
+        // Check if Queen is in active control phase
+        return territory.queen.isVulnerable(); // Only spawn when Queen is vulnerable/active
+    }
+
+    /**
+     * Get spawn rate multiplier for a territory based on Queen control
+     */
+    private getSpawnRateForTerritory(territory: Territory): number {
+        const territorialConfig = this.territorialConfigs.get(territory.id);
+        if (!territorialConfig) {
+            return 1.0; // Default rate
+        }
+        
+        // Apply Queen control bonus
+        if (territory.queen && territory.queen.isActiveQueen()) {
+            return territorialConfig.spawnRate * 1.5; // 50% faster spawning under Queen control
+        }
+        
+        return territorialConfig.spawnRate;
     }
     
     /**
@@ -457,6 +809,15 @@ export class ParasiteManager {
             return; // Already queued for respawn
         }
 
+        // Remove from Queen control if applicable
+        if (this.territoryManager) {
+            const parasitePosition = parasite.getPosition();
+            const territory = this.territoryManager.getTerritoryAt(parasitePosition.x, parasitePosition.z);
+            if (territory?.queen) {
+                territory.queen.removeControlledParasite(parasiteId);
+            }
+        }
+
         // Update tracking before hiding parasite
         const parasiteType = parasite instanceof CombatParasite ? ParasiteType.COMBAT : ParasiteType.ENERGY;
         const depositId = parasite.getHomeDeposit().getId();
@@ -582,6 +943,9 @@ export class ParasiteManager {
         return this.distributionTracker;
     }
     
+    /**
+     * Get spawn distribution statistics
+     */
     /**
      * Get spawn distribution statistics
      */
@@ -965,11 +1329,188 @@ export class ParasiteManager {
     }
     
     /**
+     * Get territorial statistics for monitoring
+     */
+    public getTerritorialStats(): {
+        territoriesWithQueens: number;
+        territoriesLiberated: number;
+        parasitesUnderQueenControl: number;
+        territorialConfigs: number;
+    } {
+        if (!this.territoryManager) {
+            return {
+                territoriesWithQueens: 0,
+                territoriesLiberated: 0,
+                parasitesUnderQueenControl: 0,
+                territorialConfigs: 0
+            };
+        }
+        
+        const territories = this.territoryManager.getAllTerritories();
+        let territoriesWithQueens = 0;
+        let territoriesLiberated = 0;
+        let parasitesUnderQueenControl = 0;
+        
+        for (const territory of territories) {
+            if (territory.queen && territory.queen.isActiveQueen()) {
+                territoriesWithQueens++;
+                parasitesUnderQueenControl += territory.queen.getControlledParasites().length;
+            }
+            if (territory.controlStatus === 'liberated') {
+                territoriesLiberated++;
+            }
+        }
+        
+        return {
+            territoriesWithQueens,
+            territoriesLiberated,
+            parasitesUnderQueenControl,
+            territorialConfigs: this.territorialConfigs.size
+        };
+    }
+
+    /**
+     * Validate parasite control consistency (called by ErrorRecoveryManager)
+     */
+    public validateParasiteControlConsistency(): {
+        orphanedParasites: string[];
+        wrongQueenControl: Array<{ parasiteId: string; expectedQueenId: string; actualQueenId: string }>;
+        duplicateControl: string[];
+    } {
+        const orphanedParasites: string[] = [];
+        const wrongQueenControl: Array<{ parasiteId: string; expectedQueenId: string; actualQueenId: string }> = [];
+        const duplicateControl: string[] = [];
+        
+        if (!this.territoryManager) {
+            return { orphanedParasites, wrongQueenControl, duplicateControl };
+        }
+        
+        // Track which Queens control which parasites
+        const queenControlMap = new Map<string, string[]>(); // queenId -> parasiteIds
+        const parasiteQueenMap = new Map<string, string>(); // parasiteId -> queenId
+        
+        // Build control maps from Queen perspective
+        const territories = this.territoryManager.getAllTerritories();
+        for (const territory of territories) {
+            const queen = territory.queen;
+            if (queen && queen.isActiveQueen()) {
+                const controlledParasites = queen.getControlledParasites();
+                queenControlMap.set(queen.id, controlledParasites);
+                
+                for (const parasiteId of controlledParasites) {
+                    if (parasiteQueenMap.has(parasiteId)) {
+                        // Duplicate control detected
+                        duplicateControl.push(parasiteId);
+                    } else {
+                        parasiteQueenMap.set(parasiteId, queen.id);
+                    }
+                }
+            }
+        }
+        
+        // Validate each parasite's control status
+        for (const parasite of this.parasites.values()) {
+            if (!parasite.isAlive()) {
+                continue;
+            }
+            
+            const parasiteId = parasite.getId();
+            const parasitePosition = parasite.getPosition();
+            const territory = this.territoryManager.getTerritoryAt(parasitePosition.x, parasitePosition.z);
+            
+            if (!territory) {
+                // Parasite outside any territory
+                if (parasiteQueenMap.has(parasiteId)) {
+                    orphanedParasites.push(parasiteId);
+                }
+                continue;
+            }
+            
+            const expectedQueen = territory.queen;
+            const actualQueenId = parasiteQueenMap.get(parasiteId);
+            
+            if (!expectedQueen) {
+                // Territory has no Queen
+                if (actualQueenId) {
+                    orphanedParasites.push(parasiteId);
+                }
+            } else {
+                // Territory has Queen - check control consistency
+                const expectedQueenId = expectedQueen.id;
+                
+                if (actualQueenId !== expectedQueenId) {
+                    if (actualQueenId) {
+                        wrongQueenControl.push({
+                            parasiteId,
+                            expectedQueenId,
+                            actualQueenId
+                        });
+                    } else {
+                        orphanedParasites.push(parasiteId);
+                    }
+                }
+            }
+        }
+        
+        return { orphanedParasites, wrongQueenControl, duplicateControl };
+    }
+
+    /**
+     * Force recalculation of all parasite control relationships
+     */
+    public recalculateParasiteControl(): void {
+        if (!this.territoryManager) return;
+        
+        // Clear all Queen control first
+        const territories = this.territoryManager.getAllTerritories();
+        for (const territory of territories) {
+            if (territory.queen && territory.queen.isActiveQueen()) {
+                const controlledParasites = territory.queen.getControlledParasites();
+                for (const parasiteId of controlledParasites) {
+                    territory.queen.removeControlledParasite(parasiteId);
+                }
+            }
+        }
+        
+        // Reassign parasites to Queens based on current positions
+        for (const parasite of this.parasites.values()) {
+            if (parasite.isAlive()) {
+                const parasitePosition = parasite.getPosition();
+                const territory = this.territoryManager.getTerritoryAt(parasitePosition.x, parasitePosition.z);
+                
+                if (territory?.queen && territory.queen.isActiveQueen()) {
+                    territory.queen.addControlledParasite(parasite.getId());
+                }
+            }
+        }
+        
+        console.log('🔧 Parasite control relationships recalculated');
+    }
+
+    /**
+     * Get active parasite count for performance monitoring
+     */
+    public getActiveParasiteCount(): number {
+        return this.getParasites().length;
+    }
+
+    /**
+     * Get current spawn rate for performance monitoring
+     */
+    public getCurrentSpawnRate(): number {
+        // Return approximate spawns per second based on spawn interval
+        const baseInterval = this.spawnConfig.baseSpawnInterval;
+        return baseInterval > 0 ? 1000 / baseInterval : 0; // Convert ms to spawns per second
+    }
+
+    /**
      * Dispose all parasites and cleanup
      */
     public dispose(): void {
         for (const parasite of this.parasites.values()) {
-            parasite.dispose();
+            if (parasite && typeof parasite.dispose === 'function') {
+                parasite.dispose();
+            }
         }
         
         this.parasites.clear();
@@ -978,6 +1519,10 @@ export class ParasiteManager {
         this.parasiteCountByType.clear();
         this.parasitesByDeposit.clear();
         this.pendingRespawns.length = 0;
+        
+        // Clear territorial configurations
+        this.territorialConfigs.clear();
+        this.territoryManager = null;
         
         // ParasiteManager disposed silently
     }

@@ -8,6 +8,12 @@
 
 import { Vector3 } from '@babylonjs/core';
 import { GameEngine } from './GameEngine';
+import { Queen } from './entities/Queen';
+import { Hive } from './entities/Hive';
+import { LiberationManager } from './LiberationManager';
+import { EnergyManager } from './EnergyManager';
+import { TerritoryPerformanceMonitor } from './TerritoryPerformanceMonitor';
+import { ErrorRecoveryManager } from './ErrorRecoveryManager';
 
 export interface ChunkBounds {
     minX: number;
@@ -22,8 +28,8 @@ export interface Territory {
     centerPosition: Vector3;
     size: number; // 1024 units
     chunkBounds: ChunkBounds;
-    queen: any | null; // Will be Queen type when implemented
-    hive: any | null; // Will be Hive type when implemented
+    queen: Queen | null;
+    hive: Hive | null;
     controlStatus: 'queen_controlled' | 'liberated' | 'contested';
     liberationTimer: number; // seconds remaining
     liberationStartTime: number;
@@ -166,16 +172,22 @@ export class TerritoryManager {
     private territories: Map<string, Territory> = new Map();
     private territoryGrid: TerritoryGrid;
     private gameEngine: GameEngine | null = null;
+    private liberationManager: LiberationManager | null = null;
+    private performanceMonitor: TerritoryPerformanceMonitor | null = null;
+    private errorRecoveryManager: ErrorRecoveryManager | null = null;
     
     // Territory constants
     private readonly TERRITORY_SIZE_CHUNKS = 16;
     private readonly CHUNK_SIZE = 64;
     private readonly TERRITORY_SIZE_UNITS = 1024;
     
-    // Liberation mechanics
+    // Liberation mechanics (now handled by LiberationManager)
     private readonly LIBERATION_DURATION_MIN = 180; // 3 minutes
     private readonly LIBERATION_DURATION_MAX = 300; // 5 minutes
     private readonly LIBERATION_MINING_BONUS = 0.25; // 25% faster mining
+    
+    // Queen generation tracking for regeneration cycle
+    private territoryGenerations: Map<string, number> = new Map();
     
     constructor() {
         this.territoryGrid = new TerritoryGrid(this.TERRITORY_SIZE_CHUNKS, this.CHUNK_SIZE);
@@ -186,6 +198,39 @@ export class TerritoryManager {
      */
     public initialize(gameEngine: GameEngine): void {
         this.gameEngine = gameEngine;
+        
+        // Initialize liberation manager
+        const energyManager = gameEngine.getEnergyManager();
+        if (energyManager) {
+            this.liberationManager = new LiberationManager(energyManager);
+            this.liberationManager.setTerritoryManager(this);
+        }
+        
+        // Initialize performance monitor
+        const mainPerformanceMonitor = gameEngine.getPerformanceMonitor();
+        if (mainPerformanceMonitor) {
+            this.performanceMonitor = new TerritoryPerformanceMonitor(this, mainPerformanceMonitor);
+            this.performanceMonitor.startMonitoring();
+            
+            // Set up performance callbacks
+            this.performanceMonitor.onWarning((metrics) => {
+                console.warn(`🏰 Territory Performance Warning: ${metrics.performanceGrade} - Memory: ${metrics.totalTerritoryMemory.toFixed(1)}MB, CPU: ${metrics.cpuOverheadPercentage.toFixed(1)}%`);
+            });
+            
+            this.performanceMonitor.onCritical((metrics) => {
+                console.error(`🏰 Territory Performance Critical: ${metrics.performanceGrade} - Memory: ${metrics.totalTerritoryMemory.toFixed(1)}MB, CPU: ${metrics.cpuOverheadPercentage.toFixed(1)}%`);
+            });
+            
+            this.performanceMonitor.onOptimization((level, description) => {
+                console.log(`🏰 Territory Performance Optimization: Level ${level} - ${description}`);
+            });
+        }
+        
+        // Initialize error recovery manager
+        const parasiteManager = gameEngine.getParasiteManager();
+        if (parasiteManager) {
+            this.errorRecoveryManager = new ErrorRecoveryManager(this, parasiteManager, gameEngine);
+        }
     }
 
     /**
@@ -237,18 +282,29 @@ export class TerritoryManager {
     /**
      * Liberate a territory (called when Queen is killed)
      */
-    public liberateTerritory(territoryId: string): void {
+    public liberateTerritory(territoryId: string, queenId?: string): void {
         const territory = this.territories.get(territoryId);
         if (!territory) return;
         
-        // Set liberation status
+        // Use LiberationManager to handle liberation
+        if (this.liberationManager && queenId) {
+            this.liberationManager.startLiberation(territoryId, queenId, 'queen_death');
+        }
+        
+        // Set territory status
         territory.controlStatus = 'liberated';
         territory.liberationStartTime = performance.now() / 1000; // Convert to seconds
         
-        // Random liberation duration between 3-5 minutes
-        const duration = this.LIBERATION_DURATION_MIN + 
-                        Math.random() * (this.LIBERATION_DURATION_MAX - this.LIBERATION_DURATION_MIN);
-        territory.liberationTimer = duration;
+        // Get liberation status from LiberationManager for timer
+        const liberationStatus = this.liberationManager?.getLiberationStatus(territoryId);
+        if (liberationStatus) {
+            territory.liberationTimer = liberationStatus.timeRemaining;
+        } else {
+            // Fallback to old behavior if LiberationManager not available
+            const duration = this.LIBERATION_DURATION_MIN + 
+                            Math.random() * (this.LIBERATION_DURATION_MAX - this.LIBERATION_DURATION_MIN);
+            territory.liberationTimer = duration;
+        }
         
         // Clear Queen and Hive references
         territory.queen = null;
@@ -288,20 +344,67 @@ export class TerritoryManager {
     public update(deltaTime: number): void {
         const currentTime = performance.now() / 1000; // Convert to seconds
         
+        // Start performance measurement
+        if (this.performanceMonitor) {
+            this.performanceMonitor.startFrameMeasurement();
+            this.performanceMonitor.startTerritoryUpdateMeasurement();
+        }
+        
+        // Update liberation manager
+        if (this.liberationManager) {
+            this.liberationManager.updateLiberations(deltaTime);
+        }
+        
+        // Update all Queens and Hives first
+        this.updateQueensAndHives(deltaTime);
+        
+        // End territory update measurement
+        if (this.performanceMonitor) {
+            this.performanceMonitor.endTerritoryUpdateMeasurement();
+        }
+        
         for (const territory of this.territories.values()) {
-            // Update liberation timers
+            // Update liberation timers using LiberationManager
             if (territory.controlStatus === 'liberated' && territory.liberationTimer > 0) {
-                territory.liberationTimer -= deltaTime;
-                
-                // Check if liberation period has ended
-                if (territory.liberationTimer <= 0) {
-                    territory.controlStatus = 'contested';
-                    territory.liberationTimer = 0;
-                    territory.liberationStartTime = 0;
+                // Get updated status from LiberationManager
+                const liberationStatus = this.liberationManager?.getLiberationStatus(territory.id);
+                if (liberationStatus) {
+                    territory.liberationTimer = liberationStatus.timeRemaining;
                     
-                    // TODO: Trigger new Queen spawning when Queen system is implemented
+                    // Check if liberation ended according to LiberationManager
+                    if (!liberationStatus.isLiberated || liberationStatus.timeRemaining <= 0) {
+                        territory.controlStatus = 'contested';
+                        territory.liberationTimer = 0;
+                        territory.liberationStartTime = 0;
+                        
+                        // Spawn new Queen when liberation ends (requirement 4.3)
+                        const previousGeneration = this.getPreviousGeneration(territory.id);
+                        this.createQueenForTerritory(territory.id, previousGeneration + 1);
+                    }
+                } else {
+                    // Fallback to old timer behavior if LiberationManager not available
+                    territory.liberationTimer -= deltaTime;
+                    
+                    if (territory.liberationTimer <= 0) {
+                        territory.controlStatus = 'contested';
+                        territory.liberationTimer = 0;
+                        territory.liberationStartTime = 0;
+                        
+                        const previousGeneration = this.getPreviousGeneration(territory.id);
+                        this.createQueenForTerritory(territory.id, previousGeneration + 1);
+                    }
                 }
             }
+        }
+        
+        // Update performance monitoring
+        if (this.performanceMonitor) {
+            this.performanceMonitor.update(deltaTime);
+        }
+        
+        // Update error recovery system
+        if (this.errorRecoveryManager) {
+            // Error recovery runs its own validation timer, no need to update every frame
         }
     }
 
@@ -309,6 +412,12 @@ export class TerritoryManager {
      * Get mining bonus for a position (25% during liberation)
      */
     public getMiningBonusAt(position: Vector3): number {
+        // Use LiberationManager if available
+        if (this.liberationManager) {
+            return this.liberationManager.getMiningBonusAt(position);
+        }
+        
+        // Fallback to old behavior
         const territory = this.getTerritoryAt(position.x, position.z);
         if (!territory) return 0;
         
@@ -319,6 +428,12 @@ export class TerritoryManager {
      * Check if a territory is currently liberated
      */
     public isTerritoryLiberated(territoryId: string): boolean {
+        // Use LiberationManager if available
+        if (this.liberationManager) {
+            return this.liberationManager.isTerritoryLiberated(territoryId);
+        }
+        
+        // Fallback to old behavior
         const territory = this.territories.get(territoryId);
         return territory ? territory.controlStatus === 'liberated' : false;
     }
@@ -345,10 +460,244 @@ export class TerritoryManager {
     }
 
     /**
+     * Get liberation manager
+     */
+    public getLiberationManager(): LiberationManager | null {
+        return this.liberationManager;
+    }
+
+    /**
+     * Get territory performance monitor
+     */
+    public getPerformanceMonitor(): TerritoryPerformanceMonitor | null {
+        return this.performanceMonitor;
+    }
+
+    /**
+     * Get error recovery manager
+     */
+    public getErrorRecoveryManager(): ErrorRecoveryManager | null {
+        return this.errorRecoveryManager;
+    }
+
+    /**
+     * Get previous generation number for a territory
+     */
+    private getPreviousGeneration(territoryId: string): number {
+        return this.territoryGenerations.get(territoryId) || 0;
+    }
+
+    /**
+     * Set generation number for a territory
+     */
+    private setTerritoryGeneration(territoryId: string, generation: number): void {
+        this.territoryGenerations.set(territoryId, generation);
+    }
+
+    /**
+     * Create a Queen for a territory with proper regeneration cycle handling
+     */
+    public createQueenForTerritory(territoryId: string, generation: number = 1): Queen | null {
+        const territory = this.territories.get(territoryId);
+        if (!territory) {
+            console.error(`Cannot create Queen: Territory ${territoryId} not found`);
+            return null;
+        }
+
+        // Don't create Queen if one already exists
+        if (territory.queen) {
+            console.warn(`Territory ${territoryId} already has a Queen`);
+            return territory.queen;
+        }
+
+        // Create Queen with random health (40-100 hits) and growth duration (60-120 seconds)
+        // Requirements 4.4: Growth phase 60-120 seconds
+        const queenConfig = {
+            territory,
+            generation,
+            health: 40 + Math.random() * 60, // 40-100 hits (requirement 2.1)
+            growthDuration: 60 + Math.random() * 60 // 60-120 seconds (requirement 4.4)
+        };
+
+        const queen = new Queen(queenConfig);
+        territory.queen = queen;
+        territory.controlStatus = 'queen_controlled';
+
+        // Track generation for regeneration cycle
+        this.setTerritoryGeneration(territoryId, generation);
+
+        // Set up Queen destruction callback to handle territory liberation
+        queen.onQueenDestroyed((destroyedQueen) => {
+            this.handleQueenDestruction(destroyedQueen);
+        });
+
+        console.log(`👑 Created Queen ${queen.id} for territory ${territoryId} (Gen ${generation})`);
+        
+        return queen;
+    }
+
+    /**
+     * Handle Queen destruction and trigger liberation cycle (requirements 4.1, 4.2, 4.3)
+     */
+    private handleQueenDestruction(queen: Queen): void {
+        const territory = queen.getTerritory();
+        
+        console.log(`👑 Handling destruction of Queen ${queen.id} in territory ${territory.id}`);
+        
+        // Territory should already be liberated by Queen.onDestroyed()
+        // This method ensures proper cleanup and regeneration cycle setup
+        
+        // Ensure territory is properly liberated with Queen ID for energy rewards
+        if (territory.controlStatus !== 'liberated') {
+            this.liberateTerritory(territory.id, queen.id);
+        }
+        
+        // The regeneration cycle will be handled by the update() method
+        // when the liberation timer expires
+    }
+
+    /**
+     * Remove Queen from territory (called when Queen is destroyed)
+     */
+    public removeQueenFromTerritory(territoryId: string): void {
+        const territory = this.territories.get(territoryId);
+        if (!territory) return;
+
+        if (territory.queen) {
+            territory.queen.dispose();
+            territory.queen = null;
+        }
+        
+        if (territory.hive) {
+            territory.hive.dispose();
+            territory.hive = null;
+        }
+    }
+
+    /**
+     * Get all active Queens
+     */
+    public getAllQueens(): Queen[] {
+        const queens: Queen[] = [];
+        for (const territory of this.territories.values()) {
+            if (territory.queen) {
+                queens.push(territory.queen);
+            }
+        }
+        return queens;
+    }
+
+    /**
+     * Update all Queens and Hives in territories
+     */
+    private updateQueensAndHives(deltaTime: number): void {
+        // Start Queen update measurement
+        if (this.performanceMonitor) {
+            this.performanceMonitor.startQueenUpdateMeasurement();
+        }
+        
+        // Get optimization level for performance degradation handling
+        const optimizationLevel = this.performanceMonitor?.getOptimizationLevel() || 0;
+        
+        // Apply performance optimizations based on level
+        let queensToUpdate = this.territories.values();
+        let updateFrequency = 1; // Update every frame by default
+        
+        if (optimizationLevel >= 1) {
+            // Light optimization: Update Queens every other frame
+            updateFrequency = 2;
+        }
+        
+        if (optimizationLevel >= 2) {
+            // Moderate optimization: Update Queens every 3rd frame
+            updateFrequency = 3;
+        }
+        
+        if (optimizationLevel >= 3) {
+            // Aggressive optimization: Update Queens every 4th frame
+            updateFrequency = 4;
+        }
+        
+        // Frame-based update limiting
+        const frameCount = Math.floor(performance.now() / 16.67); // Approximate frame count
+        const shouldUpdateThisFrame = frameCount % updateFrequency === 0;
+        
+        if (shouldUpdateThisFrame) {
+            for (const territory of queensToUpdate) {
+                // Update Queen
+                if (territory.queen) {
+                    territory.queen.update(deltaTime);
+                    
+                    // Check if Queen was destroyed and handle cleanup
+                    if (!territory.queen.isActiveQueen()) {
+                        this.removeQueenFromTerritory(territory.id);
+                    }
+                }
+            }
+        }
+        
+        // End Queen update measurement
+        if (this.performanceMonitor) {
+            this.performanceMonitor.endQueenUpdateMeasurement();
+        }
+        
+        // Start Hive update measurement
+        if (this.performanceMonitor) {
+            this.performanceMonitor.startHiveUpdateMeasurement();
+        }
+        
+        // Update Hives (always update for construction timing)
+        for (const territory of this.territories.values()) {
+            if (territory.hive) {
+                territory.hive.update(deltaTime);
+                
+                // Check if Hive was destroyed and handle cleanup
+                if (!territory.hive.isActiveHive()) {
+                    territory.hive = null;
+                }
+            }
+        }
+        
+        // End Hive update measurement
+        if (this.performanceMonitor) {
+            this.performanceMonitor.endHiveUpdateMeasurement();
+        }
+    }
+
+    /**
      * Dispose territory manager
      */
     public dispose(): void {
+        // Dispose error recovery manager
+        if (this.errorRecoveryManager) {
+            this.errorRecoveryManager.dispose();
+            this.errorRecoveryManager = null;
+        }
+        
+        // Stop performance monitoring
+        if (this.performanceMonitor) {
+            this.performanceMonitor.dispose();
+            this.performanceMonitor = null;
+        }
+        
+        // Dispose all Queens and Hives
+        for (const territory of this.territories.values()) {
+            if (territory.queen) {
+                territory.queen.dispose();
+            }
+            if (territory.hive) {
+                territory.hive.dispose();
+            }
+        }
+        
+        // Dispose liberation manager
+        if (this.liberationManager) {
+            this.liberationManager.dispose();
+            this.liberationManager = null;
+        }
+        
         this.territories.clear();
+        this.territoryGenerations.clear();
         this.gameEngine = null;
     }
 }

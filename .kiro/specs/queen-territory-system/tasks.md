@@ -21,7 +21,7 @@ This implementation plan converts the Queen & Territory System design into discr
   - **Property 2: Territory Non-Overlap Constraint**
   - **Validates: Requirements 1.3**
 
-- [ ] 2. Queen Entity Implementation
+- [x] 2. Queen Entity Implementation
   - Create Queen class with CombatTarget interface implementation
   - Implement Queen lifecycle state machine (underground_growth, hive_construction, active_control)
   - Add Queen health system and vulnerability state management
@@ -44,7 +44,7 @@ This implementation plan converts the Queen & Territory System design into discr
   - **Property 6: Queen Vulnerability State Management**
   - **Validates: Requirements 2.4, 4.7**
 
-- [ ] 3. Hive Structure System
+- [x] 3. Hive Structure System
   - Create Hive class with CombatTarget interface implementation
   - Implement hive construction process with timing controls
   - Add defensive parasite swarm spawning (50+ parasites)
@@ -67,7 +67,7 @@ This implementation plan converts the Queen & Territory System design into discr
   - **Property 11: Hive Construction Timing**
   - **Validates: Requirements 3.4**
 
-- [ ] 4. Queen Lifecycle Management
+- [x] 4. Queen Lifecycle Management
   - Implement Queen regeneration cycle after death
   - Create underground growth phase with timing (60-120 seconds)
   - Add hive construction phase with random location selection
@@ -90,7 +90,7 @@ This implementation plan converts the Queen & Territory System design into discr
   - **Property 15: Growth Completion Hive Selection**
   - **Validates: Requirements 4.6**
 
-- [ ] 5. Territory Liberation System
+- [x] 5. Territory Liberation System
   - Create LiberationManager for territory liberation tracking
   - Implement 3-5 minute liberation periods with parasite-free guarantee
   - Add 25% mining speed bonus during liberation
@@ -105,7 +105,7 @@ This implementation plan converts the Queen & Territory System design into discr
   - **Property 17: Queen Kill Energy Rewards**
   - **Validates: Requirements 5.4**
 
-- [ ] 6. Enhanced ParasiteManager Integration
+- [x] 6. Enhanced ParasiteManager Integration
   - Extend existing ParasiteManager with territorial control
   - Implement Queen-controlled parasite spawning within territories
   - Add territory-wide parasite explosion on Queen death
@@ -116,7 +116,7 @@ This implementation plan converts the Queen & Territory System design into discr
   - **Property 19: Existing Parasite System Preservation**
   - **Validates: Requirements 8.4**
 
-- [ ] 7. Enhanced CombatSystem Integration
+- [x] 7. Enhanced CombatSystem Integration
   - Extend CombatSystem to handle Queen and Hive as combat targets
   - Implement multi-protector hive assault coordination
   - Add Queen/Hive target validation and prioritization
@@ -131,7 +131,7 @@ This implementation plan converts the Queen & Territory System design into discr
   - **Property 12: Hive Destruction Liberation Chain**
   - **Validates: Requirements 3.6**
 
-- [ ] 8. Queen Growth UI System
+- [x] 8. Queen Growth UI System
   - Create QueenGrowthUI component for top-right display
   - Implement growth progress bar with percentage and time remaining
   - Add Queen generation tracking display
@@ -143,19 +143,19 @@ This implementation plan converts the Queen & Territory System design into discr
   - Test generation display and status changes
   - _Requirements: 4.5, 7.1_
 
-- [ ] 9. Territory Visual Indicators
+- [x] 9. Territory Visual Indicators
   - Create territory boundary visualization system
   - Implement territory entry/exit visual feedback
   - Add liberation timer countdown display
   - Create Queen status visual communication
   - _Requirements: 1.4, 7.2, 7.4, 7.5_
 
-- [ ]* 9.1 Write unit tests for territory visual feedback
+- [x]* 9.1 Write unit tests for territory visual feedback
   - Test boundary indicator display and updates
   - Test liberation timer countdown accuracy
   - _Requirements: 1.4, 7.2, 7.4_
 
-- [ ] 10. Performance Optimization and Integration
+- [x] 10. Performance Optimization and Integration
   - Optimize territory system for 60fps performance
   - Implement memory usage monitoring (<100MB additional)
   - Add CPU overhead monitoring (<15% additional)
@@ -168,7 +168,7 @@ This implementation plan converts the Queen & Territory System design into discr
   - Test CPU overhead during Queen lifecycle transitions
   - _Requirements: 8.1, 8.2, 8.3_
 
-- [ ] 11. Error Handling and Recovery
+- [x] 11. Error Handling and Recovery
   - Implement territory overlap detection and correction
   - Add Queen lifecycle corruption recovery
   - Create hive construction failure retry logic
@@ -180,7 +180,7 @@ This implementation plan converts the Queen & Territory System design into discr
   - Test Queen state recovery mechanisms
   - Test hive construction retry logic
 
-- [ ] 12. System Integration and Validation
+- [x] 12. System Integration and Validation
   - Integrate all components with GameEngine
   - Validate cross-system communication and event propagation
   - Test complete Queen lifecycle from spawn to death to regeneration
@@ -192,7 +192,7 @@ This implementation plan converts the Queen & Territory System design into discr
   - Test territory liberation and mining bonus integration
   - Test multi-system event propagation
 
-- [ ] 13. Final Checkpoint - Comprehensive Testing
+- [x] 13. Final Checkpoint - Comprehensive Testing
   - Ensure all property tests pass with 100+ iterations
   - Validate all unit tests and integration tests
   - Confirm 60fps performance with multiple active territories
