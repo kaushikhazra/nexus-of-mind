@@ -1,0 +1,49 @@
+# Nexus of Mind - Game Client Dockerfile (Production)
+# Multi-stage build for optimized production image
+
+# Build stage
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN npm run build
+
+# Production stage
+FROM nginx:alpine
+
+# Copy built application
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Copy nginx configuration
+COPY nginx/nginx.conf /etc/nginx/nginx.conf
+
+# Create nginx user and set permissions
+RUN addgroup -g 1001 -S nexus && \
+    adduser -S nexus -u 1001 -G nexus && \
+    chown -R nexus:nexus /usr/share/nginx/html && \
+    chown -R nexus:nexus /var/cache/nginx && \
+    chown -R nexus:nexus /var/log/nginx && \
+    chown -R nexus:nexus /etc/nginx/conf.d
+
+# Switch to non-root user
+USER nexus
+
+# Expose ports
+EXPOSE 80 443
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:80 || exit 1
+
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]

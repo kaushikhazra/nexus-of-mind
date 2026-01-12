@@ -1,0 +1,99 @@
+# Nexus of Mind - Development Environment
+# Docker Compose configuration for local development with AI backend
+
+version: '3.8'
+
+services:
+  # Python AI Backend Service
+  ai-backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: nexus-ai-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - HOST=0.0.0.0
+      - PORT=8000
+      - LOG_LEVEL=info
+      - ENABLE_GPU=false  # Set to true if CUDA is available
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:8080
+    volumes:
+      - ./server:/app
+      - ./data:/app/data
+      - ./models:/app/models
+    networks:
+      - nexus-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Game Client Development Server
+  game-client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    container_name: nexus-game-client
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - AI_BACKEND_URL=ws://ai-backend:8000/ws
+      - AI_BACKEND_HTTP=http://ai-backend:8000
+    volumes:
+      - ./client:/app/client
+      - ./shared:/app/shared
+      - /app/node_modules  # Anonymous volume for node_modules
+    networks:
+      - nexus-network
+    depends_on:
+      ai-backend:
+        condition: service_healthy
+    restart: unless-stopped
+    command: npm run dev
+
+  # Redis for session management and caching (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: nexus-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - nexus-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # PostgreSQL for persistent data (optional)
+  postgres:
+    image: postgres:15-alpine
+    container_name: nexus-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=nexus_mind
+      - POSTGRES_USER=nexus_user
+      - POSTGRES_PASSWORD=nexus_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./server/sql:/docker-entrypoint-initdb.d
+    networks:
+      - nexus-network
+    restart: unless-stopped
+
+networks:
+  nexus-network:
+    driver: bridge
+    name: nexus-network
+
+volumes:
+  redis-data:
+    name: nexus-redis-data
+  postgres-data:
+    name: nexus-postgres-data

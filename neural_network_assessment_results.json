@@ -1,0 +1,413 @@
+{
+  "architecture_analysis": {
+    "status": "error",
+    "details": {
+      "error": "'Variable' object has no attribute 'get_shape'"
+    }
+  },
+  "training_effectiveness": {
+    "status": "error",
+    "details": {
+      "error": "'numpy.ndarray' object has no attribute 'numpy'"
+    }
+  },
+  "inference_accuracy": {
+    "status": "passed",
+    "details": {
+      "scenarios_tested": 3,
+      "high_quality_predictions": 3,
+      "inference_score": 1.0,
+      "inference_results": [
+        {
+          "scenario": "Aggressive Player Pattern",
+          "top_strategies": [
+            1,
+            0,
+            10,
+            5,
+            4
+          ],
+          "top_probabilities": [
+            0.4083772301673889,
+            0.163822203874588,
+            0.07393935322761536,
+            0.056268878281116486,
+            0.05542773753404617
+          ],
+          "max_probability": 0.4083772301673889,
+          "confidence": 0.4083772301673889,
+          "diversity": 0.7041376562203329,
+          "entropy": 2.109407901763916,
+          "prediction_quality": "high"
+        },
+        {
+          "scenario": "Economic Player Pattern",
+          "top_strategies": [
+            1,
+            0,
+            10,
+            5,
+            4
+          ],
+          "top_probabilities": [
+            0.44389885663986206,
+            0.14814355969429016,
+            0.07292133569717407,
+            0.054012734442949295,
+            0.05289587378501892
+          ],
+          "max_probability": 0.44389885663986206,
+          "confidence": 0.44389885663986206,
+          "diversity": 0.6796668476387425,
+          "entropy": 2.036099910736084,
+          "prediction_quality": "high"
+        },
+        {
+          "scenario": "Defensive Player Pattern",
+          "top_strategies": [
+            1,
+            0,
+            10,
+            4,
+            5
+          ],
+          "top_probabilities": [
+            0.41804376244544983,
+            0.16589100658893585,
+            0.06720995903015137,
+            0.05743686482310295,
+            0.05111868306994438
+          ],
+          "max_probability": 0.41804376244544983,
+          "confidence": 0.41804376244544983,
+          "diversity": 0.6970618172951093,
+          "entropy": 2.0882105827331543,
+          "prediction_quality": "high"
+        }
+      ],
+      "average_confidence": 0.42343994975090027,
+      "average_diversity": 0.6936221070513948
+    }
+  },
+  "learning_progression": {
+    "status": "failed",
+    "details": {
+      "generations_tested": 5,
+      "progression_results": [
+        {
+          "generation": 1,
+          "top_strategy": 1,
+          "max_probability": 0.35796594619750977,
+          "entropy": 2.005000591278076,
+          "strategy_distribution": [
+            0.2844262719154358,
+            0.35796594619750977,
+            0.019573302939534187,
+            0.002441259566694498,
+            0.05292217805981636,
+            0.03922734037041664,
+            0.002020587446168065,
+            0.005363513715565205,
+            0.02237335778772831,
+            0.0036730386782437563,
+            0.055409520864486694,
+            0.015069047920405865,
+            0.017828619107604027,
+            0.014923326671123505,
+            0.0038228449411690235,
+            0.03151014447212219,
+            0.006563338916748762,
+            0.00858436431735754,
+            0.01778588443994522,
+            0.03851616010069847
+          ]
+        },
+        {
+          "generation": 3,
+          "top_strategy": 0,
+          "max_probability": 0.36137300729751587,
+          "entropy": 1.8898417949676514,
+          "strategy_distribution": [
+            0.36137300729751587,
+            0.3265548646450043,
+            0.01918061636388302,
+            0.002204373711720109,
+            0.044346898794174194,
+            0.030678141862154007,
+            0.0016649364260956645,
+            0.004615309182554483,
+            0.019455667585134506,
+            0.0029771123081445694,
+            0.04758843407034874,
+            0.013299703598022461,
+            0.01531814131885767,
+            0.012194468639791012,
+            0.0027387812733650208,
+            0.027236556634306908,
+            0.005174493882805109,
+            0.008441559970378876,
+            0.014133092947304249,
+            0.04082386568188667
+          ]
+        },
+        {
+          "generation": 5,
+          "top_strategy": 1,
+          "max_probability": 0.325521856546402,
+          "entropy": 2.019551992416382,
+          "strategy_distribution": [
+            0.31792202591896057,
+            0.325521856546402,
+            0.02664734050631523,
+            0.003452917095273733,
+            0.053511567413806915,
+            0.03176485747098923,
+            0.002535768784582615,
+            0.005605235230177641,
+            0.022741112858057022,
+            0.0039032106287777424,
+            0.04461495950818062,
+            0.016258100047707558,
+            0.016622290015220642,
+            0.015172535553574562,
+            0.0038486584089696407,
+            0.029537513852119446,
+            0.00683808047324419,
+            0.011437803506851196,
+            0.01564374566078186,
+            0.046420369297266006
+          ]
+        },
+        {
+          "generation": 8,
+          "top_strategy": 1,
+          "max_probability": 0.3142241835594177,
+          "entropy": 2.2214038372039795,
+          "strategy_distribution": [
+            0.24935166537761688,
+            0.3142241835594177,
+            0.03958200663328171,
+            0.006158145144581795,
+            0.0696125403046608,
+            0.03593692183494568,
+            0.004398929420858622,
+            0.007003460079431534,
+            0.028448890894651413,
+            0.005815398413687944,
+            0.04272017255425453,
+            0.020476017147302628,
+            0.019192395731806755,
+            0.020642045885324478,
+            0.006593191996216774,
+            0.032548751682043076,
+            0.009924114681780338,
+            0.01711040735244751,
+            0.018452389165759087,
+            0.05180833116173744
+          ]
+        },
+        {
+          "generation": 12,
+          "top_strategy": 1,
+          "max_probability": 0.3027663826942444,
+          "entropy": 2.353116035461426,
+          "strategy_distribution": [
+            0.19931058585643768,
+            0.3027663826942444,
+            0.05289170891046524,
+            0.009156006388366222,
+            0.08301319181919098,
+            0.03865155950188637,
+            0.006292050238698721,
+            0.007724260911345482,
+            0.0327821783721447,
+            0.007548914756625891,
+            0.039042312651872635,
+            0.023308170959353447,
+            0.02063240483403206,
+            0.025258393958210945,
+            0.009691402316093445,
+            0.03312014788389206,
+            0.012541905976831913,
+            0.022705981507897377,
+            0.019838625565171242,
+            0.053723856806755066
+          ]
+        }
+      ],
+      "probability_trend": -0.005642428755122733,
+      "entropy_trend": 0.039374417162196446,
+      "learning_indicators": {
+        "increasing_confidence": "False",
+        "decreasing_uncertainty": "False",
+        "strategy_evolution": true
+      },
+      "learning_score": 0.3333333333333333,
+      "final_confidence": 0.3027663826942444,
+      "confidence_improvement": -0.05519956350326538
+    }
+  },
+  "performance_analysis": {
+    "status": "failed",
+    "details": {
+      "performance_metrics": {
+        "inference_time_ms": 50.01728057861328,
+        "inference_fps": 19.9930901566765,
+        "batch_inference_time_ms": 96.80509567260742,
+        "batch_throughput": 1033.0034726498043,
+        "model_size_mb": 0.0668487548828125,
+        "gpu_available": false,
+        "gpu_acceleration": false
+      },
+      "requirements_check": {
+        "fast_inference": false,
+        "reasonable_model_size": "True",
+        "batch_efficient": true,
+        "real_time_capable": false
+      },
+      "performance_score": 0.5
+    }
+  },
+  "feature_encoding_test": {
+    "status": "passed",
+    "details": {
+      "test_cases": 3,
+      "successful_encodings": 3,
+      "valid_encodings": 3,
+      "encoding_score": 1.0,
+      "encoding_results": [
+        {
+          "test_case": "Complete Data",
+          "encoding_success": true,
+          "feature_shape": [
+            1,
+            50
+          ],
+          "feature_range": [
+            0.0,
+            1.0
+          ],
+          "feature_mean": 0.2929999828338623,
+          "valid_encoding": "True",
+          "non_zero_features": 29
+        },
+        {
+          "test_case": "Minimal Data",
+          "encoding_success": true,
+          "feature_shape": [
+            1,
+            50
+          ],
+          "feature_range": [
+            0.0,
+            1.0
+          ],
+          "feature_mean": 0.2329999953508377,
+          "valid_encoding": "True",
+          "non_zero_features": 24
+        },
+        {
+          "test_case": "Edge Case Data",
+          "encoding_success": true,
+          "feature_shape": [
+            1,
+            50
+          ],
+          "feature_range": [
+            0.0,
+            1.0
+          ],
+          "feature_mean": 0.25999999046325684,
+          "valid_encoding": "True",
+          "non_zero_features": 23
+        }
+      ]
+    }
+  },
+  "strategy_generation_test": {
+    "status": "passed",
+    "details": {
+      "scenarios_tested": 3,
+      "valid_outputs": 3,
+      "diverse_outputs": 3,
+      "strategy_score": 1.0,
+      "strategy_results": [
+        {
+          "scenario": "Early Game",
+          "generation": 1,
+          "top_strategies": [
+            1,
+            0,
+            4,
+            19,
+            2
+          ],
+          "strategy_probabilities": [
+            0.3027663826942444,
+            0.19931058585643768,
+            0.08301319181919098,
+            0.053723856806755066,
+            0.05289170891046524
+          ],
+          "max_probability": 0.3027663826942444,
+          "strategy_diversity": 5,
+          "label_preparation_success": true,
+          "output_valid": true
+        },
+        {
+          "scenario": "Mid Game",
+          "generation": 5,
+          "top_strategies": [
+            1,
+            0,
+            4,
+            2,
+            19
+          ],
+          "strategy_probabilities": [
+            0.2943108081817627,
+            0.1807028204202652,
+            0.09893719106912613,
+            0.052437156438827515,
+            0.05205613374710083
+          ],
+          "max_probability": 0.2943108081817627,
+          "strategy_diversity": 5,
+          "label_preparation_success": true,
+          "output_valid": true
+        },
+        {
+          "scenario": "Late Game",
+          "generation": 10,
+          "top_strategies": [
+            1,
+            0,
+            4,
+            19,
+            2
+          ],
+          "strategy_probabilities": [
+            0.2622126042842865,
+            0.1981676071882248,
+            0.08650802075862885,
+            0.05581565946340561,
+            0.04978608340024948
+          ],
+          "max_probability": 0.2622126042842865,
+          "strategy_diversity": 4,
+          "label_preparation_success": true,
+          "output_valid": true
+        }
+      ]
+    }
+  },
+  "overall_assessment": {
+    "status": "POOR",
+    "success_rate": 0.42857142857142855,
+    "passed_tests": 3,
+    "failed_tests": 2,
+    "error_tests": 2,
+    "total_tests": 7,
+    "assessment": "Neural network requires major improvements"
+  }
+}

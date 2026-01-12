@@ -9,11 +9,14 @@
 import { Vector3 } from '@babylonjs/core';
 import { GameEngine } from './GameEngine';
 import { Queen } from './entities/Queen';
+import { AdaptiveQueen } from './entities/AdaptiveQueen';
 import { Hive } from './entities/Hive';
 import { LiberationManager } from './LiberationManager';
 import { EnergyManager } from './EnergyManager';
 import { TerritoryPerformanceMonitor } from './TerritoryPerformanceMonitor';
 import { ErrorRecoveryManager } from './ErrorRecoveryManager';
+import { WebSocketClient } from '../networking/WebSocketClient';
+import { GameState } from './GameState';
 
 export interface ChunkBounds {
     minX: number;
@@ -189,6 +192,11 @@ export class TerritoryManager {
     // Queen generation tracking for regeneration cycle
     private territoryGenerations: Map<string, number> = new Map();
     
+    // AI Learning dependencies
+    private websocketClient?: WebSocketClient;
+    private gameState?: GameState;
+    private enableAILearning: boolean = false;
+    
     constructor() {
         this.territoryGrid = new TerritoryGrid(this.TERRITORY_SIZE_CHUNKS, this.CHUNK_SIZE);
     }
@@ -231,6 +239,27 @@ export class TerritoryManager {
         if (parasiteManager) {
             this.errorRecoveryManager = new ErrorRecoveryManager(this, parasiteManager, gameEngine);
         }
+        
+        console.log('🏰 TerritoryManager initialized');
+    }
+
+    /**
+     * Initialize AI learning capabilities
+     */
+    public initializeAILearning(websocketClient: WebSocketClient, gameState: GameState): void {
+        this.websocketClient = websocketClient;
+        this.gameState = gameState;
+        this.enableAILearning = true;
+        
+        console.log('🧠 TerritoryManager: AI learning capabilities initialized');
+    }
+
+    /**
+     * Enable or disable AI learning
+     */
+    public setAILearningEnabled(enabled: boolean): void {
+        this.enableAILearning = enabled && this.websocketClient && this.gameState;
+        console.log(`🧠 TerritoryManager: AI learning ${this.enableAILearning ? 'enabled' : 'disabled'}`);
     }
 
     /**
@@ -519,7 +548,23 @@ export class TerritoryManager {
             growthDuration: 60 + Math.random() * 60 // 60-120 seconds (requirement 4.4)
         };
 
-        const queen = new Queen(queenConfig);
+        let queen: Queen;
+        
+        // Use AdaptiveQueen if AI learning is enabled and dependencies are available
+        if (this.enableAILearning && this.websocketClient && this.gameState) {
+            const adaptiveConfig = {
+                ...queenConfig,
+                websocketClient: this.websocketClient,
+                gameState: this.gameState,
+                enableLearning: true
+            };
+            queen = new AdaptiveQueen(adaptiveConfig);
+            console.log(`🧠 Created AdaptiveQueen ${queen.id} for territory ${territoryId} (Gen ${generation}) with AI learning`);
+        } else {
+            queen = new Queen(queenConfig);
+            console.log(`👑 Created Queen ${queen.id} for territory ${territoryId} (Gen ${generation})`);
+        }
+        
         territory.queen = queen;
         territory.controlStatus = 'queen_controlled';
 
@@ -530,8 +575,6 @@ export class TerritoryManager {
         queen.onQueenDestroyed((destroyedQueen) => {
             this.handleQueenDestruction(destroyedQueen);
         });
-
-        console.log(`👑 Created Queen ${queen.id} for territory ${territoryId} (Gen ${generation})`);
         
         return queen;
     }

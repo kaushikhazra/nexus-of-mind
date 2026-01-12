@@ -1,0 +1,13 @@
+{
+  "generation": 10,
+  "timestamp": 1748744.078,
+  "death_analysis": {},
+  "next_strategy": {
+    "generation": 11
+  },
+  "learning_metrics": {
+    "survival_time": 150.0,
+    "improvement_score": 0.1,
+    "strategy_effectiveness": 0.73
+  }
+}
