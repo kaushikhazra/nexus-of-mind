@@ -25,6 +25,7 @@ import { TreeRenderer } from '../rendering/TreeRenderer';
 import { Worker } from './entities/Worker';
 import { Protector } from './entities/Protector';
 import { CombatSystem } from './CombatSystem';
+import { TerritoryManager } from './TerritoryManager';
 
 export class GameEngine {
     private static instance: GameEngine | null = null;
@@ -58,6 +59,9 @@ export class GameEngine {
     // Combat system
     private parasiteManager: ParasiteManager | null = null;
     private combatSystem: CombatSystem | null = null;
+
+    // Territory system
+    private territoryManager: TerritoryManager | null = null;
 
     // Vegetation system
     private treeRenderer: TreeRenderer | null = null;
@@ -156,6 +160,10 @@ export class GameEngine {
 
             // Initialize vegetation system
             this.treeRenderer = new TreeRenderer(this.scene);
+
+            // Initialize territory system
+            this.territoryManager = new TerritoryManager();
+            this.territoryManager.initialize(this);
 
             // Set terrain generator after terrain is initialized (delayed)
             setTimeout(() => {
@@ -266,6 +274,11 @@ export class GameEngine {
                         
                         // Update combat system
                         this.combatSystem.update(deltaTime);
+                    }
+
+                    // Update territory system
+                    if (this.territoryManager) {
+                        this.territoryManager.update(deltaTime);
                     }
 
                     // Update vegetation animations
@@ -437,6 +450,13 @@ export class GameEngine {
      */
     public getCombatSystem(): CombatSystem | null {
         return this.combatSystem;
+    }
+
+    /**
+     * Get territory manager
+     */
+    public getTerritoryManager(): TerritoryManager | null {
+        return this.territoryManager;
     }
     /**
      * Handle movement-combat transitions for auto-attack system
@@ -802,6 +822,7 @@ export class GameEngine {
 
         // Dispose components in reverse order
         this.treeRenderer?.dispose();
+        this.territoryManager?.dispose();
         this.combatSystem?.dispose();
         this.parasiteManager?.dispose();
         this.buildingManager?.dispose();
