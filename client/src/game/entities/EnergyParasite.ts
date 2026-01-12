@@ -33,46 +33,46 @@ export enum ParasiteState {
 export class EnergyParasite implements CombatTarget {
     public id: string;
     public position: Vector3;
-    private scene: Scene;
-    private materialManager: MaterialManager;
-    private homeDeposit: MineralDeposit;
+    protected scene: Scene;
+    protected materialManager: MaterialManager;
+    protected homeDeposit: MineralDeposit;
     
     // Territorial behavior
-    private territoryCenter: Vector3;
-    private territoryRadius: number = 50; // 50-unit radius territory (detection range)
-    private patrolTarget: Vector3;
+    protected territoryCenter: Vector3;
+    protected territoryRadius: number = 50; // 50-unit radius territory (detection range)
+    protected patrolTarget: Vector3;
     
     // State management
-    private state: ParasiteState = ParasiteState.SPAWNING;
-    private currentTarget: Worker | null = null;
-    private lastStateChange: number = 0;
+    protected state: ParasiteState = ParasiteState.SPAWNING;
+    protected currentTarget: Worker | null = null;
+    protected lastStateChange: number = 0;
     
     // Combat and feeding
     public health: number = 2; // Takes 2 hits to kill (Phase 1)
     public maxHealth: number = 2;
-    private drainRate: number = 3; // 3 energy/sec (increased for more dramatic effect)
-    private feedingStartTime: number = 0;
+    protected drainRate: number = 3; // 3 energy/sec (increased for more dramatic effect)
+    protected feedingStartTime: number = 0;
     
     // Movement
-    private speed: number = 2; // Units per second
-    private lastPosition: Vector3;
-    private isMoving: boolean = false; // Track if worm is currently moving
+    protected speed: number = 2; // Units per second
+    protected lastPosition: Vector3;
+    protected isMoving: boolean = false; // Track if worm is currently moving
     
     // Visual representation - 4 ring segments
-    private segments: Mesh[] = [];
-    private segmentPositions: Vector3[] = [];
-    private parentNode: TransformNode | null = null; // Parent node for click detection
-    private mesh: Mesh | null = null; // Keep for compatibility
-    private material: Material | null = null;
-    private drainBeam: any | null = null; // Visual effect for energy drain
+    protected segments: Mesh[] = [];
+    protected segmentPositions: Vector3[] = [];
+    protected parentNode: TransformNode | null = null; // Parent node for click detection
+    protected mesh: Mesh | null = null; // Keep for compatibility
+    protected material: Material | null = null;
+    protected drainBeam: any | null = null; // Visual effect for energy drain
     
     // Terrain following
-    private terrainGenerator: any = null;
+    protected terrainGenerator: any = null;
     
     // Lifecycle
-    private spawnTime: number;
-    private lastFeedTime: number = 0;
-    private maxLifetime: number = 180000; // 3 minutes without feeding
+    protected spawnTime: number;
+    protected lastFeedTime: number = 0;
+    protected maxLifetime: number = 180000; // 3 minutes without feeding
     
     constructor(config: EnergyParasiteConfig) {
         this.id = `parasite_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -103,7 +103,7 @@ export class EnergyParasite implements CombatTarget {
     /**
      * Create the 4-ring worm parasite mesh
      */
-    private createMesh(): void {
+    protected createMesh(): void {
         if (!this.scene) return;
         
         // Create parent node for click detection with correct naming
@@ -244,7 +244,7 @@ export class EnergyParasite implements CombatTarget {
     /**
      * Handle spawning state (brief animation/delay)
      */
-    private updateSpawning(deltaTime: number, currentTime: number): void {
+    protected updateSpawning(deltaTime: number, currentTime: number): void {
         // Simple spawn delay of 1 second
         if (currentTime - this.lastStateChange > 1000) {
             this.setState(ParasiteState.PATROLLING);
@@ -254,7 +254,7 @@ export class EnergyParasite implements CombatTarget {
     /**
      * Handle patrolling behavior
      */
-    private updatePatrolling(deltaTime: number, nearbyWorkers: Worker[]): void {
+    protected updatePatrolling(deltaTime: number, nearbyWorkers: Worker[]): void {
         // Check for workers in territory that can be targeted
         const workersInTerritory = nearbyWorkers.filter(worker => {
             const distance = Vector3.Distance(worker.getPosition(), this.territoryCenter);
@@ -280,7 +280,7 @@ export class EnergyParasite implements CombatTarget {
     /**
      * Handle hunting behavior
      */
-    private updateHunting(deltaTime: number, nearbyWorkers: Worker[]): void {
+    protected updateHunting(deltaTime: number, nearbyWorkers: Worker[]): void {
         if (!this.currentTarget) {
             this.setState(ParasiteState.PATROLLING);
             return;
@@ -317,7 +317,7 @@ export class EnergyParasite implements CombatTarget {
     /**
      * Handle feeding behavior
      */
-    private updateFeeding(deltaTime: number): void {
+    protected updateFeeding(deltaTime: number): void {
         if (!this.currentTarget) {
             this.setState(ParasiteState.PATROLLING);
             return;
@@ -362,7 +362,7 @@ export class EnergyParasite implements CombatTarget {
     /**
      * Handle returning to territory
      */
-    private updateReturning(deltaTime: number): void {
+    protected updateReturning(deltaTime: number): void {
         this.moveTowards(this.territoryCenter, deltaTime);
         
         // Check if back in territory
@@ -374,7 +374,7 @@ export class EnergyParasite implements CombatTarget {
     /**
      * Move towards a target position with directional facing
      */
-    private moveTowards(target: Vector3, deltaTime: number): void {
+    protected moveTowards(target: Vector3, deltaTime: number): void {
         const direction = target.subtract(this.position).normalize();
         const movement = direction.scale(this.speed * deltaTime);
         
@@ -401,7 +401,7 @@ export class EnergyParasite implements CombatTarget {
     /**
      * Generate a random patrol target within territory
      */
-    private generatePatrolTarget(): Vector3 {
+    protected generatePatrolTarget(): Vector3 {
         const angle = Math.random() * Math.PI * 2;
         const distance = Math.random() * this.territoryRadius * 0.8; // Stay within 80% of territory
         
@@ -417,7 +417,7 @@ export class EnergyParasite implements CombatTarget {
     /**
      * Change parasite state
      */
-    private setState(newState: ParasiteState): void {
+    protected setState(newState: ParasiteState): void {
         if (this.state !== newState) {
             
             // Remove drain beam when leaving feeding state
@@ -536,6 +536,14 @@ export class EnergyParasite implements CombatTarget {
     public isAlive(): boolean { return this.health > 0; }
     
     /**
+     * Get energy reward for killing this Energy Parasite
+     */
+    public getEnergyReward(): number {
+        const { PARASITE_STATS, ParasiteType } = require('../types/ParasiteTypes');
+        return PARASITE_STATS[ParasiteType.ENERGY].energyReward;
+    }
+    
+    /**
      * Set terrain generator for height detection
      */
     public setTerrainGenerator(terrainGenerator: any): void {
@@ -545,7 +553,7 @@ export class EnergyParasite implements CombatTarget {
     /**
      * Get terrain height at position
      */
-    private getTerrainHeight(x: number, z: number): number {
+    protected getTerrainHeight(x: number, z: number): number {
         if (this.terrainGenerator) {
             return this.terrainGenerator.getHeightAtPosition(x, z);
         }
@@ -555,7 +563,7 @@ export class EnergyParasite implements CombatTarget {
     /**
      * Update position to follow terrain height (only when moving to prevent jitter)
      */
-    private updateTerrainHeight(): void {
+    protected updateTerrainHeight(): void {
         // Only adjust terrain height when the worm is actually moving
         if (this.isMoving && this.terrainGenerator) {
             const terrainHeight = this.getTerrainHeight(this.position.x, this.position.z);
@@ -575,7 +583,7 @@ export class EnergyParasite implements CombatTarget {
     /**
      * Create or update visual drain beam
      */
-    private updateDrainBeam(targetPosition: Vector3): void {
+    protected updateDrainBeam(targetPosition: Vector3): void {
         if (!this.scene) return;
         
         // Remove existing beam
@@ -605,7 +613,7 @@ export class EnergyParasite implements CombatTarget {
     /**
      * Remove visual drain beam
      */
-    private removeDrainBeam(): void {
+    protected removeDrainBeam(): void {
         if (this.drainBeam) {
             this.drainBeam.dispose();
             this.drainBeam = null;

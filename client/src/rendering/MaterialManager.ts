@@ -13,6 +13,7 @@ export interface ColorPalette {
     scout: Color3;       // Blue  
     protector: Color3;   // Red
     parasite: Color3;    // Dark purple
+    combatParasite: Color3; // Darker, more aggressive
     
     // Building colors
     base: Color3;        // Yellow
@@ -44,6 +45,7 @@ export class MaterialManager {
         scout: new Color3(0.2, 0.4, 1.0),       // Bright blue
         protector: new Color3(1.0, 0.2, 0.2),   // Bright red
         parasite: new Color3(0.4, 0.1, 0.6),    // Dark purple
+        combatParasite: new Color3(0.2, 0.1, 0.1), // Dark red-brown (more aggressive)
         
         // Building colors (warm colors for infrastructure)
         base: new Color3(1.0, 0.9, 0.2),        // Bright yellow
@@ -140,6 +142,17 @@ export class MaterialManager {
         return this.createLowPolyMaterial('parasite', new Color3(0.4, 0.25, 0.15), {
             emissive: new Color3(0.05, 0.03, 0.02), // Subtle bronze glow
             specular: new Color3(0.3, 0.2, 0.1)     // Metallic reflections
+        });
+    }
+
+    /**
+     * Get material for combat parasites (darker, more aggressive appearance)
+     */
+    public getCombatParasiteMaterial(): StandardMaterial {
+        return this.createLowPolyMaterial('combatParasite', this.colorPalette.combatParasite, {
+            emissive: new Color3(0.1, 0.05, 0.05), // Subtle red glow
+            specular: new Color3(0.4, 0.2, 0.2),   // Red-tinted reflections
+            roughness: 0.7
         });
     }
 
