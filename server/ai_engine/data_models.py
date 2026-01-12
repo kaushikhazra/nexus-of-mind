@@ -152,6 +152,18 @@ class QueenStrategy:
     predictive_behavior: Optional[Dict[str, Any]]
     complexity_level: float
     
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'QueenStrategy':
+        """Create QueenStrategy from dictionary"""
+        return cls(
+            generation=data.get('generation', 1),
+            hive_placement=data.get('hive_placement', {}),
+            parasite_spawning=data.get('parasite_spawning', {}),
+            defensive_coordination=data.get('defensive_coordination', {}),
+            predictive_behavior=data.get('predictive_behavior'),
+            complexity_level=data.get('complexity_level', 0.1)
+        )
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary"""
         return asdict(self)
@@ -179,6 +191,22 @@ class QueenDeathMessage:
 class QueenStrategyMessage:
     """WebSocket message for Queen strategy responses"""
     type: str = "queen_strategy"
+    timestamp: float = 0.0
+    data: Dict[str, Any] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization"""
+        return {
+            "type": self.type,
+            "timestamp": self.timestamp,
+            "data": self.data or {}
+        }
+
+
+@dataclass
+class DifficultyAdjustmentMessage:
+    """WebSocket message for difficulty adjustment updates"""
+    type: str = "difficulty_adjustment"
     timestamp: float = 0.0
     data: Dict[str, Any] = None
     

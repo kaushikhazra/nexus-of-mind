@@ -1,0 +1,62 @@
+[
+  {
+    "timestamp": 1768241463.788291,
+    "error_type": "unknown_neural_network_error",
+    "error_message": "type object 'QueenStrategy' has no attribute 'from_dict'",
+    "severity": "low",
+    "context": {
+      "operation": "process_queen_death",
+      "generation": null,
+      "component": "unknown"
+    },
+    "traceback": "Traceback (most recent call last):\n  File \"C:\\Projects\\DKH-RTS-Game-Nesus-Of-Mind\\server\\ai_engine\\ai_engine.py\", line 212, in process_queen_death\n    new_strategy = QueenStrategy.from_dict(strategy_dict)\n                   ^^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: type object 'QueenStrategy' has no attribute 'from_dict'. Did you mean: 'to_dict'?\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"C:\\Projects\\DKH-RTS-Game-Nesus-Of-Mind\\server\\ai_engine\\ai_engine.py\", line 217, in process_queen_death\n    new_strategy = self._create_fallback_strategy(queen_death.generation + 1)\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Projects\\DKH-RTS-Game-Nesus-Of-Mind\\server\\ai_engine\\ai_engine.py\", line 498, in _create_fallback_strategy\n    return QueenStrategy.from_dict(strategy_data)\n           ^^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: type object 'QueenStrategy' has no attribute 'from_dict'. Did you mean: 'to_dict'?\n"
+  },
+  {
+    "timestamp": 1768241480.0359778,
+    "error_type": "unknown_neural_network_error",
+    "error_message": "type object 'QueenStrategy' has no attribute 'from_dict'",
+    "severity": "low",
+    "context": {
+      "operation": "process_queen_death",
+      "generation": null,
+      "component": "unknown"
+    },
+    "traceback": "Traceback (most recent call last):\n  File \"C:\\Projects\\DKH-RTS-Game-Nesus-Of-Mind\\server\\ai_engine\\ai_engine.py\", line 212, in process_queen_death\n    new_strategy = QueenStrategy.from_dict(strategy_dict)\n                   ^^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: type object 'QueenStrategy' has no attribute 'from_dict'. Did you mean: 'to_dict'?\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"C:\\Projects\\DKH-RTS-Game-Nesus-Of-Mind\\server\\ai_engine\\ai_engine.py\", line 217, in process_queen_death\n    new_strategy = self._create_fallback_strategy(queen_death.generation + 1)\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Projects\\DKH-RTS-Game-Nesus-Of-Mind\\server\\ai_engine\\ai_engine.py\", line 498, in _create_fallback_strategy\n    return QueenStrategy.from_dict(strategy_data)\n           ^^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: type object 'QueenStrategy' has no attribute 'from_dict'. Did you mean: 'to_dict'?\n"
+  },
+  {
+    "timestamp": 1768241496.285929,
+    "error_type": "unknown_neural_network_error",
+    "error_message": "type object 'QueenStrategy' has no attribute 'from_dict'",
+    "severity": "low",
+    "context": {
+      "operation": "process_queen_death",
+      "generation": null,
+      "component": "unknown"
+    },
+    "traceback": "Traceback (most recent call last):\n  File \"C:\\Projects\\DKH-RTS-Game-Nesus-Of-Mind\\server\\ai_engine\\ai_engine.py\", line 212, in process_queen_death\n    new_strategy = QueenStrategy.from_dict(strategy_dict)\n                   ^^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: type object 'QueenStrategy' has no attribute 'from_dict'. Did you mean: 'to_dict'?\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"C:\\Projects\\DKH-RTS-Game-Nesus-Of-Mind\\server\\ai_engine\\ai_engine.py\", line 217, in process_queen_death\n    new_strategy = self._create_fallback_strategy(queen_death.generation + 1)\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Projects\\DKH-RTS-Game-Nesus-Of-Mind\\server\\ai_engine\\ai_engine.py\", line 498, in _create_fallback_strategy\n    return QueenStrategy.from_dict(strategy_data)\n           ^^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: type object 'QueenStrategy' has no attribute 'from_dict'. Did you mean: 'to_dict'?\n"
+  },
+  {
+    "timestamp": 1768241512.5287633,
+    "error_type": "unknown_neural_network_error",
+    "error_message": "type object 'QueenStrategy' has no attribute 'from_dict'",
+    "severity": "low",
+    "context": {
+      "operation": "process_queen_death",
+      "generation": null,
+      "component": "unknown"
+    },
+    "traceback": "Traceback (most recent call last):\n  File \"C:\\Projects\\DKH-RTS-Game-Nesus-Of-Mind\\server\\ai_engine\\ai_engine.py\", line 212, in process_queen_death\n    new_strategy = QueenStrategy.from_dict(strategy_dict)\n                   ^^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: type object 'QueenStrategy' has no attribute 'from_dict'. Did you mean: 'to_dict'?\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"C:\\Projects\\DKH-RTS-Game-Nesus-Of-Mind\\server\\ai_engine\\ai_engine.py\", line 217, in process_queen_death\n    new_strategy = self._create_fallback_strategy(queen_death.generation + 1)\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Projects\\DKH-RTS-Game-Nesus-Of-Mind\\server\\ai_engine\\ai_engine.py\", line 498, in _create_fallback_strategy\n    return QueenStrategy.from_dict(strategy_data)\n           ^^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: type object 'QueenStrategy' has no attribute 'from_dict'. Did you mean: 'to_dict'?\n"
+  },
+  {
+    "timestamp": 1768241528.7879336,
+    "error_type": "unknown_neural_network_error",
+    "error_message": "type object 'QueenStrategy' has no attribute 'from_dict'",
+    "severity": "low",
+    "context": {
+      "operation": "process_queen_death",
+      "generation": null,
+      "component": "unknown"
+    },
+    "traceback": "Traceback (most recent call last):\n  File \"C:\\Projects\\DKH-RTS-Game-Nesus-Of-Mind\\server\\ai_engine\\ai_engine.py\", line 212, in process_queen_death\n    new_strategy = QueenStrategy.from_dict(strategy_dict)\n                   ^^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: type object 'QueenStrategy' has no attribute 'from_dict'. Did you mean: 'to_dict'?\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"C:\\Projects\\DKH-RTS-Game-Nesus-Of-Mind\\server\\ai_engine\\ai_engine.py\", line 217, in process_queen_death\n    new_strategy = self._create_fallback_strategy(queen_death.generation + 1)\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Projects\\DKH-RTS-Game-Nesus-Of-Mind\\server\\ai_engine\\ai_engine.py\", line 498, in _create_fallback_strategy\n    return QueenStrategy.from_dict(strategy_data)\n           ^^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: type object 'QueenStrategy' has no attribute 'from_dict'. Did you mean: 'to_dict'?\n"
+  }
+]

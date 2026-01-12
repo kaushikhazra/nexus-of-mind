@@ -30,6 +30,8 @@ import { LiberationManager } from './LiberationManager';
 import { PerformanceOptimizer } from './PerformanceOptimizer';
 import { QueenGrowthUI } from '../ui/QueenGrowthUI';
 import { TerritoryVisualUI } from '../ui/TerritoryVisualUI';
+import { AdaptiveQueenIntegration, createAdaptiveQueenIntegration } from './AdaptiveQueenIntegration';
+import { AdvancedDynamicTexture } from '@babylonjs/gui';
 
 export class GameEngine {
     private static instance: GameEngine | null = null;
@@ -79,6 +81,10 @@ export class GameEngine {
     private protectorSelectionUI: ProtectorSelectionUI | null = null;
     private queenGrowthUI: QueenGrowthUI | null = null;
     private territoryVisualUI: TerritoryVisualUI | null = null;
+
+    // Adaptive Queen Intelligence Integration
+    private adaptiveQueenIntegration: AdaptiveQueenIntegration | null = null;
+    private guiTexture: AdvancedDynamicTexture | null = null;
 
     private isInitialized: boolean = false;
     private isRunning: boolean = false;
@@ -227,6 +233,12 @@ export class GameEngine {
             this.initializeQueenGrowthUI();
             this.initializeTerritoryVisualUI();
 
+            // Initialize GUI texture for advanced UI components
+            this.guiTexture = AdvancedDynamicTexture.CreateFullscreenUI("MainUI", true, this.scene);
+
+            // Initialize Adaptive Queen Intelligence Integration
+            await this.initializeAdaptiveQueenIntegration();
+
             // Setup terrain integration with game state
             this.setupTerrainIntegration();
 
@@ -324,6 +336,11 @@ export class GameEngine {
                     // Update performance optimization
                     if (this.performanceOptimizer) {
                         this.performanceOptimizer.update(deltaTime);
+                    }
+
+                    // Update Adaptive Queen Integration
+                    if (this.adaptiveQueenIntegration) {
+                        this.adaptiveQueenIntegration.update(deltaTime);
                     }
 
                     // Update vegetation animations
@@ -456,6 +473,66 @@ export class GameEngine {
     }
 
     /**
+     * Initialize Adaptive Queen Intelligence Integration
+     */
+    private async initializeAdaptiveQueenIntegration(): Promise<void> {
+        if (!this.territoryManager || !this.gameState || !this.guiTexture) {
+            console.warn('🧠 Cannot initialize AdaptiveQueenIntegration: missing dependencies');
+            return;
+        }
+
+        try {
+            // Check if AI backend is available
+            const backendAvailable = await this.checkAIBackendAvailability();
+            
+            this.adaptiveQueenIntegration = await createAdaptiveQueenIntegration({
+                gameEngine: this,
+                territoryManager: this.territoryManager,
+                gameState: this.gameState,
+                guiTexture: this.guiTexture,
+                websocketUrl: process.env.AI_BACKEND_URL || 'ws://localhost:8000/ws',
+                enableLearning: backendAvailable
+            });
+
+            console.log(`🧠 AdaptiveQueenIntegration initialized (Learning: ${backendAvailable ? 'enabled' : 'disabled'})`);
+            
+        } catch (error) {
+            console.warn('🧠 Failed to initialize AdaptiveQueenIntegration, falling back to standard behavior:', error);
+            
+            // Create integration without learning capabilities
+            this.adaptiveQueenIntegration = new AdaptiveQueenIntegration({
+                gameEngine: this,
+                territoryManager: this.territoryManager,
+                gameState: this.gameState,
+                guiTexture: this.guiTexture,
+                enableLearning: false
+            });
+        }
+    }
+
+    /**
+     * Check if AI backend is available
+     */
+    private async checkAIBackendAvailability(): Promise<boolean> {
+        try {
+            const response = await fetch('http://localhost:8000/health', {
+                method: 'GET',
+                timeout: 5000
+            } as any);
+            
+            if (response.ok) {
+                const health = await response.json();
+                return health.status === 'healthy';
+            }
+            
+            return false;
+        } catch (error) {
+            console.log('🧠 AI backend not available, using fallback behavior');
+            return false;
+        }
+    }
+
+    /**
      * Get the current scene
      */
     public getScene(): Scene | null {
@@ -572,6 +649,20 @@ export class GameEngine {
      */
     public getPerformanceOptimizer(): PerformanceOptimizer | null {
         return this.performanceOptimizer;
+    }
+
+    /**
+     * Get Adaptive Queen Integration
+     */
+    public getAdaptiveQueenIntegration(): AdaptiveQueenIntegration | null {
+        return this.adaptiveQueenIntegration;
+    }
+
+    /**
+     * Get GUI texture for advanced UI components
+     */
+    public getGUITexture(): AdvancedDynamicTexture | null {
+        return this.guiTexture;
     }
     /**
      * Handle movement-combat transitions for auto-attack system
@@ -936,6 +1027,8 @@ export class GameEngine {
         this.stop();
 
         // Dispose components in reverse order
+        this.adaptiveQueenIntegration?.dispose();
+        this.guiTexture?.dispose();
         this.performanceOptimizer?.dispose();
         this.treeRenderer?.dispose();
         this.territoryVisualUI?.dispose();

@@ -1,0 +1,662 @@
+{
+  "generation": 4,
+  "territory_id": "",
+  "timestamp": 1768242076.4831266,
+  "death_analysis": {
+    "queen_id": "unknown_queen_id",
+    "generation": 4.0,
+    "primary_cause": "unknown",
+    "spatial_insights": {
+      "placement_score": 0.2,
+      "placement_reasoning": "Very poor placement in high-risk area",
+      "discovery_risk": 0.32499999999999996,
+      "risk_factors": {
+        "unit_proximity": 0.5,
+        "mining_proximity": 0.0,
+        "exploration_pattern": 0.3,
+        "visibility": 0.5
+      },
+      "territorial_advantage": 0.34,
+      "zone_classification": "center",
+      "escape_routes": 8,
+      "escape_quality": 1.0,
+      "approach_vectors": [],
+      "approach_predictability": 0.5,
+      "failed_locations": [
+        {
+          "location": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "generation": 1.0,
+          "survival_time": 0.0,
+          "discovery_time": 0.0,
+          "timestamp": 1768242067.6213608
+        },
+        {
+          "location": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "generation": 2.0,
+          "survival_time": 0.0,
+          "discovery_time": 0.0,
+          "timestamp": 1768242070.5401394
+        },
+        {
+          "location": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "generation": 3.0,
+          "survival_time": 0.0,
+          "discovery_time": 0.0,
+          "timestamp": 1768242072.5215013
+        },
+        {
+          "location": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "generation": 4.0,
+          "survival_time": 0.0,
+          "discovery_time": 0.0,
+          "timestamp": 1768242074.5114484
+        }
+      ],
+      "optimal_zones": [
+        {
+          "position": {
+            "x": 40,
+            "y": 0,
+            "z": 40
+          },
+          "confidence": 1.0,
+          "reason": "distance_from_failures"
+        },
+        {
+          "position": {
+            "x": -40,
+            "y": 0,
+            "z": 40
+          },
+          "confidence": 1.0,
+          "reason": "distance_from_failures"
+        },
+        {
+          "position": {
+            "x": 40,
+            "y": 0,
+            "z": -40
+          },
+          "confidence": 1.0,
+          "reason": "distance_from_failures"
+        },
+        {
+          "position": {
+            "x": -40,
+            "y": 0,
+            "z": -40
+          },
+          "confidence": 1.0,
+          "reason": "distance_from_failures"
+        },
+        {
+          "position": {
+            "x": 60,
+            "y": 10,
+            "z": 0
+          },
+          "confidence": 1.0,
+          "reason": "distance_from_failures"
+        }
+      ],
+      "placement_improvement": 0.0
+    },
+    "temporal_insights": {
+      "survival_ratio": 0.0,
+      "survival_improvement": 0.0,
+      "discovery_speed_ratio": 0.0,
+      "discovery_efficiency": 1.0,
+      "spawn_timing_score": 0.0,
+      "spawn_rate": 0.0,
+      "assault_timing": {
+        "assault_duration": 0.0,
+        "assault_intensity": 1.0,
+        "assault_efficiency": 1.0,
+        "discovery_to_death_ratio": 0.0
+      },
+      "temporal_pressure": {
+        "early_pressure": 1.0,
+        "sustained_pressure": 0.0,
+        "end_pressure": 1.0,
+        "overall_pressure": 0.6
+      },
+      "phase_analysis": {
+        "early_phase_duration": 0.0,
+        "mid_phase_duration": 0.0,
+        "late_phase_duration": 0.0,
+        "phase_distribution": {
+          "early": 0.0,
+          "mid": 0.0,
+          "late": 0.0
+        },
+        "dominant_phase": "early"
+      },
+      "timing_trends": {
+        "survival_trend": 0.0,
+        "discovery_trend": 0.0,
+        "improvement_rate": 0.0,
+        "consistency": 0.0
+      }
+    },
+    "tactical_insights": {
+      "pattern_type": "hit_and_run",
+      "coordination_level": 0.30000000000000004,
+      "effectiveness": 0.8933333333333334,
+      "pattern_repetition": 1.0,
+      "unit_strategy": {
+        "strategy": "unknown",
+        "balance": 0.5
+      },
+      "defense_penetration": 0.8666666666666667,
+      "assault_resistance": 0.10666666666666658,
+      "defense_effectiveness": 0.1333333333333333,
+      "spawn_effectiveness": 0.0,
+      "parasites_spawned": 0.0,
+      "defensive_failures": [
+        "poor_concealment",
+        "inadequate_spawning"
+      ]
+    },
+    "survival_improvement": 0.0,
+    "failed_strategies": [
+      0,
+      1,
+      2,
+      4
+    ],
+    "feature_vector": [
+      0.2,
+      0.32499999999999996,
+      0.34,
+      8,
+      0.0,
+      0.0,
+      0.0,
+      0.1333333333333333,
+      0.10666666666666658,
+      0.5
+    ],
+    "game_state_features": [
+      0.5,
+      0.0,
+      0.5,
+      0.5,
+      0.0,
+      0.0,
+      0.0,
+      0.5,
+      0.0,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.0,
+      0.4,
+      0.5
+    ]
+  },
+  "next_strategy": {
+    "generation": 5,
+    "hive_placement": {
+      "strategy_type": "learned_adaptive_placement",
+      "generation": 6,
+      "avoid_zones": [
+        {
+          "center": {
+            "location": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "generation": 1.0,
+            "survival_time": 0.0,
+            "discovery_time": 0.0,
+            "timestamp": 1768242067.6213608
+          },
+          "radius": 35,
+          "reason": "recent_failure",
+          "priority": "high"
+        },
+        {
+          "center": {
+            "location": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "generation": 2.0,
+            "survival_time": 0.0,
+            "discovery_time": 0.0,
+            "timestamp": 1768242070.5401394
+          },
+          "radius": 35,
+          "reason": "recent_failure",
+          "priority": "high"
+        },
+        {
+          "center": {
+            "location": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "generation": 3.0,
+            "survival_time": 0.0,
+            "discovery_time": 0.0,
+            "timestamp": 1768242072.5215013
+          },
+          "radius": 35,
+          "reason": "recent_failure",
+          "priority": "high"
+        },
+        {
+          "center": {
+            "location": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "generation": 4.0,
+            "survival_time": 0.0,
+            "discovery_time": 0.0,
+            "timestamp": 1768242074.5114484
+          },
+          "radius": 35,
+          "reason": "recent_failure",
+          "priority": "high"
+        }
+      ],
+      "optimal_zones": [
+        {
+          "center": {
+            "x": -80,
+            "y": 10,
+            "z": -80
+          },
+          "radius": 25,
+          "safety_score": 1.0,
+          "zone_type": "safe",
+          "effectiveness": 1.0
+        },
+        {
+          "center": {
+            "x": -80,
+            "y": 10,
+            "z": 80
+          },
+          "radius": 25,
+          "safety_score": 1.0,
+          "zone_type": "safe",
+          "effectiveness": 1.0
+        },
+        {
+          "center": {
+            "x": 80,
+            "y": 10,
+            "z": -80
+          },
+          "radius": 25,
+          "safety_score": 1.0,
+          "zone_type": "safe",
+          "effectiveness": 1.0
+        },
+        {
+          "center": {
+            "x": 80,
+            "y": 10,
+            "z": 80
+          },
+          "radius": 25,
+          "safety_score": 1.0,
+          "zone_type": "safe",
+          "effectiveness": 1.0
+        },
+        {
+          "center": {
+            "x": -80,
+            "y": 10,
+            "z": -40
+          },
+          "radius": 25,
+          "safety_score": 0.9,
+          "zone_type": "safe",
+          "effectiveness": 0.9
+        },
+        {
+          "center": {
+            "x": -80,
+            "y": 10,
+            "z": 40
+          },
+          "radius": 25,
+          "safety_score": 0.9,
+          "zone_type": "safe",
+          "effectiveness": 0.9
+        }
+      ],
+      "placement_criteria": {
+        "min_distance_from_failures": 65.0,
+        "min_distance_from_mining": 130.0,
+        "concealment_priority": 0.95,
+        "escape_route_count": 4,
+        "height_preference": "elevated"
+      },
+      "fallback_strategies": [
+        {
+          "name": "emergency_relocation",
+          "trigger": "immediate_threat_detected",
+          "action": "relocate_to_furthest_safe_zone",
+          "enabled": true
+        }
+      ],
+      "adaptive_rules": {
+        "approach_counter_strategy": "enabled",
+        "pattern_prediction": "disabled",
+        "dynamic_repositioning": "disabled"
+      },
+      "risk_assessment": {
+        "threat_detection_range": 80.0,
+        "risk_tolerance": 0.35,
+        "assessment_frequency": "continuous",
+        "risk_factors": {
+          "player_proximity": 0.8,
+          "mining_activity": 0.6,
+          "exploration_patterns": 0.7,
+          "unit_concentration": 0.9
+        }
+      },
+      "concealment_strategy": {
+        "concealment_level": "maximum",
+        "decoy_usage": false,
+        "misdirection": false,
+        "camouflage_priority": 0.9
+      }
+    },
+    "parasite_spawning": {
+      "strategy_type": "adaptive_intelligent_spawning",
+      "generation": 6,
+      "base_spawn_rate": 9.0,
+      "adaptive_spawn_rates": {
+        "base_rate": 9.0,
+        "mining_response_multiplier": 1.2,
+        "expansion_response_rate": 12.6,
+        "threat_response_rate": 16.2,
+        "adaptive_scaling": {
+          "early_game": 7.2,
+          "mid_game": 9.0,
+          "late_game": 10.799999999999999
+        }
+      },
+      "burst_spawn_triggers": {
+        "player_expansion": {
+          "enabled": true,
+          "threshold": 2,
+          "burst_multiplier": 2.5,
+          "duration": 40.0
+        },
+        "energy_threshold": {
+          "enabled": true,
+          "threshold": 350.0,
+          "burst_multiplier": 1.75,
+          "duration": 27.5
+        },
+        "threat_detection": {
+          "enabled": true,
+          "proximity_threshold": 70.0,
+          "burst_multiplier": 2.75,
+          "duration": 20.0
+        },
+        "mining_disruption": {
+          "enabled": true,
+          "disruption_threshold": 0.3,
+          "burst_multiplier": 2.15,
+          "duration": 32.5
+        }
+      },
+      "spawn_distribution": {
+        "distribution": {
+          "defensive": 0.6000000000000001,
+          "offensive": 0.19999999999999998,
+          "scout": 0.19999999999999998
+        },
+        "dynamic_adjustment": true,
+        "situation_responsive": false,
+        "predictive_spawning": false
+      },
+      "timing_adaptation": {
+        "effectiveness_threshold": 0.3,
+        "adaptation_speed": "medium",
+        "learning_rate": 0.2,
+        "timing_shift": "aggressive",
+        "spawn_rate_adjustment": 1.4,
+        "burst_frequency_increase": 0.3
+      },
+      "counter_strategies": {
+        "enabled": true,
+        "pattern_counters": {}
+      },
+      "effectiveness_threshold": 0.3,
+      "learning_adjustments": {
+        "effectiveness_feedback": 0.0,
+        "adjustment_magnitude": 0.5,
+        "learning_focus": [
+          "spawn_timing",
+          "spawn_rate",
+          "distribution"
+        ]
+      }
+    },
+    "defensive_coordination": {
+      "strategy_type": "fallback_defense",
+      "generation": 1,
+      "swarm_coordination": {
+        "enabled": true,
+        "coordination_level": 0.3,
+        "swarm_size": {
+          "minimum": 3,
+          "optimal": 8,
+          "maximum": 15
+        },
+        "tactics": [
+          "simple_coordination"
+        ]
+      },
+      "retreat_strategies": {
+        "retreat_thresholds": {
+          "health_percentage": 0.3,
+          "overwhelming_force": 3.0
+        },
+        "retreat_patterns": [
+          "scattered"
+        ],
+        "repositioning": {
+          "enabled": false
+        }
+      },
+      "counter_attack": {
+        "enabled": false
+      },
+      "formation_tactics": {
+        "basic_formations": [
+          "defensive_circle"
+        ],
+        "formation_switching": false
+      },
+      "adaptive_rules": {
+        "adaptation_speed": "slow",
+        "learning_from_failures": true
+      },
+      "threat_assessment": {
+        "threat_detection_range": 60,
+        "assessment_frequency": "periodic"
+      },
+      "coordination_protocols": {
+        "communication_system": "basic",
+        "command_structure": "centralized"
+      }
+    },
+    "predictive_behavior": {
+      "strategy_type": "advanced_predictive_behavior",
+      "prediction_horizon": 60,
+      "confidence_threshold": 0.7,
+      "behavioral_predictions": {
+        "next_expansion_timing": {
+          "predicted_time": 120,
+          "confidence": 0.7999999999999999,
+          "prediction_window": 60,
+          "indicators": [
+            "energy_threshold",
+            "current_mining_efficiency",
+            "exploration_pattern"
+          ]
+        },
+        "expansion_location": {
+          "predicted_zones": [
+            {
+              "zone": "resource_rich_area",
+              "probability": 0.7
+            },
+            {
+              "zone": "strategic_position",
+              "probability": 0.5
+            },
+            {
+              "zone": "safe_expansion",
+              "probability": 0.6
+            }
+          ],
+          "confidence": 0.64,
+          "prediction_window": 90.0
+        },
+        "strategic_phase_transition": {
+          "next_phase": "adaptive_phase",
+          "confidence": 0.3733333333333333,
+          "prediction_window": 120
+        }
+      },
+      "counter_strategies": {
+        "preemptive_actions": [
+          {
+            "action": "preemptive_spawning",
+            "timing": 90,
+            "target": "predicted_expansion_zones",
+            "confidence": 0.7999999999999999
+          }
+        ],
+        "reactive_preparations": [],
+        "contingency_plans": []
+      },
+      "adaptation_triggers": {
+        "prediction_failure_threshold": 0.30000000000000004,
+        "adaptation_speed": "fast",
+        "failure_learning": {
+          "enabled": true,
+          "learning_rate": 0.3,
+          "pattern_adjustment": true
+        },
+        "triggers": {
+          "pattern_deviation": {
+            "threshold": 0.4,
+            "response": "recalibrate_predictions",
+            "learning_adjustment": 0.2
+          },
+          "unexpected_behavior": {
+            "threshold": 0.5,
+            "response": "emergency_adaptation",
+            "learning_adjustment": 0.3
+          },
+          "strategy_failure": {
+            "threshold": 0.3,
+            "response": "strategy_revision",
+            "learning_adjustment": 0.4
+          }
+        }
+      },
+      "meta_learning": {
+        "enabled": true,
+        "learning_focus": [
+          "prediction_accuracy_improvement",
+          "pattern_recognition_enhancement",
+          "behavioral_model_refinement"
+        ],
+        "adaptation_mechanisms": {
+          "pattern_weight_adjustment": true,
+          "confidence_calibration": true,
+          "prediction_horizon_optimization": true
+        },
+        "cross_game_learning": {
+          "enabled": true,
+          "pattern_generalization": true,
+          "player_archetype_learning": true
+        },
+        "emergent_behavior_detection": {
+          "enabled": true,
+          "novelty_detection_threshold": 0.6,
+          "adaptation_to_novelty": true
+        }
+      },
+      "psychological_tactics": {
+        "enabled": true,
+        "manipulation_level": "subtle",
+        "tactics": []
+      },
+      "prediction_validation": {
+        "validation_enabled": true,
+        "accuracy_tracking": true,
+        "prediction_logging": true,
+        "validation_metrics": [
+          "timing_accuracy",
+          "behavioral_accuracy",
+          "strategic_accuracy"
+        ],
+        "feedback_integration": {
+          "real_time_adjustment": true,
+          "learning_rate_adaptation": true,
+          "confidence_recalibration": true
+        }
+      },
+      "learning_feedback": {
+        "feedback_enabled": true,
+        "learning_mechanisms": [
+          "prediction_error_analysis",
+          "pattern_strength_adjustment",
+          "confidence_calibration"
+        ],
+        "adaptation_speed": "moderate",
+        "feedback_integration": {
+          "immediate_adjustment": true,
+          "gradual_learning": true,
+          "long_term_adaptation": true
+        }
+      }
+    },
+    "complexity_level": 0.5
+  },
+  "learning_metrics": {
+    "survival_time": 0,
+    "improvement_score": 0.0,
+    "strategy_effectiveness": 0.67,
+    "success_score": 0.7610000000000001
+  },
+  "memory_priority": 0.54
+}
