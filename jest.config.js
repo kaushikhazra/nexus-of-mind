@@ -15,6 +15,7 @@ module.exports = {
   ],
   moduleNameMapper: {
     '^@babylonjs/core$': '<rootDir>/jest.babylon-mock.js',
+    '^@babylonjs/gui$': '<rootDir>/jest.babylon-gui-mock.js',
   },
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   transformIgnorePatterns: [

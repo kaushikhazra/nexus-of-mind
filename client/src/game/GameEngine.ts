@@ -25,6 +25,11 @@ import { TreeRenderer } from '../rendering/TreeRenderer';
 import { Worker } from './entities/Worker';
 import { Protector } from './entities/Protector';
 import { CombatSystem } from './CombatSystem';
+import { TerritoryManager } from './TerritoryManager';
+import { LiberationManager } from './LiberationManager';
+import { PerformanceOptimizer } from './PerformanceOptimizer';
+import { QueenGrowthUI } from '../ui/QueenGrowthUI';
+import { TerritoryVisualUI } from '../ui/TerritoryVisualUI';
 
 export class GameEngine {
     private static instance: GameEngine | null = null;
@@ -59,12 +64,21 @@ export class GameEngine {
     private parasiteManager: ParasiteManager | null = null;
     private combatSystem: CombatSystem | null = null;
 
+    // Territory system
+    private territoryManager: TerritoryManager | null = null;
+    private liberationManager: LiberationManager | null = null;
+
+    // Performance optimization
+    private performanceOptimizer: PerformanceOptimizer | null = null;
+
     // Vegetation system
     private treeRenderer: TreeRenderer | null = null;
 
     // UI systems
     private miningAnalysisTooltip: MiningAnalysisTooltip | null = null;
     private protectorSelectionUI: ProtectorSelectionUI | null = null;
+    private queenGrowthUI: QueenGrowthUI | null = null;
+    private territoryVisualUI: TerritoryVisualUI | null = null;
 
     private isInitialized: boolean = false;
     private isRunning: boolean = false;
@@ -157,6 +171,28 @@ export class GameEngine {
             // Initialize vegetation system
             this.treeRenderer = new TreeRenderer(this.scene);
 
+            // Initialize territory system
+            this.territoryManager = new TerritoryManager();
+            this.territoryManager.initialize(this);
+
+            // Initialize liberation manager
+            this.liberationManager = new LiberationManager();
+            this.liberationManager.initialize(this.territoryManager);
+
+            // Initialize performance optimizer
+            this.performanceOptimizer = new PerformanceOptimizer(this, this.performanceMonitor);
+            this.performanceOptimizer.initialize();
+
+            // Connect territory manager to unit manager for mining bonus
+            if (this.unitManager) {
+                this.unitManager.setTerritoryManager(this.territoryManager);
+            }
+
+            // Connect territory manager to parasite manager for territorial control
+            if (this.parasiteManager) {
+                this.parasiteManager.setTerritoryManager(this.territoryManager);
+            }
+
             // Set terrain generator after terrain is initialized (delayed)
             setTimeout(() => {
                 const terrainGen = this.getTerrainGenerator();
@@ -186,6 +222,10 @@ export class GameEngine {
 
             // Initialize protector selection UI
             this.initializeProtectorSelectionUI();
+
+            // Initialize Queen & Territory UI components
+            this.initializeQueenGrowthUI();
+            this.initializeTerritoryVisualUI();
 
             // Setup terrain integration with game state
             this.setupTerrainIntegration();
@@ -224,6 +264,9 @@ export class GameEngine {
 
             // Start performance monitoring
             this.performanceMonitor?.startMonitoring();
+
+            // Start performance optimization monitoring
+            this.performanceOptimizer?.startMonitoring();
 
             // Start render loop
             this.engine.runRenderLoop(async () => {
@@ -268,6 +311,21 @@ export class GameEngine {
                         this.combatSystem.update(deltaTime);
                     }
 
+                    // Update territory system
+                    if (this.territoryManager) {
+                        this.territoryManager.update(deltaTime);
+                    }
+
+                    // Update liberation system
+                    if (this.liberationManager) {
+                        this.liberationManager.updateLiberations(deltaTime);
+                    }
+
+                    // Update performance optimization
+                    if (this.performanceOptimizer) {
+                        this.performanceOptimizer.update(deltaTime);
+                    }
+
                     // Update vegetation animations
                     if (this.treeRenderer) {
                         this.treeRenderer.updateAnimations();
@@ -297,6 +355,7 @@ export class GameEngine {
         }
 
         this.performanceMonitor?.stopMonitoring();
+        this.performanceOptimizer?.stopMonitoring();
         this.isRunning = false;
     }
 
@@ -360,6 +419,40 @@ export class GameEngine {
      */
     private initializeProtectorSelectionUI(): void {
         this.protectorSelectionUI = new ProtectorSelectionUI();
+    }
+
+    /**
+     * Initialize Queen growth UI
+     */
+    private initializeQueenGrowthUI(): void {
+        // Create Queen growth UI container if it doesn't exist
+        let queenGrowthContainer = document.getElementById('queen-growth-display');
+        if (!queenGrowthContainer) {
+            queenGrowthContainer = document.createElement('div');
+            queenGrowthContainer.id = 'queen-growth-display';
+            queenGrowthContainer.style.cssText = `
+                position: fixed;
+                top: 80px;
+                right: 20px;
+                z-index: 1000;
+            `;
+            document.body.appendChild(queenGrowthContainer);
+        }
+
+        this.queenGrowthUI = new QueenGrowthUI({
+            containerId: 'queen-growth-display'
+        });
+    }
+
+    /**
+     * Initialize territory visual UI
+     */
+    private initializeTerritoryVisualUI(): void {
+        if (!this.scene) {
+            return;
+        }
+
+        this.territoryVisualUI = new TerritoryVisualUI(this.scene);
     }
 
     /**
@@ -437,6 +530,48 @@ export class GameEngine {
      */
     public getCombatSystem(): CombatSystem | null {
         return this.combatSystem;
+    }
+
+    /**
+     * Get territory manager
+     */
+    public getTerritoryManager(): TerritoryManager | null {
+        return this.territoryManager;
+    }
+
+    /**
+     * Get liberation manager
+     */
+    public getLiberationManager(): LiberationManager | null {
+        return this.liberationManager;
+    }
+
+    /**
+     * Get Queen growth UI
+     */
+    public getQueenGrowthUI(): QueenGrowthUI | null {
+        return this.queenGrowthUI;
+    }
+
+    /**
+     * Get territory visual UI
+     */
+    public getTerritoryVisualUI(): TerritoryVisualUI | null {
+        return this.territoryVisualUI;
+    }
+
+    /**
+     * Get performance monitor
+     */
+    public getPerformanceMonitor(): PerformanceMonitor | null {
+        return this.performanceMonitor;
+    }
+
+    /**
+     * Get performance optimizer
+     */
+    public getPerformanceOptimizer(): PerformanceOptimizer | null {
+        return this.performanceOptimizer;
     }
     /**
      * Handle movement-combat transitions for auto-attack system
@@ -801,7 +936,12 @@ export class GameEngine {
         this.stop();
 
         // Dispose components in reverse order
+        this.performanceOptimizer?.dispose();
         this.treeRenderer?.dispose();
+        this.territoryVisualUI?.dispose();
+        this.queenGrowthUI?.dispose();
+        this.liberationManager?.dispose();
+        this.territoryManager?.dispose();
         this.combatSystem?.dispose();
         this.parasiteManager?.dispose();
         this.buildingManager?.dispose();

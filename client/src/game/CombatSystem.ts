@@ -698,6 +698,9 @@ export class CombatSystem {
      * Handle target destruction cleanup
      */
     public handleTargetDestruction(target: CombatTarget): void {
+        const { Queen } = require('./entities/Queen');
+        const { Hive } = require('./entities/Hive');
+        
         // Get all protectors that were attacking this target
         const affectedProtectors: string[] = [];
         
@@ -726,17 +729,24 @@ export class CombatSystem {
             }
         }
 
-        // Notify target of destruction
-        target.onDestroyed();
-
-        // If target is an EnergyParasite, notify ParasiteManager for proper cleanup
-        if (target instanceof EnergyParasite) {
+        // Handle specific target types
+        if (target instanceof Queen) {
+            console.log(`👑 Queen ${target.id} destroyed - territory liberation initiated`);
+            // Queen destruction is handled by the Queen itself and TerritoryManager
+        } else if (target instanceof Hive) {
+            console.log(`🏠 Hive ${target.id} destroyed - Queen elimination triggered`);
+            // Hive destruction triggers Queen death, handled by the Hive itself
+        } else if (target instanceof EnergyParasite) {
+            // Handle parasite destruction
             const gameEngine = require('./GameEngine').GameEngine.getInstance();
             const parasiteManager = gameEngine?.getParasiteManager();
             if (parasiteManager) {
                 parasiteManager.handleParasiteDestruction(target.id);
             }
         }
+
+        // Notify target of destruction
+        target.onDestroyed();
     }
 
     /**
@@ -1173,6 +1183,18 @@ export class CombatSystem {
             return true;
         }
 
+        // Queens are valid targets when vulnerable
+        const { Queen } = require('./entities/Queen');
+        if (target instanceof Queen) {
+            return (target as any).isVulnerable();
+        }
+
+        // Hives are valid targets when constructed
+        const { Hive } = require('./entities/Hive');
+        if (target instanceof Hive) {
+            return (target as any).isHiveConstructed();
+        }
+
         // TODO: Add AI unit validation when AI units are implemented
         // For now, accept any target that implements CombatTarget interface
         // but is not a friendly unit
@@ -1289,6 +1311,23 @@ export class CombatSystem {
             if (parasiteManager) {
                 const parasites = parasiteManager.getAllParasites();
                 targets.push(...parasites);
+            }
+
+            // Get Queens and Hives from TerritoryManager
+            const territoryManager = gameEngine?.getTerritoryManager();
+            if (territoryManager) {
+                const territories = territoryManager.getAllTerritories();
+                for (const territory of territories) {
+                    // Add vulnerable Queens as targets
+                    if (territory.queen && territory.queen.isVulnerable()) {
+                        targets.push(territory.queen);
+                    }
+                    
+                    // Add constructed Hives as targets
+                    if (territory.hive && territory.hive.isHiveConstructed()) {
+                        targets.push(territory.hive);
+                    }
+                }
             }
 
             // TODO: Add AI units when they are implemented
@@ -1537,6 +1576,16 @@ export class CombatSystem {
             priority += 30; // Energy Parasites get priority due to energy reward
         }
 
+        // Queen and Hive priority (high-value targets)
+        const { Queen } = require('./entities/Queen');
+        const { Hive } = require('./entities/Hive');
+        
+        if (target instanceof Queen) {
+            priority += 100; // Queens are highest priority targets
+        } else if (target instanceof Hive) {
+            priority += 80; // Hives are high priority targets
+        }
+
         // TODO: Add AI unit type priorities when implemented
         // Different AI unit types could have different threat levels
 
@@ -1711,6 +1760,245 @@ export class CombatSystem {
             frameImpact: Math.round(metrics.frameTimeImpact * 100) / 100,
             recommendations
         };
+    }
+
+    // Enhanced CombatSystem Integration for Queen & Territory System
+
+    /**
+     * Validate Queen as combat target
+     */
+    public validateQueenTarget(protector: Protector, queen: any): TargetValidation {
+        const { Queen } = require('./entities/Queen');
+        
+        if (!(queen instanceof Queen)) {
+            return {
+                isValid: false,
+                reason: 'invalid_type'
+            };
+        }
+
+        // Check if Queen is vulnerable (only during active control phase)
+        if (!queen.isVulnerable()) {
+            return {
+                isValid: false,
+                reason: 'invalid_type' // Invulnerable Queens are treated as invalid targets
+            };
+        }
+
+        // Use standard target validation for range and energy checks
+        return this.validateTarget(protector, queen);
+    }
+
+    /**
+     * Validate Hive as combat target
+     */
+    public validateHiveTarget(protector: Protector, hive: any): TargetValidation {
+        const { Hive } = require('./entities/Hive');
+        
+        if (!(hive instanceof Hive)) {
+            return {
+                isValid: false,
+                reason: 'invalid_type'
+            };
+        }
+
+        // Check if Hive is constructed (only constructed hives can be attacked)
+        if (!hive.isHiveConstructed()) {
+            return {
+                isValid: false,
+                reason: 'invalid_type' // Unconstructed Hives are treated as invalid targets
+            };
+        }
+
+        // Use standard target validation for range and energy checks
+        return this.validateTarget(protector, hive);
+    }
+
+    /**
+     * Coordinate multi-protector hive assault
+     * Implements difficulty scaling for single vs multiple protectors
+     */
+    public coordinateHiveAssault(hive: any, protectors: Protector[]): {
+        success: boolean;
+        totalDamage: number;
+        energyConsumed: number;
+        assaultDifficulty: 'easy' | 'moderate' | 'hard';
+        recommendedProtectors: number;
+    } {
+        const { Hive } = require('./entities/Hive');
+        
+        if (!(hive instanceof Hive) || !hive.isHiveConstructed()) {
+            return {
+                success: false,
+                totalDamage: 0,
+                energyConsumed: 0,
+                assaultDifficulty: 'hard',
+                recommendedProtectors: 3
+            };
+        }
+
+        const protectorCount = protectors.length;
+        let assaultDifficulty: 'easy' | 'moderate' | 'hard' = 'hard';
+        let recommendedProtectors = 3;
+
+        // Calculate assault difficulty based on protector count and hive defenses
+        const defensiveParasites = hive.getActiveDefensiveParasiteCount();
+        const hiveHealth = hive.health;
+        
+        // Difficulty scaling algorithm
+        if (protectorCount >= 3) {
+            assaultDifficulty = 'easy';
+            recommendedProtectors = 3;
+        } else if (protectorCount === 2) {
+            assaultDifficulty = 'moderate';
+            recommendedProtectors = 3;
+        } else {
+            assaultDifficulty = 'hard';
+            recommendedProtectors = Math.max(3, Math.ceil(defensiveParasites / 20));
+        }
+
+        // Execute coordinated attack using existing multi-protector damage system
+        const attackResult = this.coordinateMultiProtectorDamage(hive, protectors);
+
+        return {
+            success: attackResult.success,
+            totalDamage: attackResult.damageDealt,
+            energyConsumed: attackResult.energyConsumed,
+            assaultDifficulty,
+            recommendedProtectors
+        };
+    }
+
+    /**
+     * Calculate hive assault damage with difficulty scaling
+     */
+    public calculateHiveAssaultDamage(hive: any, protectors: Protector[]): number {
+        const { Hive } = require('./entities/Hive');
+        
+        if (!(hive instanceof Hive)) {
+            return 0;
+        }
+
+        let totalDamage = 0;
+        const protectorCount = protectors.length;
+
+        // Calculate base damage from all protectors
+        for (const protector of protectors) {
+            const baseDamage = this.calculateDamage(protector, hive);
+            totalDamage += baseDamage;
+        }
+
+        // Apply multi-protector coordination bonus
+        if (protectorCount >= 2) {
+            const coordinationBonus = Math.min(0.5, (protectorCount - 1) * 0.15); // Up to 50% bonus
+            totalDamage *= (1 + coordinationBonus);
+        }
+
+        // Apply difficulty scaling - single protectors are less effective against hives
+        if (protectorCount === 1) {
+            totalDamage *= 0.6; // 40% damage reduction for solo assault
+        }
+
+        return Math.floor(totalDamage);
+    }
+
+    /**
+     * Prioritize targets with territorial awareness
+     * Queens and Hives get higher priority, especially in contested territories
+     */
+    public prioritizeTargetsWithTerritory(protector: Protector, targets: CombatTarget[]): CombatTarget[] {
+        if (targets.length === 0) {
+            return [];
+        }
+
+        const protectorPosition = protector.getPosition();
+        const { Queen } = require('./entities/Queen');
+        const { Hive } = require('./entities/Hive');
+        
+        // Create priority objects with enhanced territorial scoring
+        const targetPriorities = targets.map(target => {
+            const distance = Vector3.Distance(protectorPosition, target.position);
+            let priority = this.calculateTargetPriority(target, distance);
+            
+            // Additional territorial priority bonuses
+            if (target instanceof Queen) {
+                // Queens in active control phase get maximum priority
+                if ((target as any).isVulnerable()) {
+                    priority += 150; // Highest priority for vulnerable Queens
+                }
+            } else if (target instanceof Hive) {
+                // Hives get high priority, especially when constructed
+                if ((target as any).isHiveConstructed()) {
+                    priority += 120; // High priority for constructed Hives
+                    
+                    // Bonus for hives with many defensive parasites (bigger threat)
+                    const defensiveCount = (target as any).getActiveDefensiveParasiteCount();
+                    priority += Math.min(30, defensiveCount * 0.5);
+                }
+            }
+            
+            return {
+                target,
+                distance,
+                priority,
+                id: target.id
+            };
+        });
+
+        // Sort by priority (highest first), then by distance (closest first) as tiebreaker
+        targetPriorities.sort((a, b) => {
+            if (Math.abs(a.priority - b.priority) < 0.001) {
+                return a.distance - b.distance;
+            }
+            return b.priority - a.priority;
+        });
+
+        return targetPriorities.map(tp => tp.target);
+    }
+
+    /**
+     * Get defensive priority level for a territory
+     * Higher values indicate more dangerous territories requiring more protectors
+     */
+    public getDefensivePriorityInTerritory(territory: any): number {
+        let priority = 0;
+
+        // Base priority for any territory
+        priority += 10;
+
+        // Queen presence increases priority significantly
+        if (territory.queen) {
+            if (territory.queen.isVulnerable()) {
+                priority += 50; // High priority for territories with vulnerable Queens
+            } else {
+                priority += 20; // Medium priority for territories with growing Queens
+            }
+        }
+
+        // Hive presence increases priority
+        if (territory.hive) {
+            if (territory.hive.isHiveConstructed()) {
+                priority += 40; // High priority for territories with constructed Hives
+                
+                // Additional priority based on defensive swarm size
+                const defensiveCount = territory.hive.getActiveDefensiveParasiteCount();
+                priority += Math.min(20, defensiveCount * 0.3);
+            } else {
+                priority += 15; // Medium priority for territories with constructing Hives
+            }
+        }
+
+        // Parasite count increases priority
+        priority += Math.min(30, territory.parasiteCount * 0.5);
+
+        // Liberation status affects priority
+        if (territory.controlStatus === 'liberated') {
+            priority -= 30; // Lower priority for liberated territories
+        } else if (territory.controlStatus === 'contested') {
+            priority += 10; // Slightly higher priority for contested territories
+        }
+
+        return Math.max(0, priority);
     }
 
     /**

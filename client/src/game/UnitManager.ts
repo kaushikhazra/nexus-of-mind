@@ -40,6 +40,7 @@ export class UnitManager {
     private unitRenderer: UnitRenderer;
     private terrainGenerator: any = null;
     private combatSystem: CombatSystem | null = null;
+    private territoryManager: any = null; // TerritoryManager for mining bonus
 
     // Unit management
     private units: Map<string, Unit> = new Map();
@@ -82,6 +83,20 @@ export class UnitManager {
     }
 
     /**
+     * Set territory manager for mining bonus integration
+     */
+    public setTerritoryManager(territoryManager: any): void {
+        this.territoryManager = territoryManager;
+        
+        // Update existing units with territory manager
+        for (const unit of this.units.values()) {
+            if (unit.setTerritoryManager) {
+                unit.setTerritoryManager(territoryManager);
+            }
+        }
+    }
+
+    /**
      * Create a new unit
      */
     public createUnit(unitType: 'worker' | 'scout' | 'protector', position: Vector3): Unit | null {
@@ -109,6 +124,11 @@ export class UnitManager {
             // Set terrain generator for height detection
             if (this.terrainGenerator) {
                 unit.setTerrainGenerator(this.terrainGenerator);
+            }
+
+            // Set territory manager for mining bonus
+            if (this.territoryManager && unit.setTerritoryManager) {
+                unit.setTerritoryManager(this.territoryManager);
             }
 
             // Update counter
