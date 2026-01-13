@@ -15,6 +15,7 @@ from .adaptive_difficulty import AdaptiveDifficultySystem
 from .data_models import QueenDeathData, QueenStrategy
 from .error_recovery import ErrorRecoveryManager
 from .data_validator import DataValidator
+from .learning_quality_monitor import LearningQualityMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ class AIEngine:
         self.adaptive_difficulty: Optional[AdaptiveDifficultySystem] = None
         self.error_recovery: Optional[ErrorRecoveryManager] = None
         self.data_validator: Optional[DataValidator] = None
+        self.learning_quality_monitor: Optional[LearningQualityMonitor] = None
         self.initialized = False
         
     async def initialize(self):
@@ -67,6 +69,11 @@ class AIEngine:
             self.strategy_generator = StrategyGenerator()
             self.memory_manager = QueenMemoryManager()
             self.adaptive_difficulty = AdaptiveDifficultySystem()
+            
+            # Initialize learning quality monitoring
+            self.learning_quality_monitor = LearningQualityMonitor()
+            await self.learning_quality_monitor.start_monitoring()
+            logger.info("Learning quality monitoring initialized")
             
             logger.info("All AI Engine components initialized successfully")
             self.initialized = True
@@ -433,6 +440,9 @@ class AIEngine:
         
         if self.memory_manager:
             await self.memory_manager.cleanup()
+        
+        if self.learning_quality_monitor:
+            await self.learning_quality_monitor.cleanup()
         
         if self.neural_network:
             await self.neural_network.cleanup()
