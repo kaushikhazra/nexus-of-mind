@@ -1,2 +1,75 @@
-node_modules
-node_modules
+# Dependencies
+node_modules/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Testing cache
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Model files (large binary files)
+*.keras
+*.h5
+*.pkl
+*.joblib
+
+# Data directories (generated/temporary data)
+data/queen_memory/generation_*.json
+data/learning_quality/
+data/performance_baselines.json
+optimization_rollbacks.json
+optimization_snapshots/
+
+# Quantized models (generated)
+models/quantized/
+
+# Demo and validation scripts (temporary)
+server/demo_*.py
+server/validate_*.py
+server/*_SUMMARY.md
+server/*_IMPLEMENTATION.md
+
+# Test data
+server/data/
