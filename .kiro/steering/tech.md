@@ -240,7 +240,7 @@ Ready for: Next user story or specific next steps
 - **For specs: Only merge when ALL tasks are completed**
 
 **Pre-Implementation Checklist**:
-- [ ] Implementation plan created in `.agents/plans/`
+- [ ] Implementation plan created in `.kiro/specs/`
 - [ ] Feature branch created from develop
 - [ ] KANBAN board updated to "In Progress"
 - [ ] Development environment ready (`npm run dev`)

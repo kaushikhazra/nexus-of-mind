@@ -1,4 +1,0 @@
-# file: C:\Projects\DKH-RTS-Game-Nesus-Of-Mind\server\ai_engine\data_models.py
-# hypothesis_version: 6.150.1
-
-[0.0, 0.5, 500, 'GameStateSnapshot', 'QueenDeathData', 'active_mining', 'approach_angles', 'assaultPattern', 'coordination', 'coordination_level', 'data', 'deathCause', 'deathLocation', 'defensive_failures', 'energy_level', 'explored_areas', 'failed_locations', 'gameState', 'generation', 'hiveDiscoveryTime', 'learning_progress', 'parasitesSpawned', 'parasites_spawned', 'playerUnits', 'preferred_angles', 'protector_positions', 'queenId', 'queen_death', 'queen_strategy', 'spawn_effectiveness', 'survivalTime', 'territoryId', 'timestamp', 'timing_patterns', 'to_dict', 'type', 'unknown', 'worker_positions', 'x', 'y', 'z']
