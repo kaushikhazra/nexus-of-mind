@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Build output
+dist/
+
 # Python cache files
 __pycache__/
 *.py[cod]
@@ -9,10 +12,13 @@ __pycache__/
 
 # Testing cache
 .pytest_cache/
+.hypothesis/
 .coverage
 htmlcov/
 .tox/
 .nox/
+playwright-report/
+test-results/
 
 # Virtual environments
 .env
@@ -49,13 +55,23 @@ pids
 *.seed
 *.pid.lock
 
+# Generated results and validation files
+*_results.json
+*_assessment_results.json
+validation_results.json
+comprehensive_validation.py
+neural_network_assessment.py
+
 # Model files (large binary files)
+models/
 *.keras
 *.h5
 *.pkl
 *.joblib
 
 # Data directories (generated/temporary data)
+data/
+data_backups/
 data/queen_memory/generation_*.json
 data/learning_quality/
 data/performance_baselines.json
@@ -70,6 +86,12 @@ server/demo_*.py
 server/validate_*.py
 server/*_SUMMARY.md
 server/*_IMPLEMENTATION.md
+
+# Generated documentation summaries
+FINAL_CHECKPOINT_SUMMARY.md
+
+# Outdated project management files
+proj-mgmt/
 
 # Test data
 server/data/
