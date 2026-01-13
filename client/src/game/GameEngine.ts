@@ -26,6 +26,7 @@ import { Worker } from './entities/Worker';
 import { Protector } from './entities/Protector';
 import { CombatSystem } from './CombatSystem';
 import { TerritoryManager } from './TerritoryManager';
+import { TerritoryRenderer } from '../rendering/TerritoryRenderer';
 import { LiberationManager } from './LiberationManager';
 import { PerformanceOptimizer } from './PerformanceOptimizer';
 import { QueenGrowthUI } from '../ui/QueenGrowthUI';
@@ -69,6 +70,7 @@ export class GameEngine {
     // Territory system
     private territoryManager: TerritoryManager | null = null;
     private liberationManager: LiberationManager | null = null;
+    private territoryRenderer: TerritoryRenderer | null = null;
 
     // Performance optimization
     private performanceOptimizer: PerformanceOptimizer | null = null;
@@ -181,9 +183,20 @@ export class GameEngine {
             this.territoryManager = new TerritoryManager();
             this.territoryManager.initialize(this);
 
+            // Initialize territory renderer
+            if (this.scene && this.materialManager) {
+                this.territoryRenderer = new TerritoryRenderer(
+                    this.scene,
+                    this.materialManager
+                );
+                this.territoryRenderer.setTerritoryManager(this.territoryManager);
+                // Set initial player position at camera target (0, 0, 0)
+                this.territoryRenderer.setPlayerPosition(new Vector3(0, 0, 0));
+            }
+
             // Initialize liberation manager
-            this.liberationManager = new LiberationManager();
-            this.liberationManager.initialize(this.territoryManager);
+            this.liberationManager = new LiberationManager(this.energyManager!);
+            this.liberationManager.setTerritoryManager(this.territoryManager);
 
             // Initialize performance optimizer
             this.performanceOptimizer = new PerformanceOptimizer(this, this.performanceMonitor);
@@ -328,6 +341,14 @@ export class GameEngine {
                         this.territoryManager.update(deltaTime);
                     }
 
+                    // Update territory renderer player position
+                    if (this.territoryRenderer && this.cameraController) {
+                        const camera = this.cameraController.getCamera();
+                        if (camera) {
+                            this.territoryRenderer.setPlayerPosition(camera.getTarget());
+                        }
+                    }
+
                     // Update liberation system
                     if (this.liberationManager) {
                         this.liberationManager.updateLiberations(deltaTime);
@@ -391,6 +412,13 @@ export class GameEngine {
             deposits.forEach(deposit => {
                 this.gameState!.addMineralDeposit(deposit);
             });
+        }
+
+        // Create single territory at initial camera position (0, 0) with Queen
+        if (this.territoryManager) {
+            console.log('👑 Creating territory at player start position (0, 0)...');
+            this.territoryManager.createTerritory(0, 0, true); // skipAlignment for dev
+            // TerritoryRenderer auto-detects territories from TerritoryManager
         }
     }
 
@@ -469,7 +497,7 @@ export class GameEngine {
             return;
         }
 
-        this.territoryVisualUI = new TerritoryVisualUI(this.scene);
+        this.territoryVisualUI = new TerritoryVisualUI({ containerId: 'territory-visual-display' });
     }
 
     /**
@@ -490,11 +518,11 @@ export class GameEngine {
                 territoryManager: this.territoryManager,
                 gameState: this.gameState,
                 guiTexture: this.guiTexture,
-                websocketUrl: process.env.AI_BACKEND_URL || 'ws://localhost:8000/ws',
+                websocketUrl: 'ws://localhost:8000/ws',
                 enableLearning: backendAvailable
             });
 
-            console.log(`🧠 AdaptiveQueenIntegration initialized (Learning: ${backendAvailable ? 'enabled' : 'disabled'})`);
+//             console.log(`🧠 AdaptiveQueenIntegration initialized (Learning: ${backendAvailable ? 'enabled' : 'disabled'})`);
             
         } catch (error) {
             console.warn('🧠 Failed to initialize AdaptiveQueenIntegration, falling back to standard behavior:', error);

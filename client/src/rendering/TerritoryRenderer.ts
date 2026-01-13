@@ -5,12 +5,13 @@
  * liberation effects, and territory entry/exit visual feedback in the game world.
  */
 
-import { 
-    Scene, 
-    Mesh, 
-    MeshBuilder, 
-    StandardMaterial, 
-    Color3, 
+import {
+    Scene,
+    Mesh,
+    MeshBuilder,
+    StandardMaterial,
+    Color3,
+    Color4,
     Vector3,
     TransformNode,
     Animation,
@@ -160,7 +161,7 @@ export class TerritoryRenderer {
 
         // Get territories near player
         const nearbyTerritories = this.territoryManager.getTerritoriesInRange(
-            this.playerPosition, 
+            this.playerPosition,
             2048 // Show territories within 2048 units (2 territory widths)
         );
 
@@ -205,7 +206,12 @@ export class TerritoryRenderer {
     private createTerritoryVisual(territory: Territory): TerritoryVisual {
         // Create root node for territory visual
         const rootNode = new TransformNode(`territory_visual_${territory.id}`, this.scene);
-        rootNode.position = territory.centerPosition;
+        // Position at territory center above terrain
+        rootNode.position = new Vector3(
+            territory.centerPosition.x,
+            5, // Above terrain level
+            territory.centerPosition.z
+        );
 
         // Create boundary visualization
         const boundaryLines = this.createTerritoryBoundary(territory, rootNode);
@@ -305,23 +311,11 @@ export class TerritoryRenderer {
 
     /**
      * Create status indicator for territory center
+     * Currently disabled - Hive mesh serves as the visual indicator
      */
     private createStatusIndicator(territory: Territory, rootNode: TransformNode): Mesh | null {
-        if (!this.config.showStatusIndicators) return null;
-
-        // Create a floating status beacon above territory center
-        const beacon = MeshBuilder.CreateSphere(`status_beacon_${territory.id}`, {
-            diameter: 3,
-            segments: 8
-        }, this.scene);
-        beacon.parent = rootNode;
-        beacon.position.y = 8; // Float 8 units above ground
-        beacon.material = this.getStatusBeaconMaterial(territory.controlStatus);
-
-        // Add pulsing animation
-        this.animateStatusBeacon(beacon);
-
-        return beacon;
+        // Beacon removed - Hive mesh provides visual indicator
+        return null;
     }
 
     /**
@@ -353,43 +347,11 @@ export class TerritoryRenderer {
 
     /**
      * Update Queen status beacon
+     * Currently disabled - Hive mesh serves as the visual indicator
      */
     private updateQueenStatusBeacon(visual: TerritoryVisual): void {
-        const territory = visual.territory;
-
-        if (territory.queen && territory.controlStatus === 'queen_controlled') {
-            if (!visual.queenStatusBeacon) {
-                // Create Queen beacon
-                visual.queenStatusBeacon = MeshBuilder.CreateCylinder(`queen_beacon_${territory.id}`, {
-                    diameterTop: 0,
-                    diameterBottom: 4,
-                    height: 6,
-                    tessellation: 8
-                }, this.scene);
-                visual.queenStatusBeacon.parent = visual.rootNode;
-                visual.queenStatusBeacon.position.y = 15; // High above territory
-                visual.queenStatusBeacon.material = this.queenBeaconMaterial;
-
-                // Add rotation animation
-                Animation.CreateAndStartAnimation(
-                    'queenBeaconRotation',
-                    visual.queenStatusBeacon,
-                    'rotation.y',
-                    30,
-                    120,
-                    0,
-                    Math.PI * 2,
-                    Animation.ANIMATIONLOOPMODE_CYCLE
-                );
-            }
-
-            // Update beacon color based on Queen phase
-            const queen = territory.queen;
-            const stats = queen.getStats();
-            this.updateQueenBeaconColor(visual.queenStatusBeacon, stats.currentPhase, stats.isVulnerable);
-
-        } else if (visual.queenStatusBeacon) {
-            // Remove Queen beacon if no Queen
+        // Queen beacon removed - Hive mesh provides visual indicator
+        if (visual.queenStatusBeacon) {
             visual.queenStatusBeacon.dispose();
             visual.queenStatusBeacon = null;
         }
@@ -452,16 +414,16 @@ export class TerritoryRenderer {
     private createLiberationParticleEffect(rootNode: TransformNode): ParticleSystem {
         const particleSystem = new ParticleSystem('liberationEffect', 50, this.scene);
         
-        // Set emitter
-        particleSystem.emitter = rootNode;
+        // Set emitter using position since TransformNode is not directly assignable
+        particleSystem.emitter = rootNode.position.clone();
         particleSystem.minEmitBox = new Vector3(-500, 0, -500);
         particleSystem.maxEmitBox = new Vector3(500, 0, 500);
 
         // Particle appearance
         particleSystem.particleTexture = new Texture('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', this.scene);
-        particleSystem.color1 = new Color3(0, 1, 0); // Green
-        particleSystem.color2 = new Color3(0, 1, 1); // Cyan
-        particleSystem.colorDead = new Color3(0, 0.5, 0.5);
+        particleSystem.color1 = new Color4(0, 1, 0, 1); // Green
+        particleSystem.color2 = new Color4(0, 1, 1, 1); // Cyan
+        particleSystem.colorDead = new Color4(0, 0.5, 0.5, 1);
 
         // Particle behavior
         particleSystem.minSize = 0.5;
@@ -484,32 +446,32 @@ export class TerritoryRenderer {
     /**
      * Get boundary material based on territory status
      */
-    private getBoundaryMaterial(controlStatus: string): StandardMaterial | null {
+    private getBoundaryMaterial(controlStatus: string): StandardMaterial {
         switch (controlStatus) {
             case 'queen_controlled':
-                return this.queenControlledBoundaryMaterial;
+                return this.queenControlledBoundaryMaterial!;
             case 'liberated':
-                return this.liberatedBoundaryMaterial;
+                return this.liberatedBoundaryMaterial!;
             case 'contested':
-                return this.contestedBoundaryMaterial;
+                return this.contestedBoundaryMaterial!;
             default:
-                return this.contestedBoundaryMaterial;
+                return this.contestedBoundaryMaterial!;
         }
     }
 
     /**
      * Get status beacon material based on territory status
      */
-    private getStatusBeaconMaterial(controlStatus: string): StandardMaterial | null {
+    private getStatusBeaconMaterial(controlStatus: string): StandardMaterial {
         switch (controlStatus) {
             case 'queen_controlled':
-                return this.queenBeaconMaterial;
+                return this.queenBeaconMaterial!;
             case 'liberated':
-                return this.liberationBeaconMaterial;
+                return this.liberationBeaconMaterial!;
             case 'contested':
-                return this.contestedBoundaryMaterial;
+                return this.contestedBoundaryMaterial!;
             default:
-                return this.contestedBoundaryMaterial;
+                return this.contestedBoundaryMaterial!;
         }
     }
 
