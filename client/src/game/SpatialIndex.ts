@@ -69,6 +69,9 @@ export class SpatialIndex {
         this.entityPositions.set(entityId, position.clone());
         this.entityTypes.set(entityId, entityType);
         this.entityChunks.set(entityId, chunkKey);
+
+        // Debug log (commented out to reduce console noise)
+        // console.log(`[SpatialIndex] add: type=${entityType}, id=${entityId.slice(0, 20)}, pos=(${position.x.toFixed(1)}, ${position.z.toFixed(1)}), chunk=${chunkKey}`);
     }
 
     /**
@@ -178,6 +181,9 @@ export class SpatialIndex {
                 }
             }
         }
+
+        // Debug log (commented out to reduce console noise)
+        // console.log(`[SpatialIndex] getEntitiesInRange: center=(${center.x.toFixed(1)}, ${center.z.toFixed(1)}), radius=${radius}, filter=${typeFilter || 'all'}, found=${results.length}`, results.slice(0, 5));
 
         return results;
     }

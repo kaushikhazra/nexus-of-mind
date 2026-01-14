@@ -235,68 +235,98 @@ export class ParasiteManager {
     }
     
     /**
-     * Update all existing parasites with performance optimizations
+     * Update parasites near the camera using spatial index for O(1) chunk lookups
+     * Only parasites within nearby chunks are updated - distant parasites are skipped
      */
     private updateParasites(deltaTime: number, workers: Worker[], protectors: Protector[]): void {
         // Early exit if no parasites
         if (this.parasites.size === 0) {
             return;
         }
-        
-        // Get camera position for distance-based optimizations
+
+        // Get game engine and spatial index
         const gameEngine = GameEngine.getInstance();
+        const spatialIndex = gameEngine?.getSpatialIndex();
         const cameraController = gameEngine?.getCameraController();
-        const cameraPosition = cameraController?.getCamera()?.position;
-        
-        // Batch process parasites for better performance
-        const parasiteArray = Array.from(this.parasites.values());
-        const batchSize = Math.min(5, parasiteArray.length); // Process max 5 parasites per frame
-        const startIndex = (Date.now() % parasiteArray.length) % (parasiteArray.length - batchSize + 1);
-        
-        // Process a batch of parasites each frame for better performance distribution
-        for (let i = 0; i < batchSize && startIndex + i < parasiteArray.length; i++) {
-            const parasite = parasiteArray[startIndex + i];
-            
-            if (!parasite.isAlive()) {
+        const cameraTarget = cameraController?.getCamera()?.getTarget();
+
+        if (!cameraTarget) {
+            return;
+        }
+
+        // Build ID->Object maps for O(1) lookups (done once per frame)
+        const workerMap = new Map<string, Worker>();
+        for (const worker of workers) {
+            workerMap.set(worker.getId(), worker);
+        }
+        const protectorMap = new Map<string, Protector>();
+        for (const protector of protectors) {
+            protectorMap.set(protector.getId(), protector);
+        }
+
+        // Get parasites in nearby chunks using spatial index (3x3 chunk area = 192x192 units)
+        let parasiteIdsToUpdate: string[] = [];
+
+        if (spatialIndex) {
+            // Use spatial index to get parasites in chunks near camera
+            // Search radius covers ~3 chunks (192 units)
+            parasiteIdsToUpdate = spatialIndex.getEntitiesInRange(
+                cameraTarget,
+                192, // 3 chunks radius
+                ['parasite', 'combat_parasite']
+            );
+        } else {
+            // Fallback: update all parasites if no spatial index
+            parasiteIdsToUpdate = Array.from(this.parasites.keys());
+        }
+
+        // Update only nearby parasites
+        for (const parasiteId of parasiteIdsToUpdate) {
+            const parasite = this.parasites.get(parasiteId);
+
+            if (!parasite || !parasite.isAlive()) {
                 continue;
             }
-            
-            // Skip distant parasites if performance optimization is active
-            if (this.renderingOptimizationLevel > 0 && cameraPosition) {
-                const distance = Vector3.Distance(parasite.getPosition(), cameraPosition);
-                if (distance > 150 && this.renderingOptimizationLevel === 2) {
-                    // Skip very distant parasites in aggressive mode
-                    continue;
-                }
-            }
-            
-            // Get nearby units efficiently
+
             const parasitePosition = parasite.getTerritoryCenter();
             const searchRadius = parasite.getTerritoryRadius() * 1.5;
-            
-            // Filter workers near this parasite's territory
-            const nearbyWorkers = workers.filter(worker => {
-                const distance = Vector3.Distance(worker.getPosition(), parasitePosition);
-                return distance <= searchRadius;
-            });
-            
-            // Filter protectors near this parasite's territory (for Combat Parasites)
-            const nearbyProtectors = protectors.filter(protector => {
-                const distance = Vector3.Distance(protector.getPosition(), parasitePosition);
-                return distance <= searchRadius;
-            });
-            
+
+            let nearbyWorkers: Worker[] = [];
+            let nearbyProtectors: Protector[] = [];
+
+            // Use spatial index for O(1) lookups if available
+            if (spatialIndex) {
+                // Get nearby worker IDs from spatial index
+                const workerIds = spatialIndex.getEntitiesInRange(parasitePosition, searchRadius, 'worker');
+                nearbyWorkers = workerIds
+                    .map(id => workerMap.get(id))
+                    .filter((w): w is Worker => w !== undefined);
+
+                // Get nearby protector IDs from spatial index
+                const protectorIds = spatialIndex.getEntitiesInRange(parasitePosition, searchRadius, 'protector');
+                nearbyProtectors = protectorIds
+                    .map(id => protectorMap.get(id))
+                    .filter((p): p is Protector => p !== undefined);
+            } else {
+                // Fallback to O(n) filtering if spatial index not available
+                nearbyWorkers = workers.filter(worker => {
+                    const distance = Vector3.Distance(worker.getPosition(), parasitePosition);
+                    return distance <= searchRadius;
+                });
+                nearbyProtectors = protectors.filter(protector => {
+                    const distance = Vector3.Distance(protector.getPosition(), parasitePosition);
+                    return distance <= searchRadius;
+                });
+            }
+
             // Update parasite with appropriate targets
             if (parasite instanceof CombatParasite) {
-                // Combat Parasites need both workers and protectors
                 parasite.update(deltaTime, nearbyWorkers, nearbyProtectors);
             } else {
-                // Energy Parasites only need workers
                 parasite.update(deltaTime, nearbyWorkers);
             }
 
             // Update spatial index with new position
-            const spatialIndex = gameEngine?.getSpatialIndex();
             if (spatialIndex) {
                 spatialIndex.updatePosition(parasite.getId(), parasite.getPosition());
             }
@@ -374,12 +404,21 @@ export class ParasiteManager {
         }
         
         // Calculate spawn interval based on activity and performance
-        const workersNearDeposit = workers.filter(worker => {
-            const distance = Vector3.Distance(worker.getPosition(), deposit.getPosition());
-            return distance <= 20; // Workers within 20 units
-        });
-        
-        const hasActiveMiners = workersNearDeposit.length > 0;
+        // Use spatial index for O(1) lookup if available
+        const gameEngine = GameEngine.getInstance();
+        const spatialIndex = gameEngine?.getSpatialIndex();
+        let hasActiveMiners = false;
+
+        if (spatialIndex) {
+            const nearbyWorkerIds = spatialIndex.getEntitiesInRange(deposit.getPosition(), 20, 'worker');
+            hasActiveMiners = nearbyWorkerIds.length > 0;
+        } else {
+            const workersNearDeposit = workers.filter(worker => {
+                const distance = Vector3.Distance(worker.getPosition(), deposit.getPosition());
+                return distance <= 20;
+            });
+            hasActiveMiners = workersNearDeposit.length > 0;
+        }
         let spawnInterval = hasActiveMiners 
             ? this.spawnConfig.baseSpawnInterval / this.spawnConfig.activeMiningMultiplier
             : this.spawnConfig.baseSpawnInterval;
@@ -455,12 +494,21 @@ export class ParasiteManager {
         }
         
         // Calculate spawn interval based on Queen control and activity
-        const workersNearDeposit = workers.filter(worker => {
-            const distance = Vector3.Distance(worker.getPosition(), deposit.getPosition());
-            return distance <= 20;
-        });
-        
-        const hasActiveMiners = workersNearDeposit.length > 0;
+        // Use spatial index for O(1) lookup if available
+        const gameEngine = GameEngine.getInstance();
+        const spatialIndex = gameEngine?.getSpatialIndex();
+        let hasActiveMiners = false;
+
+        if (spatialIndex) {
+            const nearbyWorkerIds = spatialIndex.getEntitiesInRange(deposit.getPosition(), 20, 'worker');
+            hasActiveMiners = nearbyWorkerIds.length > 0;
+        } else {
+            const workersNearDeposit = workers.filter(worker => {
+                const distance = Vector3.Distance(worker.getPosition(), deposit.getPosition());
+                return distance <= 20;
+            });
+            hasActiveMiners = workersNearDeposit.length > 0;
+        }
         let spawnInterval = hasActiveMiners 
             ? this.spawnConfig.baseSpawnInterval / this.spawnConfig.activeMiningMultiplier
             : this.spawnConfig.baseSpawnInterval;

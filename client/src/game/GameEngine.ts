@@ -6,6 +6,7 @@
  */
 
 import { Engine, Scene, PointerEventTypes, Vector3, Matrix } from '@babylonjs/core';
+import '@babylonjs/inspector';
 import { SceneManager } from '../rendering/SceneManager';
 import { CameraController } from '../rendering/CameraController';
 import { LightingSetup } from '../rendering/LightingSetup';
@@ -91,6 +92,10 @@ export class GameEngine {
 
     // Spatial indexing for O(1) entity lookups
     private spatialIndex: SpatialIndex | null = null;
+
+    // Throttling for spatial index checks
+    private lastDetectionCheckTime: number = 0;
+    private readonly DETECTION_CHECK_INTERVAL: number = 200; // Check every 200ms
 
     private isInitialized: boolean = false;
     private isRunning: boolean = false;
@@ -270,6 +275,9 @@ export class GameEngine {
             window.addEventListener('resize', () => {
                 this.engine?.resize();
             });
+
+            // Babylon.js debug layer - uncomment for perf tuning
+            // this.scene.debugLayer.show({ embedMode: true });
 
             this.isInitialized = true;
 
@@ -703,11 +711,19 @@ export class GameEngine {
      * Handle movement-combat transitions for auto-attack system
      * This method checks for enemy detection during protector movement
      * and initiates auto-attack when enemies are detected within range
+     * Throttled to run every 200ms instead of every frame for performance
      */
     private handleMovementCombatTransitions(): void {
         if (!this.combatSystem || !this.unitManager) {
             return;
         }
+
+        // Throttle detection checks to every 200ms
+        const now = performance.now();
+        if (now - this.lastDetectionCheckTime < this.DETECTION_CHECK_INTERVAL) {
+            return;
+        }
+        this.lastDetectionCheckTime = now;
 
         // Get all active protectors
         const protectors = this.unitManager.getUnitsByType('protector') as Protector[];
