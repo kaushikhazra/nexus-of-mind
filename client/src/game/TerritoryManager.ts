@@ -314,10 +314,9 @@ export class TerritoryManager {
         this.territoryGrid.addTerritory(territory);
 
         // Immediately spawn Queen for new territory (like parasites)
-        console.log(`👑 Territory ${territoryId} created - spawning initial Queen...`);
         const queen = this.createQueenForTerritory(territoryId, 1);
         if (queen) {
-            console.log(`👑 Queen ${queen.id} spawned for territory ${territoryId}`);
+            // Queen spawned successfully
         } else {
             console.warn(`⚠️ Failed to spawn Queen for territory ${territoryId}`);
         }
@@ -583,10 +582,10 @@ export class TerritoryManager {
                 enableLearning: true
             };
             queen = new AdaptiveQueen(adaptiveConfig);
-            console.log(`🧠 Created AdaptiveQueen ${queen.id} for territory ${territoryId} (Gen ${generation}) with AI learning`);
+            // AdaptiveQueen created with AI learning
         } else {
             queen = new Queen(queenConfig);
-            console.log(`👑 Created Queen ${queen.id} for territory ${territoryId} (Gen ${generation})`);
+            // Queen created for territory
         }
         
         territory.queen = queen;

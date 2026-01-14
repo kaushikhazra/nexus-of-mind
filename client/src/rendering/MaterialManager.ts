@@ -45,7 +45,7 @@ export class MaterialManager {
         scout: new Color3(0.2, 0.4, 1.0),       // Bright blue
         protector: new Color3(1.0, 0.2, 0.2),   // Bright red
         parasite: new Color3(0.4, 0.1, 0.6),    // Dark purple
-        combatParasite: new Color3(0.2, 0.1, 0.1), // Dark red-brown (more aggressive)
+        combatParasite: new Color3(0.8, 0.1, 0.1), // Bright red (aggressive, distinct)
         
         // Building colors (warm colors for infrastructure)
         base: new Color3(1.0, 0.9, 0.2),        // Bright yellow

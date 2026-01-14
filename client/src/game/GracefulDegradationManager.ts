@@ -109,7 +109,7 @@ export class GracefulDegradationManager {
                 for (const [key, strategy] of Object.entries(strategies)) {
                     this.strategyCache.set(key, strategy as FallbackStrategy);
                 }
-                console.log(`Loaded ${this.strategyCache.size} cached strategies`);
+                // Cached strategies loaded silently
             }
         } catch (error) {
             console.error('Failed to load cached strategies:', error);

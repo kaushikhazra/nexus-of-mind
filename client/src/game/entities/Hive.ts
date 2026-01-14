@@ -93,7 +93,7 @@ export class Hive implements CombatTarget {
         // Defensive swarm size (50+ parasites as per requirements)
         this.swarmSize = 50 + Math.floor(Math.random() * 20); // 50-70 parasites
         
-        console.log(`🏠 Hive ${this.id} created at ${this.position.x}, ${this.position.z} (${this.constructionDuration}s construction)`);
+        // Hive created silently
 
         // Create visual mesh
         this.createHiveMesh();
@@ -237,7 +237,7 @@ export class Hive implements CombatTarget {
             this.mesh.position.y = 10;
         }
 
-        console.log('🏠 Hive mesh created - termite mound style');
+        // Hive mesh created
     }
 
     /**
@@ -260,7 +260,7 @@ export class Hive implements CombatTarget {
         this.constructionProgress = 0.0;
         this.constructionElapsedTime = 0.0;
         
-        console.log(`🏠 Hive ${this.id} construction started (${this.constructionDuration}s)`);
+        // Hive construction started
     }
 
     /**
@@ -321,7 +321,7 @@ export class Hive implements CombatTarget {
         // Make Queen vulnerable now that hive is constructed
         this.queen.setHive(this);
 
-        console.log(`🏠 Hive ${this.id} construction completed!`);
+        // Hive construction completed
 
         // Notify construction complete callbacks
         this.onConstructionCompleteCallbacks.forEach(callback => callback(this));

@@ -104,7 +104,7 @@ export class TerritoryPerformanceMonitor {
             this.measureBaselineMemory();
         }
         
-        console.log('🏰 Territory Performance Monitor started');
+        // Territory Performance Monitor started silently
     }
 
     /**
@@ -113,7 +113,7 @@ export class TerritoryPerformanceMonitor {
     public stopMonitoring(): void {
         this.degradationActive = false;
         this.optimizationLevel = 0;
-        console.log('🏰 Territory Performance Monitor stopped');
+        // Territory Performance Monitor stopped silently
     }
 
     /**
@@ -124,7 +124,7 @@ export class TerritoryPerformanceMonitor {
             const memInfo = (performance as any).memory;
             this.baselineMemoryUsage = memInfo.usedJSHeapSize / (1024 * 1024); // MB
             this.hasBaselineMeasurement = true;
-            console.log(`📊 Baseline memory usage: ${this.baselineMemoryUsage.toFixed(1)}MB`);
+            // Baseline memory captured silently
         }
     }
 
@@ -308,14 +308,7 @@ export class TerritoryPerformanceMonitor {
             this.triggerPerformanceWarning();
         }
         
-        // Log performance issues
-        if (totalTerritoryMemory > this.thresholds.maxMemoryUsage) {
-            console.warn(`🏰 Territory memory usage: ${totalTerritoryMemory.toFixed(1)}MB (limit: ${this.thresholds.maxMemoryUsage}MB)`);
-        }
-        
-        if (cpuOverheadPercentage > this.thresholds.maxCPUOverheadPercentage) {
-            console.warn(`🏰 Territory CPU overhead: ${cpuOverheadPercentage.toFixed(1)}% (limit: ${this.thresholds.maxCPUOverheadPercentage}%)`);
-        }
+        // Performance issues tracked silently - access via getMetrics()
     }
 
     /**
@@ -383,7 +376,7 @@ export class TerritoryPerformanceMonitor {
                 break;
         }
         
-        console.log(`🏰 Performance optimization level changed: ${previousLevel} → ${level} (${description})`);
+        // Performance optimization level changed silently
         
         if (this.onOptimizationApplied) {
             this.onOptimizationApplied(level, description);
@@ -450,10 +443,7 @@ export class TerritoryPerformanceMonitor {
             suggestions.push('Consider staggering Queen lifecycle updates across frames');
         }
         
-        if (suggestions.length > 0) {
-            console.warn('🏰 Territory Performance Suggestions:');
-            suggestions.forEach(suggestion => console.warn(`  - ${suggestion}`));
-        }
+        // Performance suggestions stored silently - access via getMetrics()
     }
 
     /**

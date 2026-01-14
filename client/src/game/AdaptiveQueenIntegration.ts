@@ -50,19 +50,19 @@ export class AdaptiveQueenIntegration {
         this.territoryManager = config.territoryManager;
         this.gameState = config.gameState;
         this.guiTexture = config.guiTexture;
-        this.enableLearning = config.enableLearning !== false;
-        
+        this.enableLearning = config.enableLearning === true; // Default to disabled (KISS)
+
         // Initialize performance monitoring (Requirement 8.1: Maintain 60fps)
         const scene = this.gameEngine.getScene();
         const engine = this.gameEngine.getEngine();
-        
+
         if (!scene || !engine) {
             throw new Error('GameEngine scene or engine not available for performance monitoring');
         }
-        
+
         this.performanceMonitor = new PerformanceMonitor(scene, engine);
         this.performanceOptimizer = new PerformanceOptimizer(this.performanceMonitor);
-        
+
         // Initialize WebSocket client
         const websocketUrl = config.websocketUrl || this.DEFAULT_WEBSOCKET_URL;
         this.websocketClient = new WebSocketClient({
@@ -80,7 +80,7 @@ export class AdaptiveQueenIntegration {
             visible: this.enableLearning
         });
         
-        console.log('🧠 AdaptiveQueenIntegration created with performance monitoring');
+        // AdaptiveQueenIntegration created silently
     }
 
     /**
@@ -131,7 +131,7 @@ export class AdaptiveQueenIntegration {
             this.setupEventHandlers();
             
             this.isInitialized = true;
-            console.log('🧠 AdaptiveQueenIntegration initialized successfully with performance monitoring');
+            // AdaptiveQueenIntegration initialized successfully
             
         } catch (error) {
             console.error('🧠 Failed to initialize AdaptiveQueenIntegration:', error);

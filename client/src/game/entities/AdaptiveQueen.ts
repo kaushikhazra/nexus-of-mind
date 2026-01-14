@@ -229,7 +229,7 @@ export class AdaptiveQueen extends Queen {
         
         this.websocketClient = config.websocketClient;
         this.gameState = config.gameState;
-        this.enableLearning = config.enableLearning !== false;
+        this.enableLearning = config.enableLearning === true; // Default to disabled (KISS)
         
         // Initialize learning data
         this.learningData = {

@@ -239,7 +239,7 @@ export class Queen extends Parasite {
             this.segmentPositions.push(this.position.clone().add(segmentPos));
         }
 
-        console.log('👑 Queen mesh created with 12 rings');
+        // Queen mesh created silently
     }
 
     // ==================== Queen Patrol Behavior ====================
@@ -304,7 +304,7 @@ export class Queen extends Parasite {
         this.growthProgress = 0.0;
 
         if (this.growthDuration <= 0) {
-            console.log(`👑 Queen ${this.id} instant spawn - skipping growth phase`);
+            // Queen instant spawn - skipping growth phase
             this.growthProgress = 1.0;
             this.startHiveConstruction();
             return;
@@ -315,7 +315,7 @@ export class Queen extends Parasite {
         if (this.parentNode) {
             this.parentNode.position.y = -10;
         }
-        console.log(`👑 Queen ${this.id} started underground growth phase (${this.growthDuration}s)`);
+        // Queen started underground growth phase
     }
 
     private updateGrowthPhase(deltaTime: number): void {
@@ -335,7 +335,7 @@ export class Queen extends Parasite {
         this.phaseStartTime = performance.now();
 
         this.selectHiveLocation();
-        console.log(`👑 Queen ${this.id} started hive construction phase`);
+        // Queen started hive construction phase
 
         this.onPhaseChangeCallbacks.forEach(cb => cb(this, oldPhase, this.currentPhase));
     }
@@ -380,7 +380,7 @@ export class Queen extends Parasite {
             this.parentNode.position.z = this.position.z;
         }
 
-        console.log(`👑 Queen ${this.id} entered active control phase - now vulnerable!`);
+        // Queen entered active control phase
 
         this.onPhaseChangeCallbacks.forEach(cb => cb(this, oldPhase, this.currentPhase));
     }
@@ -410,7 +410,7 @@ export class Queen extends Parasite {
             this.parentNode.position.z = this.position.z;
         }
 
-        console.log(`👑 Queen ${this.id} selected hive location at territory center`);
+        // Queen selected hive location
     }
 
     private createHive(): void {
@@ -428,19 +428,19 @@ export class Queen extends Parasite {
         this.hive.startConstruction();
         this.territory.hive = this.hive;
 
-        console.log(`👑 Queen ${this.id} created hive`);
+        // Queen created hive
     }
 
     // ==================== CombatTarget Interface ====================
 
     public takeDamage(amount: number): boolean {
         if (!this.isVulnerable()) {
-            console.log(`👑 Queen ${this.id} is invulnerable in ${this.currentPhase} phase`);
+            // Queen is invulnerable
             return false;
         }
 
         this.health = Math.max(0, this.health - amount);
-        console.log(`👑 Queen ${this.id} took ${amount} damage (${this.health}/${this.maxHealth})`);
+        // Queen took damage
 
         if (this.health <= 0) {
             this.onDestroyed();

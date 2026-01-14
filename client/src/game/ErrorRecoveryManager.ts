@@ -100,7 +100,7 @@ export class ErrorRecoveryManager {
             maxRetryAttempts: 3,
             retryDelayMs: 5000, // 5 seconds
             validationIntervalMs: 10000, // 10 seconds
-            enableLogging: true,
+            enableLogging: false, // Disabled by default (KISS)
             ...config
         };
         

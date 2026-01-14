@@ -49,7 +49,7 @@ export class ProtectorCreationUI {
         // Get or create container
         this.container = document.getElementById(this.config.containerId);
         if (!this.container) {
-            console.warn(`⚠️ Container ${this.config.containerId} not found, creating dynamically`);
+            // Container not found - creating dynamically
             this.container = document.createElement('div');
             this.container.id = this.config.containerId;
             this.container.style.cssText = `

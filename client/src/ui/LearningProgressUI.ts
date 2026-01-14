@@ -47,7 +47,7 @@ export class LearningProgressUI {
     
     // State
     private currentQueen?: AdaptiveQueen;
-    private isVisible: boolean = true;
+    private isVisible: boolean = false; // Default to hidden (KISS)
     private isExpanded: boolean = false;
     private lastProgress?: LearningProgress;
     private generationHistory: Map<number, LearningProgress> = new Map();
@@ -59,12 +59,12 @@ export class LearningProgressUI {
 
     constructor(config: LearningProgressUIConfig) {
         this.parentTexture = config.parentTexture;
-        this.isVisible = config.visible !== false;
+        this.isVisible = config.visible === true; // Default to hidden unless explicitly enabled
         
         this.createUI(config);
         this.setupEventHandlers();
         
-        console.log('🎨 LearningProgressUI initialized');
+        // LearningProgressUI initialized silently
     }
 
     /**

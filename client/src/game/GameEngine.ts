@@ -32,6 +32,7 @@ import { PerformanceOptimizer } from './PerformanceOptimizer';
 import { QueenGrowthUI } from '../ui/QueenGrowthUI';
 import { TerritoryVisualUI } from '../ui/TerritoryVisualUI';
 import { AdaptiveQueenIntegration, createAdaptiveQueenIntegration } from './AdaptiveQueenIntegration';
+import { SpatialIndex } from './SpatialIndex';
 import { AdvancedDynamicTexture } from '@babylonjs/gui';
 
 export class GameEngine {
@@ -88,6 +89,9 @@ export class GameEngine {
     private adaptiveQueenIntegration: AdaptiveQueenIntegration | null = null;
     private guiTexture: AdvancedDynamicTexture | null = null;
 
+    // Spatial indexing for O(1) entity lookups
+    private spatialIndex: SpatialIndex | null = null;
+
     private isInitialized: boolean = false;
     private isRunning: boolean = false;
 
@@ -139,6 +143,9 @@ export class GameEngine {
             this.lightingSetup = new LightingSetup(this.scene);
             this.materialManager = new MaterialManager(this.scene);
             this.performanceMonitor = new PerformanceMonitor(this.scene, this.engine);
+
+            // Initialize spatial index for O(1) entity lookups
+            this.spatialIndex = new SpatialIndex();
 
             // Initialize energy system
             this.energyManager = EnergyManager.getInstance();
@@ -416,7 +423,7 @@ export class GameEngine {
 
         // Create single territory at initial camera position (0, 0) with Queen
         if (this.territoryManager) {
-            console.log('👑 Creating territory at player start position (0, 0)...');
+            // Creating initial territory silently
             this.territoryManager.createTerritory(0, 0, true); // skipAlignment for dev
             // TerritoryRenderer auto-detects territories from TerritoryManager
         }
@@ -510,16 +517,17 @@ export class GameEngine {
         }
 
         try {
-            // Check if AI backend is available
-            const backendAvailable = await this.checkAIBackendAvailability();
-            
+            // AI learning disabled by default (KISS principle)
+            // To enable: set enableLearning to true and ensure AI backend is running
+            const enableLearning = false;
+
             this.adaptiveQueenIntegration = await createAdaptiveQueenIntegration({
                 gameEngine: this,
                 territoryManager: this.territoryManager,
                 gameState: this.gameState,
                 guiTexture: this.guiTexture,
                 websocketUrl: 'ws://localhost:8000/ws',
-                enableLearning: backendAvailable
+                enableLearning: enableLearning
             });
 
 //             console.log(`🧠 AdaptiveQueenIntegration initialized (Learning: ${backendAvailable ? 'enabled' : 'disabled'})`);
@@ -677,6 +685,13 @@ export class GameEngine {
      */
     public getPerformanceOptimizer(): PerformanceOptimizer | null {
         return this.performanceOptimizer;
+    }
+
+    /**
+     * Get spatial index for efficient entity lookups
+     */
+    public getSpatialIndex(): SpatialIndex | null {
+        return this.spatialIndex;
     }
 
     /**

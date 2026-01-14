@@ -95,9 +95,13 @@ export class CameraController {
     private setupCameraControls(): void {
         if (!this.camera) return;
 
-        // Enable standard mouse controls (keep original behavior)
-        this.camera.inputs.addMouseWheel();
-        this.camera.inputs.addPointers();
+        // Enable standard mouse controls (only if not already attached)
+        if (!this.camera.inputs.attached.mousewheel) {
+            this.camera.inputs.addMouseWheel();
+        }
+        if (!this.camera.inputs.attached.pointers) {
+            this.camera.inputs.addPointers();
+        }
         
         // Add custom keyboard controls only
         this.setupCustomKeyboardControls();
