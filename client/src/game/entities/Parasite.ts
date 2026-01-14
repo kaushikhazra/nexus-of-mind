@@ -86,6 +86,7 @@ export abstract class Parasite implements CombatTarget {
 
     // Terrain following
     protected terrainGenerator: any = null;
+    protected roamHeight: number = 1.0; // Height above terrain
 
     // Lifecycle
     protected spawnTime: number;
@@ -103,8 +104,10 @@ export abstract class Parasite implements CombatTarget {
         // Set territory center to spawn position
         this.territoryCenter = this.position.clone();
 
-        // Initialize patrol target
-        this.patrolTarget = this.generatePatrolTarget();
+        // Initialize patrol target to territory center
+        // Subclasses can override generatePatrolTarget() for custom patterns
+        // The first updateRoaming() call will generate a proper patrol target
+        this.patrolTarget = this.position.clone();
 
         this.spawnTime = Date.now();
         this.lastStateChange = this.spawnTime;
@@ -168,38 +171,149 @@ export abstract class Parasite implements CombatTarget {
         return 1.5;
     }
 
-    // ==================== Shared Movement System ====================
+    // ==================== Shared Roaming System ====================
 
     /**
-     * Move towards a target position with directional facing
+     * Smooth roaming behavior with terrain following
      * This is the core movement implementation shared by all parasites
+     * Uses direct parentNode position updates for smooth movement
      */
-    protected moveTowards(target: Vector3, deltaTime: number): void {
-        const direction = target.subtract(this.position).normalize();
-        const movement = direction.scale(this.speed * deltaTime);
+    protected updateRoaming(deltaTime: number): void {
+        if (!this.parentNode) return;
 
-        // Track movement state
-        this.isMoving = movement.length() > 0.01;
-
-        // Calculate and apply facing angle
-        if (this.isMoving) {
-            this.facingAngle = Math.atan2(direction.x, direction.z);
-            this.applyRotationToSegments(this.facingAngle);
+        // Handle patrol pause - still update terrain slope while paused
+        if (this.isPatrolPaused) {
+            this.patrolPauseTime -= deltaTime;
+            if (this.patrolPauseTime <= 0) {
+                this.isPatrolPaused = false;
+                this.patrolTarget = this.generatePatrolTarget();
+            }
+            // Update terrain slope even while paused
+            this.updateTerrainSlope();
+            this.updateSegmentAnimation();
+            return;
         }
 
-        this.position.addInPlace(movement);
+        // Calculate movement toward patrol target
+        const currentX = this.parentNode.position.x;
+        const currentZ = this.parentNode.position.z;
+        const dx = this.patrolTarget.x - currentX;
+        const dz = this.patrolTarget.z - currentZ;
+        const distance = Math.sqrt(dx * dx + dz * dz);
+
+        // Check if reached patrol target
+        if (distance < 1.0) {
+            this.isPatrolPaused = true;
+            this.patrolPauseTime = this.patrolPauseDuration + Math.random() * 2;
+            return;
+        }
+
+        // Move toward target with proper ratio (prevents overshooting)
+        this.isMoving = true;
+        const moveDistance = this.speed * deltaTime;
+        const ratio = Math.min(moveDistance / distance, 1);
+
+        const newX = currentX + dx * ratio;
+        const newZ = currentZ + dz * ratio;
+
+        // Get terrain height at new position
+        const terrainHeight = this.getTerrainHeight(newX, newZ);
+
+        // Update parentNode position directly (smooth, no sync issues)
+        this.parentNode.position.x = newX;
+        this.parentNode.position.z = newZ;
+        this.parentNode.position.y = terrainHeight + this.roamHeight;
+
+        // Rotate to face movement direction
+        this.parentNode.rotation.y = Math.atan2(dx, dz);
+
+        // Sync logical position
+        this.position.x = newX;
+        this.position.z = newZ;
+        this.position.y = terrainHeight + this.roamHeight;
+
+        // Update terrain slope (pitch and roll)
+        this.updateTerrainSlope();
+
+        // Update segment animation
+        this.updateSegmentAnimation();
     }
 
     /**
-     * Apply rotation to all segments to face movement direction
+     * Update rotation to follow terrain slope
+     * Calculates pitch (forward/back tilt) and roll (left/right tilt)
      */
-    protected applyRotationToSegments(angle: number): void {
-        if (this.segments && this.segments.length > 0) {
-            this.segments.forEach(segment => {
-                segment.rotation.y = angle;
-                segment.rotation.x = Math.PI / 2; // Keep ring orientation
-            });
-        }
+    protected updateTerrainSlope(): void {
+        if (!this.parentNode) return;
+        // getTerrainHeight() has fallback to GameEngine if terrainGenerator not set
+
+        const x = this.parentNode.position.x;
+        const z = this.parentNode.position.z;
+        const sampleDistance = 2.0;
+        const facingAngle = this.parentNode.rotation.y;
+
+        // Calculate forward and right direction vectors
+        const forwardX = Math.sin(facingAngle);
+        const forwardZ = Math.cos(facingAngle);
+        const rightX = Math.cos(facingAngle);
+        const rightZ = -Math.sin(facingAngle);
+
+        // Sample terrain heights
+        const frontHeight = this.getTerrainHeight(x + forwardX * sampleDistance, z + forwardZ * sampleDistance);
+        const backHeight = this.getTerrainHeight(x - forwardX * sampleDistance, z - forwardZ * sampleDistance);
+        const rightHeight = this.getTerrainHeight(x + rightX * sampleDistance, z + rightZ * sampleDistance);
+        const leftHeight = this.getTerrainHeight(x - rightX * sampleDistance, z - rightZ * sampleDistance);
+
+        // Calculate pitch (forward/back tilt) and roll (left/right tilt)
+        const pitchDiff = backHeight - frontHeight;
+        const targetPitch = Math.atan2(pitchDiff, sampleDistance * 2);
+        const rollDiff = leftHeight - rightHeight;
+        const targetRoll = Math.atan2(rollDiff, sampleDistance * 2);
+
+        // Smooth interpolation
+        const smoothFactor = 0.1;
+        this.parentNode.rotation.x = this.parentNode.rotation.x + (targetPitch - this.parentNode.rotation.x) * smoothFactor;
+        this.parentNode.rotation.z = this.parentNode.rotation.z + (targetRoll - this.parentNode.rotation.z) * smoothFactor;
+
+        // Clamp to prevent extreme tilting (±30 degrees)
+        const maxTilt = Math.PI / 6;
+        this.parentNode.rotation.x = Math.max(-maxTilt, Math.min(maxTilt, this.parentNode.rotation.x));
+        this.parentNode.rotation.z = Math.max(-maxTilt, Math.min(maxTilt, this.parentNode.rotation.z));
+    }
+
+    /**
+     * Move towards a target position (legacy method for hunting/returning states)
+     * Subclasses can use this for non-patrol movement
+     */
+    protected moveTowards(target: Vector3, deltaTime: number): void {
+        if (!this.parentNode) return;
+
+        const currentX = this.parentNode.position.x;
+        const currentZ = this.parentNode.position.z;
+        const dx = target.x - currentX;
+        const dz = target.z - currentZ;
+        const distance = Math.sqrt(dx * dx + dz * dz);
+
+        if (distance < 0.1) return;
+
+        this.isMoving = true;
+        const moveDistance = this.speed * deltaTime;
+        const ratio = Math.min(moveDistance / distance, 1);
+
+        const newX = currentX + dx * ratio;
+        const newZ = currentZ + dz * ratio;
+        const terrainHeight = this.getTerrainHeight(newX, newZ);
+
+        // Update parentNode position directly
+        this.parentNode.position.x = newX;
+        this.parentNode.position.z = newZ;
+        this.parentNode.position.y = terrainHeight + this.roamHeight;
+        this.parentNode.rotation.y = Math.atan2(dx, dz);
+
+        // Sync logical position
+        this.position.x = newX;
+        this.position.z = newZ;
+        this.position.y = terrainHeight + this.roamHeight;
     }
 
     // ==================== Shared Segment Animation ====================
@@ -207,12 +321,10 @@ export abstract class Parasite implements CombatTarget {
     /**
      * Update segment positions with wave/contraction animation
      * This creates the worm-like movement effect shared by all parasites
+     * Note: parentNode rotation handles facing direction, segments only need local positioning
      */
     protected updateSegmentAnimation(): void {
         if (!this.segments || this.segments.length === 0 || !this.parentNode) return;
-
-        // Update parent node position
-        this.parentNode.position = this.position.clone();
 
         const time = Date.now() * 0.002;
         const waveSpeed = this.getWaveSpeed();
@@ -220,77 +332,50 @@ export abstract class Parasite implements CombatTarget {
 
         for (let i = 0; i < this.segments.length; i++) {
             if (i === 0) {
-                // Head segment follows the main position (relative to parent at origin)
+                // Head segment at origin (relative to parent)
                 this.segments[i].position = Vector3.Zero();
+                // Only set X rotation for torus orientation - Y rotation inherited from parent
+                this.segments[i].rotation.x = Math.PI / 2;
+                this.segments[i].rotation.y = 0;
                 this.segmentPositions[i] = this.position.clone();
             } else {
-                // Body segments trail behind in the opposite direction of movement
-                const prevSegmentPos = this.segmentPositions[i - 1];
-
-                // Calculate trailing position based on current facing direction
-                const currentRotation = this.segments[0].rotation.y;
+                // Body segments trail behind along local -Z axis (parent handles world rotation)
 
                 // Dynamic distance based on movement (inertia effect)
-                const currentSpeed = this.speed;
                 const maxSpeed = 3.0;
-                const speedRatio = Math.min(currentSpeed / maxSpeed, 1.0);
+                const speedRatio = Math.min(this.speed / maxSpeed, 1.0);
                 const inertiaMultiplier = 1.0 + (speedRatio * 0.5);
 
-                // Add organic squeezing wave effect
+                // Add organic squeezing wave effect (scaled by segment count)
+                // Fewer segments = more wiggle, Queen (12 rings) = base wiggle
+                const segmentCount = this.getSegmentCount();
+                const wiggleScale = Math.min(2.0, 12 / segmentCount); // Clamped 1x-2x
+                const baseWiggle = 0.0375;
                 const segmentPhase = i * 0.8;
-                const squeezeWave = Math.sin(time * waveSpeed + segmentPhase) * 0.15;
+                const squeezeWave = Math.sin(time * waveSpeed + segmentPhase) * baseWiggle * wiggleScale;
                 const squeezeMultiplier = 1.0 + squeezeWave;
 
                 const trailingDistance = baseSpacing * inertiaMultiplier * squeezeMultiplier;
 
-                // Trail behind the previous segment (opposite to facing direction)
-                const trailOffset = new Vector3(
-                    -Math.sin(currentRotation) * trailingDistance,
+                // Trail along local -Z axis (parentNode rotation handles world facing)
+                // Each segment is positioned behind the previous one in local space
+                this.segments[i].position = new Vector3(0, 0, -i * trailingDistance);
+                this.segments[i].rotation.x = Math.PI / 2;
+                this.segments[i].rotation.y = 0;
+
+                // Track world position for other systems
+                const worldRotation = this.parentNode.rotation.y;
+                const worldOffset = new Vector3(
+                    -Math.sin(worldRotation) * i * trailingDistance,
                     0,
-                    -Math.cos(currentRotation) * trailingDistance
+                    -Math.cos(worldRotation) * i * trailingDistance
                 );
-
-                // Calculate world position for segment tracking
-                const segmentWorldPos = prevSegmentPos.add(trailOffset);
-                this.segmentPositions[i] = segmentWorldPos;
-
-                // Convert to local position relative to parent node
-                const segmentLocalPos = segmentWorldPos.subtract(this.position);
-                this.segments[i].position = segmentLocalPos;
+                this.segmentPositions[i] = this.position.add(worldOffset);
             }
         }
     }
 
-    // ==================== Shared Patrol Behavior ====================
-
-    /**
-     * Update patrolling behavior - move between patrol points within territory
-     */
-    protected updatePatrolling(deltaTime: number): void {
-        // Handle pause at patrol points
-        if (this.isPatrolPaused) {
-            this.patrolPauseTime -= deltaTime;
-            if (this.patrolPauseTime <= 0) {
-                this.isPatrolPaused = false;
-                this.patrolTarget = this.generatePatrolTarget();
-            }
-            // Still animate while paused
-            this.updateSegmentAnimation();
-            return;
-        }
-
-        // Move towards patrol target
-        this.moveTowards(this.patrolTarget, deltaTime);
-
-        // Check if reached patrol target
-        if (Vector3.Distance(this.position, this.patrolTarget) < 1.0) {
-            this.isPatrolPaused = true;
-            this.patrolPauseTime = this.patrolPauseDuration + Math.random() * 2;
-        }
-
-        // Update animation
-        this.updateSegmentAnimation();
-    }
+    // ==================== Patrol Target Generation ====================
 
     /**
      * Generate a random patrol target within territory
@@ -381,27 +466,39 @@ export abstract class Parasite implements CombatTarget {
 
     /**
      * Get terrain height at position
+     * Falls back to GameEngine terrain generator if not directly set
      */
     protected getTerrainHeight(x: number, z: number): number {
-        if (this.terrainGenerator) {
+        // Try direct terrain generator first
+        if (this.terrainGenerator?.getHeightAtPosition) {
             return this.terrainGenerator.getHeightAtPosition(x, z);
         }
-        return 0.5;
+
+        // Fallback to GameEngine terrain generator
+        try {
+            const gameEngine = require('../GameEngine').GameEngine.getInstance();
+            const terrainGen = gameEngine?.getTerrainGenerator();
+            if (terrainGen?.getHeightAtPosition) {
+                return terrainGen.getHeightAtPosition(x, z);
+            }
+        } catch (e) {
+            // Ignore errors from GameEngine access
+        }
+
+        return 0.5; // Default height if no terrain available
     }
 
     /**
      * Update position to follow terrain height
+     * Used by hunting/feeding states that don't call updateRoaming()
      */
     protected updateTerrainHeight(): void {
-        if (this.isMoving && this.terrainGenerator) {
-            const terrainHeight = this.getTerrainHeight(this.position.x, this.position.z);
-            const newY = terrainHeight + 1.0;
+        const terrainHeight = this.getTerrainHeight(this.position.x, this.position.z);
+        const newY = terrainHeight + this.roamHeight;
 
-            if (Math.abs(this.position.y - newY) > 0.1) {
-                this.position.y = newY;
-            }
-        } else if (!this.terrainGenerator) {
-            this.position.y = 1.0;
+        this.position.y = newY;
+        if (this.parentNode) {
+            this.parentNode.position.y = newY;
         }
     }
 

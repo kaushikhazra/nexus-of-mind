@@ -223,9 +223,6 @@ export class CombatParasite extends Parasite {
                 this.updateReturning(deltaTime);
                 break;
         }
-
-        this.updateTerrainHeight();
-        this.updateSegmentAnimation();
     }
 
     // ==================== State Updates ====================
@@ -260,12 +257,23 @@ export class CombatParasite extends Parasite {
             return;
         }
 
-        // Continue patrolling
-        this.moveTowards(this.patrolTarget, deltaTime);
+        // Continue roaming (use base class smooth movement)
+        this.updateRoaming(deltaTime);
+    }
 
-        if (Vector3.Distance(this.position, this.patrolTarget) < 1.5) {
-            this.patrolTarget = this.generateEnhancedPatrolTarget();
-        }
+    /**
+     * Override patrol target generation for aggression-based range
+     */
+    protected generatePatrolTarget(): Vector3 {
+        const angle = Math.random() * Math.PI * 2;
+        const maxDist = this.territoryRadius * (0.65 + this.aggressionLevel * 0.25);
+        const distance = Math.random() * maxDist;
+
+        return this.territoryCenter.add(new Vector3(
+            Math.cos(angle) * distance,
+            0,
+            Math.sin(angle) * distance
+        ));
     }
 
     /**
@@ -321,9 +329,10 @@ export class CombatParasite extends Parasite {
             return;
         }
 
-        // Move towards target
-        const dynamicSpeed = this.calculateDynamicSpeed();
-        this.moveTowardsEnhanced(targetPosition, deltaTime, dynamicSpeed);
+        // Move towards target (use base class smooth movement)
+        this.moveTowards(targetPosition, deltaTime);
+        this.updateTerrainSlope();
+        this.updateSegmentAnimation();
     }
 
     /**
@@ -353,10 +362,16 @@ export class CombatParasite extends Parasite {
         }
 
         this.updateDrainBeam(targetPosition);
+
+        // Update terrain and animation while feeding
+        this.updateTerrainSlope();
+        this.updateSegmentAnimation();
     }
 
     private updateReturning(deltaTime: number): void {
         this.moveTowards(this.territoryCenter, deltaTime);
+        this.updateTerrainSlope();
+        this.updateSegmentAnimation();
 
         if (Vector3.Distance(this.position, this.territoryCenter) <= this.territoryRadius * 0.5) {
             this.setState(ParasiteState.PATROLLING);
@@ -457,63 +472,6 @@ export class CombatParasite extends Parasite {
         this.aggressionLevel = this.aggressionLevel * 0.8 + newAggression * 0.2;
     }
 
-    // ==================== Enhanced Movement ====================
-
-    private generateEnhancedPatrolTarget(): Vector3 {
-        const angle = Math.random() * Math.PI * 2;
-        const maxDist = this.territoryRadius * (0.65 + this.aggressionLevel * 0.25);
-        const distance = Math.random() * maxDist;
-
-        return this.territoryCenter.add(new Vector3(
-            Math.cos(angle) * distance,
-            0,
-            Math.sin(angle) * distance
-        ));
-    }
-
-    private calculateDynamicSpeed(): number {
-        let speed = this.speed * (0.85 + this.aggressionLevel * 0.3);
-
-        const healthRatio = this.health / this.maxHealth;
-        if (healthRatio < 0.5) {
-            speed *= (0.7 + healthRatio * 0.3);
-        }
-
-        if (this.combatTarget && this.availableProtectors.includes(this.combatTarget as Protector)) {
-            speed *= 1.1;
-        }
-
-        return Math.max(1.8, Math.min(3.5, speed));
-    }
-
-    private moveTowardsEnhanced(target: Vector3, deltaTime: number, dynamicSpeed: number): void {
-        const direction = target.subtract(this.position).normalize();
-        const movement = direction.scale(dynamicSpeed * deltaTime);
-
-        this.isMoving = movement.length() > 0.01;
-
-        if (this.isMoving) {
-            const facingAngle = Math.atan2(direction.x, direction.z);
-
-            this.segments.forEach((segment, index) => {
-                const currentRot = segment.rotation.y;
-                const diff = facingAngle - currentRot;
-
-                let normalizedDiff = diff;
-                while (normalizedDiff > Math.PI) normalizedDiff -= 2 * Math.PI;
-                while (normalizedDiff < -Math.PI) normalizedDiff += 2 * Math.PI;
-
-                const rotSpeed = 8.0 - (index * 1.5);
-                const maxChange = rotSpeed * deltaTime;
-                const change = Math.sign(normalizedDiff) * Math.min(Math.abs(normalizedDiff), maxChange);
-
-                segment.rotation.y = currentRot + change;
-                segment.rotation.x = Math.PI / 2;
-            });
-        }
-
-        this.position.addInPlace(movement);
-    }
 
     // ==================== Combat Actions ====================
 
@@ -657,7 +615,7 @@ export class CombatParasite extends Parasite {
             aggressionLevel: this.aggressionLevel,
             engagementDistance: this.engagementDistance,
             retreatThreshold: this.retreatThreshold,
-            dynamicSpeed: this.calculateDynamicSpeed(),
+            speed: this.speed,
             healthRatio: this.health / this.maxHealth
         };
     }

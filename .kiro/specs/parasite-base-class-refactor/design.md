@@ -39,11 +39,11 @@ Queen (implements CombatTarget) [SEPARATE HIERARCHY]
 
 ```
 Parasite (abstract, implements CombatTarget)
-│   - moveTowards()           [SHARED]
+│   - updateRoaming()          [SHARED - smooth movement with terrain]
 │   - updateSegmentAnimation() [SHARED]
-│   - updatePatrolling()       [SHARED]
-│   - generatePatrolTarget()   [SHARED]
-│   - createMesh()            [SHARED, uses getColor()]
+│   - generatePatrolTarget()   [SHARED, virtual for override]
+│   - updateTerrainSlope()     [SHARED - pitch/roll following]
+│   - createMesh()             [SHARED, uses getColor()]
 │   - abstract getColor()
 │   - abstract getTargetPriority()
 │
@@ -51,16 +51,19 @@ Parasite (abstract, implements CombatTarget)
 │       - getColor() → Yellow
 │       - getTargetPriority() → [Worker]
 │       - updateTargeting() → workers only
+│       - drainEnergy() → energy drain behavior
 │
 ├── CombatParasite
 │       - getColor() → Red
 │       - getTargetPriority() → [Protector, Worker]
 │       - updateTargeting() → protectors first
+│       - generatePatrolTarget() → aggression-based range
 │       - enhanced aggression behavior
 │
 └── Queen
     │   - getColor() → Purple
     │   - getTargetPriority() → [Worker, Protector]
+    │   - generatePatrolTarget() → patrol around hive
     │   - spawnParasites()     [QUEEN-SPECIFIC]
     │   - hive management      [QUEEN-SPECIFIC]
     │
@@ -110,61 +113,100 @@ export abstract class Parasite implements CombatTarget {
     abstract getColor(): Color3;
     abstract getTargetPriority(): TargetType[];
 
-    // Shared movement implementation
-    protected moveTowards(target: Vector3, deltaTime: number): void {
-        const direction = target.subtract(this.position).normalize();
-        const movement = direction.scale(this.speed * deltaTime);
+    // Shared roaming behavior (smooth movement with terrain following)
+    protected updateRoaming(deltaTime: number): void {
+        if (!this.parentNode) return;
 
-        this.isMoving = movement.length() > 0.01;
-
-        if (this.isMoving) {
-            this.facingAngle = Math.atan2(direction.x, direction.z);
-            this.applyRotationToSegments(this.facingAngle);
-        }
-
-        this.position.addInPlace(movement);
-        this.updateMeshPosition();
-    }
-
-    // Shared segment animation
-    protected updateSegmentAnimation(): void {
-        const time = Date.now() * 0.002;
-
-        for (let i = 0; i < this.segments.length; i++) {
-            const segment = this.segments[i];
-            const waveOffset = Math.sin(time + i * 0.5) * 0.3;
-
-            if (this.isMoving) {
-                // Trail behind movement direction
-                const trailDistance = (i + 1) * this.getSegmentSpacing();
-                segment.position.x = -Math.sin(this.facingAngle) * trailDistance;
-                segment.position.z = -Math.cos(this.facingAngle) * trailDistance;
-            }
-
-            segment.position.y = waveOffset;
-        }
-    }
-
-    // Shared patrol behavior
-    protected updatePatrolling(deltaTime: number): void {
+        // Handle patrol pause
         if (this.isPatrolPaused) {
             this.patrolPauseTime -= deltaTime;
             if (this.patrolPauseTime <= 0) {
                 this.isPatrolPaused = false;
                 this.patrolTarget = this.generatePatrolTarget();
             }
+            this.updateTerrainSlope();
             this.updateSegmentAnimation();
             return;
         }
 
-        this.moveTowards(this.patrolTarget, deltaTime);
+        // Calculate movement toward patrol target
+        const currentX = this.parentNode.position.x;
+        const currentZ = this.parentNode.position.z;
+        const dx = this.patrolTarget.x - currentX;
+        const dz = this.patrolTarget.z - currentZ;
+        const distance = Math.sqrt(dx * dx + dz * dz);
 
-        if (Vector3.Distance(this.position, this.patrolTarget) < 1.0) {
+        // Check if reached patrol target
+        if (distance < 1.0) {
             this.isPatrolPaused = true;
             this.patrolPauseTime = this.patrolPauseDuration + Math.random() * 2;
+            return;
         }
 
+        // Move toward target with proper ratio (prevents overshooting)
+        this.isMoving = true;
+        const moveDistance = this.speed * deltaTime;
+        const ratio = Math.min(moveDistance / distance, 1);
+
+        const newX = currentX + dx * ratio;
+        const newZ = currentZ + dz * ratio;
+
+        // Get terrain height at new position
+        const terrainHeight = this.getTerrainHeight(newX, newZ);
+
+        // Update parentNode position directly (smooth, no sync issues)
+        this.parentNode.position.x = newX;
+        this.parentNode.position.z = newZ;
+        this.parentNode.position.y = terrainHeight + this.roamHeight;
+
+        // Rotate to face movement direction
+        this.parentNode.rotation.y = Math.atan2(dx, dz);
+
+        // Sync logical position
+        this.position.x = newX;
+        this.position.z = newZ;
+        this.position.y = terrainHeight + this.roamHeight;
+
+        // Update terrain slope (pitch and roll)
+        this.updateTerrainSlope();
+
+        // Update segment animation
         this.updateSegmentAnimation();
+    }
+
+    // Terrain slope following (pitch/roll based on terrain)
+    protected updateTerrainSlope(): void {
+        if (!this.parentNode) return;
+
+        const sampleDistance = 2.0;
+        const x = this.parentNode.position.x;
+        const z = this.parentNode.position.z;
+        const facingAngle = this.parentNode.rotation.y;
+
+        // Sample terrain heights in forward/back and left/right directions
+        const forwardX = Math.sin(facingAngle);
+        const forwardZ = Math.cos(facingAngle);
+        const rightX = Math.cos(facingAngle);
+        const rightZ = -Math.sin(facingAngle);
+
+        const frontHeight = this.getTerrainHeight(x + forwardX * sampleDistance, z + forwardZ * sampleDistance);
+        const backHeight = this.getTerrainHeight(x - forwardX * sampleDistance, z - forwardZ * sampleDistance);
+        const rightHeight = this.getTerrainHeight(x + rightX * sampleDistance, z + rightZ * sampleDistance);
+        const leftHeight = this.getTerrainHeight(x - rightX * sampleDistance, z - rightZ * sampleDistance);
+
+        // Calculate pitch (forward/back tilt) and roll (left/right tilt)
+        const targetPitch = Math.atan2(backHeight - frontHeight, sampleDistance * 2);
+        const targetRoll = Math.atan2(leftHeight - rightHeight, sampleDistance * 2);
+
+        // Smooth interpolation
+        const smoothFactor = 0.1;
+        this.parentNode.rotation.x += (targetPitch - this.parentNode.rotation.x) * smoothFactor;
+        this.parentNode.rotation.z += (targetRoll - this.parentNode.rotation.z) * smoothFactor;
+
+        // Clamp to prevent extreme tilting
+        const maxTilt = Math.PI / 6;
+        this.parentNode.rotation.x = Math.max(-maxTilt, Math.min(maxTilt, this.parentNode.rotation.x));
+        this.parentNode.rotation.z = Math.max(-maxTilt, Math.min(maxTilt, this.parentNode.rotation.z));
     }
 
     // Shared patrol target generation

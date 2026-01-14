@@ -117,12 +117,6 @@ export class EnergyParasite extends Parasite {
                 this.updateReturning(deltaTime);
                 break;
         }
-
-        // Update terrain height
-        this.updateTerrainHeight();
-
-        // Update segment animation
-        this.updateSegmentAnimation();
     }
 
     // ==================== State Updates ====================
@@ -154,8 +148,8 @@ export class EnergyParasite extends Parasite {
             return;
         }
 
-        // Continue patrolling (use base class behavior)
-        this.updatePatrolling(deltaTime);
+        // Continue roaming (use base class smooth movement)
+        this.updateRoaming(deltaTime);
     }
 
     /**
@@ -191,8 +185,9 @@ export class EnergyParasite extends Parasite {
             return;
         }
 
-        // Move towards target
+        // Move towards target (uses smooth movement from base class)
         this.moveTowards(targetPosition, deltaTime);
+        this.updateTerrainSlope();
         this.updateSegmentAnimation();
     }
 
@@ -226,6 +221,10 @@ export class EnergyParasite extends Parasite {
         // Create/update visual drain beam
         this.updateDrainBeam(this.currentTarget.getPosition());
 
+        // Update terrain and animation while feeding
+        this.updateTerrainSlope();
+        this.updateSegmentAnimation();
+
         // Check if worker fled (low energy)
         const workerEnergy = this.currentTarget.getEnergyStorage().getCurrentEnergy();
         const workerMaxEnergy = this.currentTarget.getEnergyStorage().getCapacity();
@@ -242,6 +241,7 @@ export class EnergyParasite extends Parasite {
      */
     protected updateReturning(deltaTime: number): void {
         this.moveTowards(this.territoryCenter, deltaTime);
+        this.updateTerrainSlope();
         this.updateSegmentAnimation();
 
         // Check if back in territory

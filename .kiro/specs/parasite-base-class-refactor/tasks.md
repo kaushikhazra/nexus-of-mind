@@ -134,101 +134,40 @@ This implementation plan refactors the parasite entity hierarchy to introduce an
   - Verify no TypeScript compilation errors
   - Ask the user if questions arise
 
-- [ ] 7. Update visual system for color abstraction
-  - [ ] 7.1 Update mesh creation to use getColor()
-    - Modify base class `createMesh()` to call `this.getColor()`
-    - Apply color to material during segment creation
-    - Remove hardcoded colors from subclasses
-    - _Requirements: 5.4, 5.5_
+- [x] 7. Consolidate roaming/patrol to single implementation
+  - [x] 7.1 Update base class with Queen's roaming approach
+    - Replace `updatePatrolling()` with `updateRoaming()` in Parasite base class
+    - Use direct `parentNode.position` updates (no position sync issues)
+    - Include proper movement ratio calculation: `Math.min(moveDistance / distance, 1)`
+    - Get terrain height at new position before moving
+    - Add `updateTerrainSlope()` for pitch/roll following
+    - _Requirements: 2.1, 2.2, 4.1_
 
-  - [ ] 7.2 Verify visual differentiation
-    - Test EnergyParasite renders yellow/gold
-    - Test CombatParasite renders red
-    - Test Queen renders purple
-    - _Requirements: 5.1, 5.2, 5.3_
+  - [x] 7.2 Update EnergyParasite to use base roaming
+    - Remove `updatePatrollingWithWorkers()` custom implementation
+    - Call `updateRoaming()` from base class
+    - Keep worker detection logic separate from movement
+    - _Requirements: 2.5, 4.4_
 
-  - [ ]* 7.3 Write property test for color uniqueness
-    - **Property 4: Color Uniqueness**
-    - **Validates: Requirements 5.1, 5.2, 5.3, 5.4**
+  - [x] 7.3 Update CombatParasite to use base roaming
+    - Remove `updateCombatPatrolling()` custom implementation
+    - Remove `moveTowardsEnhanced()` duplicate method
+    - Call `updateRoaming()` from base class
+    - Override `generatePatrolTarget()` for aggression-based range
+    - Keep protector/worker detection logic separate from movement
+    - _Requirements: 2.5, 4.4_
 
-- [ ] 8. Update exports and imports
-  - [ ] 8.1 Update barrel exports
-    - Add Parasite to `entities/index.ts` exports
-    - Ensure EnergyParasite, CombatParasite, Queen exports unchanged
-    - _Requirements: 8.5_
+  - [x] 7.4 Simplify Queen to use base roaming
+    - Remove custom `updateRoaming()` from Queen (now in base class)
+    - Override `generatePatrolTarget()` to patrol around hive position
+    - Keep hive-specific logic (spawning, phases)
+    - _Requirements: 2.5, 4.4_
 
-  - [ ] 8.2 Update imports across codebase
-    - Update any files that import parasite classes
-    - Verify ParasiteManager imports work correctly
-    - Verify CombatSystem imports work correctly
-    - _Requirements: 8.5_
-
-- [ ] 9. Backward compatibility validation
-  - [ ] 9.1 Run all existing parasite tests
-    - Run `EnhancedParasiteSystemIntegration.test.ts`
-    - Run `EnhancedParasiteSystemValidation.test.ts`
-    - Run `CombatParasite.test.ts`
-    - Run `ParasiteTypes.test.ts`
-    - Fix any failing tests
-    - _Requirements: 8.1_
-
-  - [ ] 9.2 Verify spawn distribution unchanged
-    - Test that 75% Energy / 25% Combat ratio maintained
-    - Verify ParasiteManager creates correct types
-    - _Requirements: 8.2_
-
-  - [ ] 9.3 Verify combat values unchanged
-    - Test EnergyParasite: 2 health, 2 energy reward
-    - Test CombatParasite: 4 health, 4 energy reward
-    - Test damage values identical to pre-refactor
-    - _Requirements: 8.3, 8.4_
-
-  - [ ]* 9.4 Write property test for spawn distribution
-    - **Property 8: Backward Compatibility - Spawn Distribution**
-    - **Validates: Requirements 8.2**
-
-  - [ ]* 9.5 Write property test for combat values
-    - **Property 9: Backward Compatibility - Combat Values**
-    - **Validates: Requirements 8.3, 8.4**
-
-- [ ] 10. Performance validation
-  - [ ] 10.1 Run performance benchmarks
-    - Test with 10+ parasites of mixed types
-    - Verify 60fps maintained
-    - Compare memory usage before/after refactor
-    - _Requirements: 3.5, 8.1_
-
-  - [ ]* 10.2 Write property test for performance maintenance
-    - **Property 10: Performance Maintenance**
-    - **Validates: Requirements 3.5, 8.1**
-
-- [ ] 11. Checkpoint - Refactor complete
-  - All existing tests pass
-  - Visual appearance identical to pre-refactor
-  - Movement and animation behavior identical
-  - Spawn distribution (75/25) maintained
-  - Combat values (health, damage, rewards) maintained
-  - 60fps performance maintained
-  - Ask the user if questions arise
-
-- [ ] 12. Code cleanup
-  - [ ] 12.1 Remove dead code
-    - Delete any unused methods from subclasses
-    - Remove commented-out duplicated code
-    - Clean up unused imports
-    - _Requirements: 1.2, 1.3_
-
-  - [ ] 12.2 Add documentation
-    - Add JSDoc to Parasite base class
-    - Document abstract methods and their contracts
-    - Add inline comments for non-obvious behavior
-    - _Requirements: 1.1_
-
-- [ ] 13. Final checkpoint - Production ready
-  - Code review complete
-  - All tests pass (existing + new property tests)
-  - Documentation complete
-  - No performance regression
+- [x] 8. Checkpoint - Roaming consolidation complete
+  - All parasites use single `updateRoaming()` from base class
+  - Movement is smooth and consistent across all types
+  - Terrain following works for all parasites
+  - Patrol patterns work correctly (random for Energy/Combat, around hive for Queen)
   - Ask the user if questions arise
 
 ## Notes

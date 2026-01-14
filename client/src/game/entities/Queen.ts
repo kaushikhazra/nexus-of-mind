@@ -72,7 +72,6 @@ export class Queen extends Parasite {
     private hivePosition: Vector3 = new Vector3(0, 0, 0);
     private patrolMinRadius: number = 8;
     private moveSpeed: number = 5;
-    private roamHeight: number = 1.5;
 
     // Event callbacks
     private onDestroyedCallbacks: ((queen: Queen) => void)[] = [];
@@ -91,6 +90,9 @@ export class Queen extends Parasite {
 
         // Override ID for Queen
         this.id = this.generateQueenId(config.territory.id, config.generation);
+
+        // Queen floats higher above terrain than other parasites
+        this.roamHeight = 1.5;
 
         // Health configuration (40-100 hits)
         this.maxHealth = Math.max(40, Math.min(100, config.health));
@@ -178,7 +180,7 @@ export class Queen extends Parasite {
         this.hivePosition = this.position.clone();
 
         // Set initial patrol target
-        this.patrolTarget = this.generateQueenPatrolTarget();
+        this.patrolTarget = this.generatePatrolTarget();
 
         // Create parent node
         this.parentNode = new TransformNode(`queen_${this.id}`, this.scene);
@@ -243,9 +245,9 @@ export class Queen extends Parasite {
     // ==================== Queen Patrol Behavior ====================
 
     /**
-     * Generate patrol target around hive (Queen-specific)
+     * Override patrol target generation to patrol around hive position
      */
-    private generateQueenPatrolTarget(): Vector3 {
+    protected generatePatrolTarget(): Vector3 {
         const angle = Math.random() * Math.PI * 2;
         const radius = this.patrolMinRadius + Math.random() * (this.territoryRadius - this.patrolMinRadius);
 
@@ -254,137 +256,6 @@ export class Queen extends Parasite {
             this.hivePosition.y,
             this.hivePosition.z + Math.sin(angle) * radius
         );
-    }
-
-    /**
-     * Update Queen roaming movement around hive
-     */
-    private updateRoaming(deltaTime: number): void {
-        if (!this.parentNode) return;
-
-        // Get terrain generator reference
-        const gameEngine = require('../GameEngine').GameEngine.getInstance();
-        const terrainGenerator = gameEngine?.getTerrainGenerator();
-
-        // Handle patrol pause - still update terrain slope while paused
-        if (this.isPatrolPaused) {
-            this.patrolPauseTime -= deltaTime;
-            if (this.patrolPauseTime <= 0) {
-                this.isPatrolPaused = false;
-                this.patrolTarget = this.generateQueenPatrolTarget();
-            }
-            // Update terrain slope even while paused
-            this.updateTerrainSlope(terrainGenerator);
-            this.updateSegmentAnimation();
-            return;
-        }
-
-        // Move toward patrol target
-        const currentX = this.parentNode.position.x;
-        const currentZ = this.parentNode.position.z;
-
-        const dx = this.patrolTarget.x - currentX;
-        const dz = this.patrolTarget.z - currentZ;
-        const distance = Math.sqrt(dx * dx + dz * dz);
-
-        // Check if reached patrol target
-        if (distance < 1.0) {
-            this.isPatrolPaused = true;
-            this.patrolPauseTime = this.patrolPauseDuration + Math.random() * 2;
-            return;
-        }
-
-        // Move toward target
-        this.isMoving = true;
-        const moveDistance = this.speed * deltaTime;
-        const ratio = Math.min(moveDistance / distance, 1);
-
-        const newX = currentX + dx * ratio;
-        const newZ = currentZ + dz * ratio;
-
-        // Get terrain height at new position
-        let terrainHeight = 10;
-        if (terrainGenerator?.getHeightAtPosition) {
-            terrainHeight = terrainGenerator.getHeightAtPosition(newX, newZ);
-        }
-
-        // Update position
-        this.parentNode.position.x = newX;
-        this.parentNode.position.z = newZ;
-        this.parentNode.position.y = terrainHeight + this.roamHeight;
-
-        // Rotate to face movement direction
-        this.parentNode.rotation.y = Math.atan2(dx, dz);
-
-        // Update logical position
-        this.position.x = newX;
-        this.position.z = newZ;
-        this.position.y = terrainHeight + this.roamHeight;
-
-        // Update terrain slope (pitch and roll)
-        this.updateTerrainSlope(terrainGenerator);
-
-        // Update segment animation
-        this.updateSegmentAnimation();
-    }
-
-    /**
-     * Update Queen rotation to follow terrain slope
-     * Calculates pitch (forward/back tilt) and roll (left/right tilt)
-     */
-    private updateTerrainSlope(terrainGenerator: any): void {
-        if (!this.parentNode || !terrainGenerator?.getHeightAtPosition) return;
-
-        const x = this.parentNode.position.x;
-        const z = this.parentNode.position.z;
-        const sampleDistance = 2.0; // Distance to sample terrain height
-
-        // Get the facing direction
-        const facingAngle = this.parentNode.rotation.y;
-        const forwardX = Math.sin(facingAngle);
-        const forwardZ = Math.cos(facingAngle);
-
-        // Calculate right vector (perpendicular to forward)
-        const rightX = Math.cos(facingAngle);
-        const rightZ = -Math.sin(facingAngle);
-
-        // Sample terrain heights for pitch (forward/back)
-        const frontHeight = terrainGenerator.getHeightAtPosition(
-            x + forwardX * sampleDistance,
-            z + forwardZ * sampleDistance
-        );
-        const backHeight = terrainGenerator.getHeightAtPosition(
-            x - forwardX * sampleDistance,
-            z - forwardZ * sampleDistance
-        );
-
-        // Sample terrain heights for roll (left/right)
-        const rightHeight = terrainGenerator.getHeightAtPosition(
-            x + rightX * sampleDistance,
-            z + rightZ * sampleDistance
-        );
-        const leftHeight = terrainGenerator.getHeightAtPosition(
-            x - rightX * sampleDistance,
-            z - rightZ * sampleDistance
-        );
-
-        // Calculate pitch angle (tilt forward/back) - negated for correct orientation
-        const pitchDiff = backHeight - frontHeight;
-        const targetPitch = Math.atan2(pitchDiff, sampleDistance * 2);
-
-        // Calculate roll angle (tilt left/right) - negated for correct orientation
-        const rollDiff = leftHeight - rightHeight;
-        const targetRoll = Math.atan2(rollDiff, sampleDistance * 2);
-
-        // Smoothly interpolate to target angles (avoid jerky movement)
-        const smoothFactor = 0.1;
-        this.parentNode.rotation.x = this.parentNode.rotation.x + (targetPitch - this.parentNode.rotation.x) * smoothFactor;
-        this.parentNode.rotation.z = this.parentNode.rotation.z + (targetRoll - this.parentNode.rotation.z) * smoothFactor;
-
-        // Clamp angles to prevent extreme tilting
-        const maxTilt = Math.PI / 6; // 30 degrees max
-        this.parentNode.rotation.x = Math.max(-maxTilt, Math.min(maxTilt, this.parentNode.rotation.x));
-        this.parentNode.rotation.z = Math.max(-maxTilt, Math.min(maxTilt, this.parentNode.rotation.z));
     }
 
     // ==================== Update Loop ====================

@@ -937,6 +937,20 @@ export class AdaptiveQueen extends Queen {
     }
 
     /**
+     * Get survival time (time since spawn)
+     */
+    public getSurvivalTime(): number {
+        return (Date.now() - this.learningData.birthTime) / 1000;
+    }
+
+    /**
+     * Get death cause (reason for death)
+     */
+    public getDeathCause(): string {
+        return this.determineDeathCause();
+    }
+
+    /**
      * Dispose AdaptiveQueen and cleanup resources
      */
     public dispose(): void {
