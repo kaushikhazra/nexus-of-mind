@@ -410,10 +410,8 @@ export class DebugUI {
         if (performanceMonitor) {
             const summary = performanceMonitor.getPerformanceSummary();
             stats += `FPS: ${summary.averageFPS.toFixed(1)} (${summary.minFPS.toFixed(1)}-${summary.maxFPS.toFixed(1)})\n`;
-            stats += `Frame Time: ${summary.averageFrameTime.toFixed(2)}ms\n`;
-            stats += `Memory: ${(summary.memoryUsage / 1024 / 1024).toFixed(1)}MB\n`;
-            stats += `Draw Calls: ${summary.drawCalls}\n`;
-            stats += `Triangles: ${summary.triangles}\n\n`;
+            stats += `Frame Time: ${(1000 / summary.averageFPS).toFixed(2)}ms\n`;
+            stats += `Performance: ${summary.isPerformingWell ? 'Good' : 'Degraded'}\n\n`;
         }
         
         if (performanceOptimizer) {
@@ -461,7 +459,7 @@ export class DebugUI {
             if (currentQueen) {
                 stats += `Queen ID: ${currentQueen.id}\n`;
                 stats += `Phase: ${currentQueen.getCurrentPhase()}\n`;
-                stats += `Learning Progress: ${(currentQueen.getLearningProgress() * 100).toFixed(1)}%\n`;
+                stats += `Learning Progress: ${(currentQueen.getLearningProgress().progress * 100).toFixed(1)}%\n`;
             } else {
                 stats += `No active Queen\n`;
             }

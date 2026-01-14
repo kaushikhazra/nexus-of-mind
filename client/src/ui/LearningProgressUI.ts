@@ -29,21 +29,21 @@ export interface GenerationComparison {
  */
 export class LearningProgressUI {
     private parentTexture: AdvancedDynamicTexture;
-    private mainContainer: Rectangle;
-    private contentPanel: StackPanel;
-    
+    private mainContainer!: Rectangle;
+    private contentPanel!: StackPanel;
+
     // UI Components
-    private titleText: TextBlock;
-    private generationText: TextBlock;
-    private phaseText: TextBlock;
-    private progressBar: Rectangle;
-    private progressFill: Rectangle;
-    private progressText: TextBlock;
-    private timeRemainingText: TextBlock;
-    private insightsPanel: StackPanel;
-    private improvementsPanel: StackPanel;
-    private comparisonPanel: StackPanel;
-    private toggleButton: Button;
+    private titleText!: TextBlock;
+    private generationText!: TextBlock;
+    private phaseText!: TextBlock;
+    private progressBar!: Rectangle;
+    private progressFill!: Rectangle;
+    private progressText!: TextBlock;
+    private timeRemainingText!: TextBlock;
+    private insightsPanel!: StackPanel;
+    private improvementsPanel!: StackPanel;
+    private comparisonPanel!: StackPanel;
+    private toggleButton!: Button;
     
     // State
     private currentQueen?: AdaptiveQueen;

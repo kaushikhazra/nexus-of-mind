@@ -27,6 +27,7 @@ export interface RecoveryResult {
     offlineMode?: boolean;
     error?: string;
     retryAfter?: number;
+    data?: any;
 }
 
 export class WebSocketErrorHandler {

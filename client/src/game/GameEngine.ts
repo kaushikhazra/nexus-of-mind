@@ -206,8 +206,9 @@ export class GameEngine {
             this.liberationManager.setTerritoryManager(this.territoryManager);
 
             // Initialize performance optimizer
-            this.performanceOptimizer = new PerformanceOptimizer(this, this.performanceMonitor);
-            this.performanceOptimizer.initialize();
+            if (this.performanceMonitor) {
+                this.performanceOptimizer = new PerformanceOptimizer(this.performanceMonitor);
+            }
 
             // Connect territory manager to unit manager for mining bonus
             if (this.unitManager) {
@@ -297,9 +298,6 @@ export class GameEngine {
             // Start performance monitoring
             this.performanceMonitor?.startMonitoring();
 
-            // Start performance optimization monitoring
-            this.performanceOptimizer?.startMonitoring();
-
             // Start render loop
             this.engine.runRenderLoop(async () => {
                 if (this.scene && this.engine) {
@@ -361,11 +359,6 @@ export class GameEngine {
                         this.liberationManager.updateLiberations(deltaTime);
                     }
 
-                    // Update performance optimization
-                    if (this.performanceOptimizer) {
-                        this.performanceOptimizer.update(deltaTime);
-                    }
-
                     // Update Adaptive Queen Integration
                     if (this.adaptiveQueenIntegration) {
                         this.adaptiveQueenIntegration.update(deltaTime);
@@ -400,7 +393,6 @@ export class GameEngine {
         }
 
         this.performanceMonitor?.stopMonitoring();
-        this.performanceOptimizer?.stopMonitoring();
         this.isRunning = false;
     }
 

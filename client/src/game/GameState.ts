@@ -408,6 +408,13 @@ export class GameState {
     }
 
     /**
+     * Get current energy level from EnergyManager
+     */
+    public getEnergyLevel(): number {
+        return this.energyManager.getTotalEnergy();
+    }
+
+    /**
      * Reset game state
      */
     public reset(): void {

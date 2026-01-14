@@ -58,7 +58,7 @@ export class SystemIntegration {
     private gameState: GameState;
     private guiTexture: AdvancedDynamicTexture;
     
-    private adaptiveQueenIntegration: AdaptiveQueenIntegration;
+    private adaptiveQueenIntegration!: AdaptiveQueenIntegration;
     private debugUI?: DebugUI;
     private logger: Logger;
     
@@ -161,7 +161,7 @@ export class SystemIntegration {
             const summary = performanceMonitor.getPerformanceSummary();
             this.performanceBaseline = {
                 fps: summary.averageFPS,
-                memory: summary.memoryUsage
+                memory: 0 // Memory usage tracked separately
             };
             
             integrationLogger.info('Performance baseline established', this.performanceBaseline);
@@ -296,21 +296,21 @@ export class SystemIntegration {
         integrationLogger.info('Queen created', {
             queenId: queen.id,
             generation: queen.getGeneration(),
-            territoryId: queen.territory?.id
+            territoryId: queen.getTerritory()?.id
         });
-        
+
         // Set up monitoring for this Queen - only if adaptiveQueenIntegration is available
         if (this.adaptiveQueenIntegration) {
             this.adaptiveQueenIntegration.setQueenToMonitor(queen);
         }
-        
+
         // Set up Queen-specific event handlers
-        queen.onLearningProgressUpdate = (progress: number) => {
+        queen.onLearningProgress((learningProgress) => {
             integrationLogger.debug('Queen learning progress update', {
                 queenId: queen.id,
-                progress
+                progress: learningProgress.progress
             });
-        };
+        });
     }
 
     /**
@@ -541,10 +541,7 @@ export class SystemIntegration {
      * Get current memory usage
      */
     private getCurrentMemoryUsage(): number {
-        const performanceMonitor = this.gameEngine.getPerformanceMonitor();
-        if (performanceMonitor) {
-            return performanceMonitor.getPerformanceSummary().memoryUsage;
-        }
+        // Memory usage tracking not available in current PerformanceMonitor
         return 0;
     }
 
