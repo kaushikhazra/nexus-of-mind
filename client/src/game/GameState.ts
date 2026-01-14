@@ -408,7 +408,7 @@ export class GameState {
     }
 
     /**
-     * Get current energy level from EnergyManager
+     * Get current energy level
      */
     public getEnergyLevel(): number {
         return this.energyManager.getTotalEnergy();

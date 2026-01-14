@@ -185,7 +185,7 @@ export class CombatParasite extends Parasite {
         if (!this.materialManager) return;
 
         const mainMaterial = this.materialManager.getCombatParasiteMaterial?.() || null;
-        const altMaterial = mainMaterial; // Use same material for uniform appearance
+        const altMaterial = mainMaterial; // Use same material for all segments
 
         if (mainMaterial) {
             this.segments.forEach((segment, index) => {

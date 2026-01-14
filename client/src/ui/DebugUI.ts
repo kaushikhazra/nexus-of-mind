@@ -401,35 +401,24 @@ export class DebugUI {
      */
     private updatePerformanceStats(): void {
         if (!this.statsText) return;
-        
+
         const performanceMonitor = this.gameEngine.getPerformanceMonitor();
-        const performanceOptimizer = this.gameEngine.getPerformanceOptimizer();
-        
+
         let stats = '🎯 PERFORMANCE METRICS\n\n';
-        
+
         if (performanceMonitor) {
             const summary = performanceMonitor.getPerformanceSummary();
             stats += `FPS: ${summary.averageFPS.toFixed(1)} (${summary.minFPS.toFixed(1)}-${summary.maxFPS.toFixed(1)})\n`;
-            stats += `Frame Time: ${(1000 / summary.averageFPS).toFixed(2)}ms\n`;
+            stats += `Current FPS: ${summary.currentFPS.toFixed(1)}\n`;
             stats += `Performance: ${summary.isPerformingWell ? 'Good' : 'Degraded'}\n\n`;
         }
-        
-        if (performanceOptimizer) {
-            const optimizerStatus = performanceOptimizer.getPerformanceStatus();
-            stats += `🤖 AI TRAINING PERFORMANCE\n`;
-            stats += `Training Active: ${optimizerStatus.isTrainingActive ? 'Yes' : 'No'}\n`;
-            stats += `FPS Impact: ${optimizerStatus.fpsImpact.toFixed(1)}\n`;
-            stats += `Training Duration: ${optimizerStatus.trainingDuration.toFixed(1)}s\n`;
-            stats += `Isolation Active: ${optimizerStatus.performanceIsolationActive ? 'Yes' : 'No'}\n`;
-            stats += `Requirements Met: ${optimizerStatus.requirementsMet ? 'Yes' : 'No'}\n\n`;
-        }
-        
+
         const logStats = this.logger.getLogStatistics();
         stats += `📊 LOGGING STATISTICS\n`;
         stats += `Total Entries: ${logStats.totalEntries}\n`;
         stats += `Remote Queue: ${logStats.queuedRemoteLogs}\n`;
         stats += `Remote Available: ${logStats.isRemoteAvailable ? 'Yes' : 'No'}\n`;
-        
+
         this.statsText.text = stats;
     }
 

@@ -29,7 +29,6 @@ import { CombatSystem } from './CombatSystem';
 import { TerritoryManager } from './TerritoryManager';
 import { TerritoryRenderer } from '../rendering/TerritoryRenderer';
 import { LiberationManager } from './LiberationManager';
-import { PerformanceOptimizer } from './PerformanceOptimizer';
 import { QueenGrowthUI } from '../ui/QueenGrowthUI';
 import { TerritoryVisualUI } from '../ui/TerritoryVisualUI';
 import { AdaptiveQueenIntegration, createAdaptiveQueenIntegration } from './AdaptiveQueenIntegration';
@@ -73,9 +72,6 @@ export class GameEngine {
     private territoryManager: TerritoryManager | null = null;
     private liberationManager: LiberationManager | null = null;
     private territoryRenderer: TerritoryRenderer | null = null;
-
-    // Performance optimization
-    private performanceOptimizer: PerformanceOptimizer | null = null;
 
     // Vegetation system
     private treeRenderer: TreeRenderer | null = null;
@@ -209,11 +205,6 @@ export class GameEngine {
             // Initialize liberation manager
             this.liberationManager = new LiberationManager(this.energyManager!);
             this.liberationManager.setTerritoryManager(this.territoryManager);
-
-            // Initialize performance optimizer
-            if (this.performanceMonitor) {
-                this.performanceOptimizer = new PerformanceOptimizer(this.performanceMonitor);
-            }
 
             // Connect territory manager to unit manager for mining bonus
             if (this.unitManager) {
@@ -681,13 +672,6 @@ export class GameEngine {
     }
 
     /**
-     * Get performance optimizer
-     */
-    public getPerformanceOptimizer(): PerformanceOptimizer | null {
-        return this.performanceOptimizer;
-    }
-
-    /**
      * Get spatial index for efficient entity lookups
      */
     public getSpatialIndex(): SpatialIndex | null {
@@ -1080,7 +1064,6 @@ export class GameEngine {
         // Dispose components in reverse order
         this.adaptiveQueenIntegration?.dispose();
         this.guiTexture?.dispose();
-        this.performanceOptimizer?.dispose();
         this.treeRenderer?.dispose();
         this.territoryVisualUI?.dispose();
         this.queenGrowthUI?.dispose();

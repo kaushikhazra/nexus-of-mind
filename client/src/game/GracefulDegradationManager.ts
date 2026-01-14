@@ -322,7 +322,7 @@ export class GracefulDegradationManager {
             }
         };
 
-        return enhancements[level]?.[baseStrategy] || baseStrategy;
+        return (enhancements as Record<string, Record<string, string>>)[level]?.[baseStrategy] || baseStrategy;
     }
 
     private adjustStrategyForSurvival(strategy: any, survivalTime: number): any {
