@@ -27,7 +27,7 @@ export class Scout extends Unit {
                 transferRate: 3.0, // Fast energy transfer for quick missions
                 efficiency: 1.2 // High efficiency for extended exploration
             },
-            maxHealth: 60, // Lowest health - scouts avoid combat
+            maxHealth: 40, // Lightest unit - relies on speed, avoids combat
             movementSpeed: 7.0, // Fastest movement speed
             actionCooldown: 0.3, // Very quick actions for rapid exploration
             ...config

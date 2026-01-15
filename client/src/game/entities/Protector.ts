@@ -14,19 +14,20 @@ import { EnergyParasite } from './EnergyParasite';
 
 export class Protector extends Unit {
     // Protector-specific properties
-    private attackDamage: number = 25; // Base attack damage
-    private attackRange: number = 8.0; // Combat range (matches design specification)
-    private detectionRange: number = 10.0; // Auto-detection range (larger than combat range)
+    private attackDamage: number = 35; // High damage - superior weapons technology
+    private attackRange: number = 12.0; // Long range weaponry (tech advantage)
+    private detectionRange: number = 12.0; // Detection matches attack range
     private defenseRating: number = 5; // Damage reduction
     private shieldActive: boolean = false;
-    private shieldStrength: number = 50; // Shield hit points
-    private maxShieldStrength: number = 50;
+    private shieldStrength: number = 0; // Shields removed
+    private maxShieldStrength: number = 0;
+    private healthRegenRate: number = 0.05; // 0.05 HP/sec - very slow tech-based recovery
     private combatExperience: number = 0; // Gained through combat
 
     // Combat state for movement-based auto-attack
     private currentTarget: CombatTarget | null = null;
     private lastAttackTime: number = 0;
-    private attackCooldown: number = 2.0; // 2 seconds between attacks
+    private attackCooldown: number = 1.5; // Faster firing weapons
     private isInCombat: boolean = false;
     private isPursuing: boolean = false; // Track if currently pursuing a moving target
     private pursuitStartTime: number = 0;
@@ -54,7 +55,7 @@ export class Protector extends Unit {
                 transferRate: 1.5, // Slower energy transfer due to heavy systems
                 efficiency: 0.9 // Slightly less efficient due to armor weight
             },
-            maxHealth: 120, // Highest health of all units
+            maxHealth: 80, // Lower base health - colonizers are fragile, shields compensate
             movementSpeed: 7.0, // Same speed as other units
             actionCooldown: 1.0, // Moderate action cooldown
             ...config
@@ -418,6 +419,17 @@ export class Protector extends Unit {
     }
 
     /**
+     * Regenerate health when not in combat (tech-based medical systems)
+     * Slower than native parasite regeneration
+     */
+    private updateHealthRegen(deltaTime: number): void {
+        if (this.health < this.maxHealth) {
+            const regen = this.healthRegenRate * deltaTime;
+            this.health = Math.min(this.maxHealth, this.health + regen);
+        }
+    }
+
+    /**
      * Take damage with shield protection
      */
     public takeDamage(amount: number): void {
@@ -567,6 +579,11 @@ export class Protector extends Unit {
 
         // Update shield
         this.updateShield(deltaTime);
+
+        // Regenerate health when not in combat
+        if (!this.isInCombat) {
+            this.updateHealthRegen(deltaTime);
+        }
 
         // Auto-detection during movement
         if (this.combatState === 'moving' && this.autoAttackEnabled && this.currentMovementAction) {

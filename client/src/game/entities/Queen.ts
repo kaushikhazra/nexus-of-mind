@@ -71,7 +71,7 @@ export class Queen extends Parasite {
     // Patrol behavior (Queen-specific)
     private hivePosition: Vector3 = new Vector3(0, 0, 0);
     private patrolMinRadius: number = 8;
-    private moveSpeed: number = 5;
+    private moveSpeed: number = 3.5; // Slowest - large apex predator
 
     // Event callbacks
     private onDestroyedCallbacks: ((queen: Queen) => void)[] = [];
@@ -94,9 +94,10 @@ export class Queen extends Parasite {
         // Queen floats higher above terrain than other parasites
         this.roamHeight = 1.5;
 
-        // Health configuration (40-100 hits)
-        this.maxHealth = Math.max(40, Math.min(100, config.health));
+        // Health configuration - apex predator
+        this.maxHealth = 200;
         this.health = this.maxHealth;
+        this.regenRate = 2; // 2 HP/sec superior native biology
 
         // Territory and generation
         this.territory = config.territory;

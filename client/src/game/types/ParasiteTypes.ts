@@ -38,18 +38,18 @@ export interface ParasiteStats {
  */
 export const PARASITE_STATS: Record<ParasiteType, ParasiteStats> = {
     [ParasiteType.ENERGY]: {
-        health: 2,
-        maxHealth: 2,
-        speed: 2.0,
+        health: 60, // Native toughness
+        maxHealth: 60,
+        speed: 4.0, // Slower for recognizable combat
         attackDamage: 0, // Energy drain only, no direct damage
         energyReward: 2,
         visualScale: 1.0
     },
     [ParasiteType.COMBAT]: {
-        health: 4,
-        maxHealth: 4,
-        speed: 2.5, // Faster than Energy Parasites for hunting capability
-        attackDamage: 2,
+        health: 100, // Tougher combat variant
+        maxHealth: 100,
+        speed: 5.0, // Hunter speed (slower for recognizable combat)
+        attackDamage: 5, // Natural attack
         energyReward: 4, // 2x reward for 2x difficulty
         visualScale: 1.2 // 20% larger than Energy Parasites
     }
