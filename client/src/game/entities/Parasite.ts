@@ -72,6 +72,9 @@ export abstract class Parasite implements CombatTarget {
     protected isMoving: boolean = false;
     protected facingAngle: number = 0;
 
+    // Regeneration (native biology)
+    protected regenRate: number = 0; // HP per second, subclasses override
+
     // Patrol/Territory behavior
     protected territoryCenter: Vector3;
     protected territoryRadius: number = 50;
@@ -188,6 +191,8 @@ export abstract class Parasite implements CombatTarget {
                 this.isPatrolPaused = false;
                 this.patrolTarget = this.generatePatrolTarget();
             }
+            // Regenerate health while idle (native biology)
+            this.updateRegeneration(deltaTime);
             // Update terrain slope even while paused
             this.updateTerrainSlope();
             this.updateSegmentAnimation();
@@ -237,6 +242,19 @@ export abstract class Parasite implements CombatTarget {
 
         // Update segment animation
         this.updateSegmentAnimation();
+    }
+
+    /**
+     * Regenerate health over time (native biology advantage)
+     * Should be called during idle/patrol states, not during active combat
+     */
+    protected updateRegeneration(deltaTime: number): void {
+        if (this.regenRate > 0 && this.health < this.maxHealth) {
+            this.health = Math.min(
+                this.maxHealth,
+                this.health + this.regenRate * deltaTime
+            );
+        }
     }
 
     /**

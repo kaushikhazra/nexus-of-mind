@@ -34,6 +34,8 @@ export class CombatParasite extends Parasite {
 
     // Enhanced combat properties
     protected attackDamage: number;
+    protected attackCooldown: number = 0.8; // Fast strikes (0.8 sec cooldown)
+    protected lastAttackTime: number = 0;
     protected energyReward: number;
     protected visualScale: number;
 
@@ -75,6 +77,7 @@ export class CombatParasite extends Parasite {
         this.energyReward = this.stats.energyReward;
         this.visualScale = this.stats.visualScale;
         this.targetSwitchCooldown = this.targetingBehavior.targetSwitchCooldown;
+        this.regenRate = 1; // 1 HP/sec native healing
 
         // Update territory ranges for aggressive hunting
         this.territoryRadius = this.targetingBehavior.maxTargetDistance;
@@ -476,18 +479,17 @@ export class CombatParasite extends Parasite {
     // ==================== Combat Actions ====================
 
     private attackProtector(protector: Protector, deltaTime: number): void {
-        const damage = this.attackDamage * deltaTime;
+        const now = Date.now();
 
-        const health = protector.getHealth();
-        const threshold = damage * 3;
-        let actualDamage = damage;
-
-        if (health <= threshold) {
-            actualDamage = damage * Math.max(0.3, health / threshold);
+        // Check attack cooldown
+        if (now - this.lastAttackTime < this.attackCooldown * 1000) {
+            return; // Still on cooldown
         }
 
-        protector.takeDamage(actualDamage);
-        this.lastFeedTime = Date.now();
+        // Apply discrete damage per attack
+        protector.takeDamage(this.attackDamage);
+        this.lastAttackTime = now;
+        this.lastFeedTime = now;
 
         if (protector.getHealth() <= 0) {
             this.combatTarget = null;

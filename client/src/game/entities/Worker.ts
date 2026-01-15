@@ -26,7 +26,7 @@ export class Worker extends Unit {
                 transferRate: 2.0,
                 efficiency: 1.0
             },
-            maxHealth: 80, // Lower health than protectors
+            maxHealth: 60, // Fragile colonizer - not adapted to planet
             movementSpeed: 4.0, // Moderate movement speed
             actionCooldown: 0.5, // Quick action cooldown for efficiency
             ...config

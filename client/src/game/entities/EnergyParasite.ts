@@ -32,7 +32,7 @@ export class EnergyParasite extends Parasite {
     protected currentTarget: Worker | null = null;
 
     // Feeding behavior
-    protected drainRate: number = 3; // 3 energy/sec
+    protected drainRate: number = 2; // 2 energy/sec (balanced for longer fights)
     protected feedingStartTime: number = 0;
     protected lastFeedTime: number = 0;
 
@@ -48,10 +48,11 @@ export class EnergyParasite extends Parasite {
         this.homeDeposit = config.homeDeposit;
         this.materialManager = config.materialManager;
 
-        // Energy Parasite stats (2 hits to kill)
-        this.health = 2;
-        this.maxHealth = 2;
-        this.speed = 2;
+        // Energy Parasite stats (native toughness)
+        this.health = 60;
+        this.maxHealth = 60;
+        this.speed = 4; // Slower for recognizable combat
+        this.regenRate = 1; // 1 HP/sec native healing
 
         this.lastFeedTime = this.spawnTime;
 
