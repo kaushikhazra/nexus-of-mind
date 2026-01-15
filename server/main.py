@@ -21,6 +21,8 @@ from ai_engine.neural_network import QueenBehaviorNetwork
 from websocket.connection_manager import ConnectionManager
 from websocket.message_handler import MessageHandler
 from logging_config import initialize_logging, get_logger, log_ai_event, log_websocket_event, request_logging_context
+from routes.progress_routes import router as progress_router
+from database.energy_lords import init_db
 
 # Initialize comprehensive logging
 initialize_logging()
@@ -50,6 +52,13 @@ async def lifespan(app: FastAPI):
             "gpu_enabled": os.getenv("ENABLE_GPU", "false").lower() == "true"
         })
         
+        # Initialize Energy Lords database
+        try:
+            init_db()
+            startup_logger.info("Energy Lords database initialized successfully")
+        except Exception as e:
+            startup_logger.warning(f"Failed to initialize Energy Lords database: {e}")
+
         # Initialize AI Engine with GPU acceleration if available
         try:
             ai_engine = AIEngine()
@@ -122,6 +131,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register API routers
+app.include_router(progress_router)
 
 
 @app.get("/")

@@ -98,3 +98,6 @@ server/data/
 
 # Claude Code CLI temporary files
 tmpclaude-*-cwd
+
+# SQLite databases
+*.db
