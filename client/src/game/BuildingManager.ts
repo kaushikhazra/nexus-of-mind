@@ -42,6 +42,9 @@ export class BuildingManager {
     private minBuildingDistance: number = 5.0; // Minimum distance between buildings
     private maxBuildingDistance: number = 15.0; // Maximum distance from constructor
 
+    // Energy Lords upgrade bonus (percentage, e.g., 10 = 10% bonus)
+    private energyGenerationBonus: number = 0;
+
     constructor(gameState: GameState, buildingRenderer: BuildingRenderer, energyManager: EnergyManager) {
         this.gameState = gameState;
         this.buildingRenderer = buildingRenderer;
@@ -268,8 +271,10 @@ export class BuildingManager {
                 if (this.energyManager.canConsumeMaterials(materialsNeeded)) {
                     // Consume materials
                     if (this.energyManager.consumeMaterials(building.getId(), materialsNeeded, 'power_plant_conversion')) {
-                        // Generate energy from materials
-                        const energyGenerated = materialsNeeded * BuildingManager.MATERIALS_TO_ENERGY_RATIO;
+                        // Generate energy from materials (with upgrade bonus applied)
+                        const baseEnergy = materialsNeeded * BuildingManager.MATERIALS_TO_ENERGY_RATIO;
+                        const bonusMultiplier = 1 + (this.energyGenerationBonus / 100);
+                        const energyGenerated = baseEnergy * bonusMultiplier;
                         this.energyManager.generateEnergy(building.getId(), energyGenerated, 'power_plant');
                     }
                 }
@@ -342,14 +347,30 @@ export class BuildingManager {
      */
     public getTotalEnergyGeneration(): number {
         let totalGeneration = 0;
-        
+
         for (const building of this.buildings.values()) {
             if (building.isComplete()) {
                 totalGeneration += building.getEnergyGeneration();
             }
         }
-        
+
         return totalGeneration;
+    }
+
+    /**
+     * Set the energy generation bonus from Energy Lords progression
+     * @param bonus - Percentage bonus (e.g., 10 = 10% more energy)
+     */
+    public setEnergyGenerationBonus(bonus: number): void {
+        this.energyGenerationBonus = bonus;
+        console.log(`Power plant efficiency upgraded: +${bonus}%`);
+    }
+
+    /**
+     * Get current energy generation bonus
+     */
+    public getEnergyGenerationBonus(): number {
+        return this.energyGenerationBonus;
     }
 
     /**

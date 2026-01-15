@@ -34,6 +34,9 @@ import { TerritoryVisualUI } from '../ui/TerritoryVisualUI';
 import { AdaptiveQueenIntegration, createAdaptiveQueenIntegration } from './AdaptiveQueenIntegration';
 import { SpatialIndex } from './SpatialIndex';
 import { AdvancedDynamicTexture } from '@babylonjs/gui';
+import { EnergyLordsManager, EnergyLordsEvent } from './systems/EnergyLordsManager';
+import { EnergyLordsHUD } from '../ui/EnergyLordsHUD';
+import { VictoryScreen } from '../ui/VictoryScreen';
 
 export class GameEngine {
     private static instance: GameEngine | null = null;
@@ -89,9 +92,17 @@ export class GameEngine {
     // Spatial indexing for O(1) entity lookups
     private spatialIndex: SpatialIndex | null = null;
 
+    // Energy Lords progression system
+    private energyLordsManager: EnergyLordsManager | null = null;
+    private energyLordsHUD: EnergyLordsHUD | null = null;
+    private victoryScreen: VictoryScreen | null = null;
+
     // Throttling for spatial index checks
     private lastDetectionCheckTime: number = 0;
     private readonly DETECTION_CHECK_INTERVAL: number = 200; // Check every 200ms
+
+    // Pending upgrade bonus to apply after BuildingManager is created
+    private pendingUpgradeBonus: number = 0;
 
     private isInitialized: boolean = false;
     private isRunning: boolean = false;
@@ -152,6 +163,13 @@ export class GameEngine {
             this.energyManager = EnergyManager.getInstance();
             this.energyManager.initialize(500, 15); // Start with 500 energy, 15 minerals
 
+            // Initialize Energy Lords progression system
+            this.energyLordsManager = new EnergyLordsManager(this.energyManager);
+            await this.energyLordsManager.initialize();
+
+            // Apply saved upgrade bonus to power plants (will be applied after BuildingManager is created)
+            this.pendingUpgradeBonus = this.energyLordsManager.getTotalUpgradeBonus();
+
             // Initialize game state
             this.gameState = GameState.getInstance();
             this.gameState.initialize();
@@ -163,6 +181,11 @@ export class GameEngine {
             // Initialize building system
             this.buildingRenderer = new BuildingRenderer(this.scene, this.materialManager);
             this.buildingManager = new BuildingManager(this.gameState, this.buildingRenderer, this.energyManager);
+
+            // Apply Energy Lords upgrade bonus to power plants
+            if (this.pendingUpgradeBonus > 0) {
+                this.buildingManager.setEnergyGenerationBonus(this.pendingUpgradeBonus);
+            }
 
             // Initialize combat system
             this.parasiteManager = new ParasiteManager({
@@ -239,6 +262,9 @@ export class GameEngine {
 
             // Initialize energy UI
             this.initializeEnergyUI();
+
+            // Initialize Energy Lords UI
+            this.initializeEnergyLordsUI();
 
             // Initialize mining analysis tooltip
             this.initializeMiningAnalysisTooltip();
@@ -363,6 +389,11 @@ export class GameEngine {
                         this.adaptiveQueenIntegration.update(deltaTime);
                     }
 
+                    // Update Energy Lords progression system
+                    if (this.energyLordsManager) {
+                        this.energyLordsManager.update(performance.now());
+                    }
+
                     // Update vegetation animations
                     if (this.treeRenderer) {
                         this.treeRenderer.updateAnimations();
@@ -443,6 +474,51 @@ export class GameEngine {
             containerId: 'energy-display',
             showDetails: true,
             showHistory: false
+        });
+    }
+
+    /**
+     * Initialize Energy Lords progression UI
+     */
+    private initializeEnergyLordsUI(): void {
+        if (!this.energyLordsManager) {
+            return;
+        }
+
+        // Create HUD container (positioned below Defense window which is at top: 320px)
+        let hudContainer = document.getElementById('energy-lords-hud');
+        if (!hudContainer) {
+            hudContainer = document.createElement('div');
+            hudContainer.id = 'energy-lords-hud';
+            hudContainer.style.cssText = `
+                position: fixed;
+                top: 420px;
+                left: 20px;
+                z-index: 1000;
+            `;
+            document.body.appendChild(hudContainer);
+        }
+
+        // Initialize HUD
+        this.energyLordsHUD = new EnergyLordsHUD({
+            containerId: 'energy-lords-hud'
+        });
+        this.energyLordsHUD.setManager(this.energyLordsManager);
+
+        // Initialize Victory Screen
+        this.victoryScreen = new VictoryScreen({
+            onContinue: () => {
+                // Reload the game to restart with upgraded power plants
+                // Progress is already saved, so on reload the upgrade bonus will be applied
+                window.location.reload();
+            }
+        });
+
+        // Subscribe to victory events
+        this.energyLordsManager.addEventListener((event: EnergyLordsEvent) => {
+            if (event.type === 'victory' && this.victoryScreen) {
+                this.victoryScreen.show(event.data);
+            }
         });
     }
 
@@ -691,6 +767,14 @@ export class GameEngine {
     public getGUITexture(): AdvancedDynamicTexture | null {
         return this.guiTexture;
     }
+
+    /**
+     * Get Energy Lords progression manager
+     */
+    public getEnergyLordsManager(): EnergyLordsManager | null {
+        return this.energyLordsManager;
+    }
+
     /**
      * Handle movement-combat transitions for auto-attack system
      * This method checks for enemy detection during protector movement
@@ -1062,6 +1146,9 @@ export class GameEngine {
         this.stop();
 
         // Dispose components in reverse order
+        this.victoryScreen?.dispose();
+        this.energyLordsHUD?.dispose();
+        this.energyLordsManager?.dispose();
         this.adaptiveQueenIntegration?.dispose();
         this.guiTexture?.dispose();
         this.treeRenderer?.dispose();
