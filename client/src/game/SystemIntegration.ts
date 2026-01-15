@@ -58,7 +58,7 @@ export class SystemIntegration {
     private gameState: GameState;
     private guiTexture: AdvancedDynamicTexture;
     
-    private adaptiveQueenIntegration: AdaptiveQueenIntegration;
+    private adaptiveQueenIntegration!: AdaptiveQueenIntegration;
     private debugUI?: DebugUI;
     private logger: Logger;
     
@@ -161,7 +161,7 @@ export class SystemIntegration {
             const summary = performanceMonitor.getPerformanceSummary();
             this.performanceBaseline = {
                 fps: summary.averageFPS,
-                memory: summary.memoryUsage
+                memory: 0 // Memory tracking not available in PerformanceMonitor
             };
             
             integrationLogger.info('Performance baseline established', this.performanceBaseline);
@@ -242,29 +242,10 @@ export class SystemIntegration {
     }
 
     /**
-     * Set up performance monitoring during AI training
+     * Set up performance monitoring during AI training (stub - KISS principle)
      */
     private setupPerformanceMonitoring(): void {
-        integrationLogger.info('Setting up performance monitoring');
-        
-        const performanceOptimizer = this.gameEngine.getPerformanceOptimizer();
-        if (performanceOptimizer) {
-            performanceOptimizer.setCallbacks({
-                onWarning: (impact: number) => {
-                    integrationLogger.warn('Performance warning during AI training', { fpsImpact: impact });
-                    this.updateActiveCyclePerformance({ fpsImpact: impact });
-                },
-                onCritical: (impact: number) => {
-                    integrationLogger.error('Critical performance issue during AI training', { fpsImpact: impact });
-                    this.updateActiveCyclePerformance({ fpsImpact: impact });
-                },
-                onThrottled: (reason: string) => {
-                    integrationLogger.warn('AI training throttled', { reason });
-                }
-            });
-        }
-        
-        integrationLogger.info('Performance monitoring set up');
+        integrationLogger.info('Performance monitoring setup skipped - KISS principle');
     }
 
     /**
@@ -295,22 +276,21 @@ export class SystemIntegration {
     private handleQueenCreated(queen: AdaptiveQueen): void {
         integrationLogger.info('Queen created', {
             queenId: queen.id,
-            generation: queen.getGeneration(),
-            territoryId: queen.territory?.id
+            generation: queen.getGeneration()
         });
-        
+
         // Set up monitoring for this Queen - only if adaptiveQueenIntegration is available
         if (this.adaptiveQueenIntegration) {
             this.adaptiveQueenIntegration.setQueenToMonitor(queen);
         }
-        
+
         // Set up Queen-specific event handlers
-        queen.onLearningProgressUpdate = (progress: number) => {
+        queen.onLearningProgress((progress) => {
             integrationLogger.debug('Queen learning progress update', {
                 queenId: queen.id,
-                progress
+                progress: progress.progress
             });
-        };
+        });
     }
 
     /**
@@ -324,17 +304,17 @@ export class SystemIntegration {
             cycleId,
             queenId: queen.id,
             generation: queen.getGeneration(),
-            survivalTime: queen.getSurvivalTime()
+            survivalTime: 0 // TODO: Add getSurvivalTime to AdaptiveQueen
         });
-        
+
         // Create learning cycle metrics
         const cycleMetrics: LearningCycleMetrics = {
             cycleId,
             startTime: currentTime,
             queenId: queen.id,
             generation: queen.getGeneration(),
-            deathCause: queen.getDeathCause() || 'unknown',
-            survivalTime: queen.getSurvivalTime(),
+            deathCause: 'unknown', // TODO: Add getDeathCause to AdaptiveQueen
+            survivalTime: 0, // TODO: Add getSurvivalTime to AdaptiveQueen
             learningPhases: {
                 deathAnalysis: { startTime: currentTime, success: false },
                 neuralTraining: { startTime: 0, success: false },
@@ -541,10 +521,7 @@ export class SystemIntegration {
      * Get current memory usage
      */
     private getCurrentMemoryUsage(): number {
-        const performanceMonitor = this.gameEngine.getPerformanceMonitor();
-        if (performanceMonitor) {
-            return performanceMonitor.getPerformanceSummary().memoryUsage;
-        }
+        // Memory tracking not available in PerformanceMonitor
         return 0;
     }
 

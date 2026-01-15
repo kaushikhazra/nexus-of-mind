@@ -14,6 +14,7 @@ import { GameState } from './GameState';
 import { UnitRenderer, UnitVisual } from '../rendering/UnitRenderer';
 import { GameEngine } from './GameEngine';
 import { CombatSystem } from './CombatSystem';
+import { SpatialIndex } from './SpatialIndex';
 
 export interface UnitCommand {
     id: string;
@@ -156,6 +157,13 @@ export class UnitManager {
                 }
             }
 
+            // Add to spatial index for O(1) lookups
+            const gameEngine = GameEngine.getInstance();
+            const spatialIndex = gameEngine?.getSpatialIndex();
+            if (spatialIndex) {
+                spatialIndex.add(unit.getId(), position, unitType);
+            }
+
             return unit;
 
         } catch (error) {
@@ -186,9 +194,15 @@ export class UnitManager {
     private handleUnitDestroyed(unit: Unit): void {
         const unitId = unit.getId();
 
+        // Remove from spatial index
+        const gameEngine = GameEngine.getInstance();
+        const spatialIndex = gameEngine?.getSpatialIndex();
+        if (spatialIndex) {
+            spatialIndex.remove(unitId);
+        }
+
         // Unregister protectors from combat system
         if (unit instanceof Protector) {
-            const gameEngine = GameEngine.getInstance();
             const combatSystem = gameEngine?.getCombatSystem();
             if (combatSystem) {
                 combatSystem.unregisterProtector(unitId);
@@ -435,10 +449,18 @@ export class UnitManager {
      * Update all units
      */
     public async update(deltaTime: number): Promise<void> {
+        const gameEngine = GameEngine.getInstance();
+        const spatialIndex = gameEngine?.getSpatialIndex();
+
         // Update all units
         for (const unit of this.units.values()) {
             if (unit.isActiveUnit()) {
                 unit.update(deltaTime);
+
+                // Update spatial index with new position
+                if (spatialIndex) {
+                    spatialIndex.updatePosition(unit.getId(), unit.getPosition());
+                }
             }
         }
 

@@ -95,3 +95,6 @@ proj-mgmt/
 
 # Test data
 server/data/
+
+# Claude Code CLI temporary files
+tmpclaude-*-cwd

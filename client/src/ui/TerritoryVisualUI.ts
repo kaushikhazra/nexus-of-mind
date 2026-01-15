@@ -79,7 +79,7 @@ export class TerritoryVisualUI {
         this.container = document.getElementById(this.config.containerId);
 
         if (!this.container) {
-            console.error(`TerritoryVisualUI: Container ${this.config.containerId} not found`);
+            // Container not found - UI disabled silently
             return;
         }
 

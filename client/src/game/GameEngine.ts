@@ -6,6 +6,7 @@
  */
 
 import { Engine, Scene, PointerEventTypes, Vector3, Matrix } from '@babylonjs/core';
+import '@babylonjs/inspector';
 import { SceneManager } from '../rendering/SceneManager';
 import { CameraController } from '../rendering/CameraController';
 import { LightingSetup } from '../rendering/LightingSetup';
@@ -26,11 +27,12 @@ import { Worker } from './entities/Worker';
 import { Protector } from './entities/Protector';
 import { CombatSystem } from './CombatSystem';
 import { TerritoryManager } from './TerritoryManager';
+import { TerritoryRenderer } from '../rendering/TerritoryRenderer';
 import { LiberationManager } from './LiberationManager';
-import { PerformanceOptimizer } from './PerformanceOptimizer';
 import { QueenGrowthUI } from '../ui/QueenGrowthUI';
 import { TerritoryVisualUI } from '../ui/TerritoryVisualUI';
 import { AdaptiveQueenIntegration, createAdaptiveQueenIntegration } from './AdaptiveQueenIntegration';
+import { SpatialIndex } from './SpatialIndex';
 import { AdvancedDynamicTexture } from '@babylonjs/gui';
 
 export class GameEngine {
@@ -69,9 +71,7 @@ export class GameEngine {
     // Territory system
     private territoryManager: TerritoryManager | null = null;
     private liberationManager: LiberationManager | null = null;
-
-    // Performance optimization
-    private performanceOptimizer: PerformanceOptimizer | null = null;
+    private territoryRenderer: TerritoryRenderer | null = null;
 
     // Vegetation system
     private treeRenderer: TreeRenderer | null = null;
@@ -85,6 +85,13 @@ export class GameEngine {
     // Adaptive Queen Intelligence Integration
     private adaptiveQueenIntegration: AdaptiveQueenIntegration | null = null;
     private guiTexture: AdvancedDynamicTexture | null = null;
+
+    // Spatial indexing for O(1) entity lookups
+    private spatialIndex: SpatialIndex | null = null;
+
+    // Throttling for spatial index checks
+    private lastDetectionCheckTime: number = 0;
+    private readonly DETECTION_CHECK_INTERVAL: number = 200; // Check every 200ms
 
     private isInitialized: boolean = false;
     private isRunning: boolean = false;
@@ -138,6 +145,9 @@ export class GameEngine {
             this.materialManager = new MaterialManager(this.scene);
             this.performanceMonitor = new PerformanceMonitor(this.scene, this.engine);
 
+            // Initialize spatial index for O(1) entity lookups
+            this.spatialIndex = new SpatialIndex();
+
             // Initialize energy system
             this.energyManager = EnergyManager.getInstance();
             this.energyManager.initialize(500, 15); // Start with 500 energy, 15 minerals
@@ -181,13 +191,20 @@ export class GameEngine {
             this.territoryManager = new TerritoryManager();
             this.territoryManager.initialize(this);
 
-            // Initialize liberation manager
-            this.liberationManager = new LiberationManager();
-            this.liberationManager.initialize(this.territoryManager);
+            // Initialize territory renderer
+            if (this.scene && this.materialManager) {
+                this.territoryRenderer = new TerritoryRenderer(
+                    this.scene,
+                    this.materialManager
+                );
+                this.territoryRenderer.setTerritoryManager(this.territoryManager);
+                // Set initial player position at camera target (0, 0, 0)
+                this.territoryRenderer.setPlayerPosition(new Vector3(0, 0, 0));
+            }
 
-            // Initialize performance optimizer
-            this.performanceOptimizer = new PerformanceOptimizer(this, this.performanceMonitor);
-            this.performanceOptimizer.initialize();
+            // Initialize liberation manager
+            this.liberationManager = new LiberationManager(this.energyManager!);
+            this.liberationManager.setTerritoryManager(this.territoryManager);
 
             // Connect territory manager to unit manager for mining bonus
             if (this.unitManager) {
@@ -250,6 +267,9 @@ export class GameEngine {
                 this.engine?.resize();
             });
 
+            // Babylon.js debug layer - uncomment for perf tuning
+            // this.scene.debugLayer.show({ embedMode: true });
+
             this.isInitialized = true;
 
         } catch (error) {
@@ -276,9 +296,6 @@ export class GameEngine {
 
             // Start performance monitoring
             this.performanceMonitor?.startMonitoring();
-
-            // Start performance optimization monitoring
-            this.performanceOptimizer?.startMonitoring();
 
             // Start render loop
             this.engine.runRenderLoop(async () => {
@@ -328,14 +345,17 @@ export class GameEngine {
                         this.territoryManager.update(deltaTime);
                     }
 
+                    // Update territory renderer player position
+                    if (this.territoryRenderer && this.cameraController) {
+                        const camera = this.cameraController.getCamera();
+                        if (camera) {
+                            this.territoryRenderer.setPlayerPosition(camera.getTarget());
+                        }
+                    }
+
                     // Update liberation system
                     if (this.liberationManager) {
                         this.liberationManager.updateLiberations(deltaTime);
-                    }
-
-                    // Update performance optimization
-                    if (this.performanceOptimizer) {
-                        this.performanceOptimizer.update(deltaTime);
                     }
 
                     // Update Adaptive Queen Integration
@@ -372,7 +392,6 @@ export class GameEngine {
         }
 
         this.performanceMonitor?.stopMonitoring();
-        this.performanceOptimizer?.stopMonitoring();
         this.isRunning = false;
     }
 
@@ -391,6 +410,13 @@ export class GameEngine {
             deposits.forEach(deposit => {
                 this.gameState!.addMineralDeposit(deposit);
             });
+        }
+
+        // Create single territory at initial camera position (0, 0) with Queen
+        if (this.territoryManager) {
+            // Creating initial territory silently
+            this.territoryManager.createTerritory(0, 0, true); // skipAlignment for dev
+            // TerritoryRenderer auto-detects territories from TerritoryManager
         }
     }
 
@@ -469,7 +495,7 @@ export class GameEngine {
             return;
         }
 
-        this.territoryVisualUI = new TerritoryVisualUI(this.scene);
+        this.territoryVisualUI = new TerritoryVisualUI({ containerId: 'territory-visual-display' });
     }
 
     /**
@@ -482,19 +508,20 @@ export class GameEngine {
         }
 
         try {
-            // Check if AI backend is available
-            const backendAvailable = await this.checkAIBackendAvailability();
-            
+            // AI learning disabled by default (KISS principle)
+            // To enable: set enableLearning to true and ensure AI backend is running
+            const enableLearning = false;
+
             this.adaptiveQueenIntegration = await createAdaptiveQueenIntegration({
                 gameEngine: this,
                 territoryManager: this.territoryManager,
                 gameState: this.gameState,
                 guiTexture: this.guiTexture,
-                websocketUrl: process.env.AI_BACKEND_URL || 'ws://localhost:8000/ws',
-                enableLearning: backendAvailable
+                websocketUrl: 'ws://localhost:8000/ws',
+                enableLearning: enableLearning
             });
 
-            console.log(`🧠 AdaptiveQueenIntegration initialized (Learning: ${backendAvailable ? 'enabled' : 'disabled'})`);
+//             console.log(`🧠 AdaptiveQueenIntegration initialized (Learning: ${backendAvailable ? 'enabled' : 'disabled'})`);
             
         } catch (error) {
             console.warn('🧠 Failed to initialize AdaptiveQueenIntegration, falling back to standard behavior:', error);
@@ -645,10 +672,10 @@ export class GameEngine {
     }
 
     /**
-     * Get performance optimizer
+     * Get spatial index for efficient entity lookups
      */
-    public getPerformanceOptimizer(): PerformanceOptimizer | null {
-        return this.performanceOptimizer;
+    public getSpatialIndex(): SpatialIndex | null {
+        return this.spatialIndex;
     }
 
     /**
@@ -668,11 +695,19 @@ export class GameEngine {
      * Handle movement-combat transitions for auto-attack system
      * This method checks for enemy detection during protector movement
      * and initiates auto-attack when enemies are detected within range
+     * Throttled to run every 200ms instead of every frame for performance
      */
     private handleMovementCombatTransitions(): void {
         if (!this.combatSystem || !this.unitManager) {
             return;
         }
+
+        // Throttle detection checks to every 200ms
+        const now = performance.now();
+        if (now - this.lastDetectionCheckTime < this.DETECTION_CHECK_INTERVAL) {
+            return;
+        }
+        this.lastDetectionCheckTime = now;
 
         // Get all active protectors
         const protectors = this.unitManager.getUnitsByType('protector') as Protector[];
@@ -1029,7 +1064,6 @@ export class GameEngine {
         // Dispose components in reverse order
         this.adaptiveQueenIntegration?.dispose();
         this.guiTexture?.dispose();
-        this.performanceOptimizer?.dispose();
         this.treeRenderer?.dispose();
         this.territoryVisualUI?.dispose();
         this.queenGrowthUI?.dispose();

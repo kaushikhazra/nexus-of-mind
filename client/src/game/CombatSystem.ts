@@ -11,6 +11,7 @@ import { Protector } from './entities/Protector';
 import { EnergyParasite } from './entities/EnergyParasite';
 import { EnergyManager } from './EnergyManager';
 import { CombatEffects } from '../rendering/CombatEffects';
+import { SpatialIndex, EntityType } from './SpatialIndex';
 
 export interface CombatTarget {
     id: string;
@@ -376,26 +377,47 @@ export class CombatSystem {
 
     /**
      * Detect nearby enemies within detection range
+     * Optimized with spatial indexing for O(1) chunk lookups instead of O(n) global scanning
      */
     public detectNearbyEnemies(protector: Protector, detectionRange: number = this.config.protectorDetectionRange): CombatTarget[] {
         const startTime = performance.now();
         const protectorPosition = protector.getPosition();
         const nearbyEnemies: CombatTarget[] = [];
 
-        // Validate detection range (must be larger than combat range for smooth engagement)
+        // Try spatial index first for O(1) lookups
+        const gameEngine = require('./GameEngine').GameEngine.getInstance();
+        const spatialIndex = gameEngine?.getSpatialIndex() as SpatialIndex | null;
 
-        // Get all potential targets from the game world
-        const allTargets = this.getAllPotentialTargets();
+        if (spatialIndex) {
+            // Use spatial index for efficient nearby entity lookup
+            const nearbyEntityIds = spatialIndex.getEntitiesInRange(
+                protectorPosition,
+                detectionRange,
+                ['parasite', 'combat_parasite', 'queen', 'hive']
+            );
 
-        for (const target of allTargets) {
-            const distance = Vector3.Distance(protectorPosition, target.position);
-            
-            // Check if target is within detection range
-            if (distance <= detectionRange) {
-                // Use enhanced validation for auto-detection
-                const validation = this.validateTargetForAutoDetection(target);
-                if (validation.isValid) {
-                    nearbyEnemies.push(target);
+            // Resolve entity IDs to CombatTargets
+            for (const entityId of nearbyEntityIds) {
+                const target = this.resolveEntityToCombatTarget(entityId, gameEngine);
+                if (target) {
+                    const validation = this.validateTargetForAutoDetection(target);
+                    if (validation.isValid) {
+                        nearbyEnemies.push(target);
+                    }
+                }
+            }
+        } else {
+            // Fallback to legacy O(n) scanning if spatial index not available
+            const allTargets = this.getAllPotentialTargets();
+
+            for (const target of allTargets) {
+                const distance = Vector3.Distance(protectorPosition, target.position);
+
+                if (distance <= detectionRange) {
+                    const validation = this.validateTargetForAutoDetection(target);
+                    if (validation.isValid) {
+                        nearbyEnemies.push(target);
+                    }
                 }
             }
         }
@@ -404,6 +426,36 @@ export class CombatSystem {
         this.recordValidationTiming(startTime);
 
         return nearbyEnemies;
+    }
+
+    /**
+     * Resolve entity ID to CombatTarget
+     */
+    private resolveEntityToCombatTarget(entityId: string, gameEngine: any): CombatTarget | null {
+        // Try ParasiteManager first (most common target type)
+        const parasiteManager = gameEngine?.getParasiteManager();
+        if (parasiteManager) {
+            const parasite = parasiteManager.getParasiteById(entityId);
+            if (parasite && parasite.isAlive()) {
+                return parasite;
+            }
+        }
+
+        // Try TerritoryManager for Queens and Hives
+        const territoryManager = gameEngine?.getTerritoryManager();
+        if (territoryManager) {
+            const territories = territoryManager.getAllTerritories();
+            for (const territory of territories) {
+                if (territory.queen && territory.queen.id === entityId && territory.queen.isVulnerable()) {
+                    return territory.queen;
+                }
+                if (territory.hive && territory.hive.id === entityId && territory.hive.isHiveConstructed()) {
+                    return territory.hive;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**

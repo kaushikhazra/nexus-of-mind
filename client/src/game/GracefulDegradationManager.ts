@@ -109,7 +109,7 @@ export class GracefulDegradationManager {
                 for (const [key, strategy] of Object.entries(strategies)) {
                     this.strategyCache.set(key, strategy as FallbackStrategy);
                 }
-                console.log(`Loaded ${this.strategyCache.size} cached strategies`);
+                // Cached strategies loaded silently
             }
         } catch (error) {
             console.error('Failed to load cached strategies:', error);
@@ -307,7 +307,7 @@ export class GracefulDegradationManager {
     }
 
     private enhanceStrategy(baseStrategy: string, level: string): string {
-        const enhancements = {
+        const enhancements: Record<string, Record<string, string>> = {
             tactical: {
                 'hidden_defensive': 'adaptive_hidden',
                 'aggressive_early': 'timed_aggressive',
@@ -321,8 +321,8 @@ export class GracefulDegradationManager {
                 'tactical_spawning': 'strategic_spawning'
             }
         };
-        
-        return enhancements[level]?.[baseStrategy] || baseStrategy;
+
+        return (enhancements as Record<string, Record<string, string>>)[level]?.[baseStrategy] || baseStrategy;
     }
 
     private adjustStrategyForSurvival(strategy: any, survivalTime: number): any {
@@ -370,7 +370,9 @@ export class GracefulDegradationManager {
         // Limit cache size
         if (this.strategyCache.size > this.config.maxCacheSize) {
             const firstKey = this.strategyCache.keys().next().value;
-            this.strategyCache.delete(firstKey);
+            if (firstKey) {
+                this.strategyCache.delete(firstKey);
+            }
         }
         
         this.saveCachedStrategies();

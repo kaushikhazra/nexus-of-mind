@@ -228,10 +228,16 @@ export class EnergyDisplay {
 
     /**
      * Subscribe to energy system events
+     * Event updates are throttled to avoid excessive UI updates
      */
     private subscribeToEnergyEvents(): void {
+        // Throttle energy change events - only update if 1 second has passed
         this.energyManager.onEnergyChange((stats: EnergyStats) => {
-            this.updateDisplayWithStats(stats);
+            const now = performance.now();
+            if (now - this.lastUpdateTime >= 1000) {
+                this.updateDisplayWithStats(stats);
+                this.lastUpdateTime = now;
+            }
         });
 
         this.energyManager.onLowEnergy((entityId: string, currentEnergy: number) => {

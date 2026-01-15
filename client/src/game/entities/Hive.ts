@@ -7,7 +7,7 @@
  * constructed.
  */
 
-import { Vector3 } from '@babylonjs/core';
+import { Vector3, MeshBuilder, Mesh, StandardMaterial, Color3, TransformNode, Scene } from '@babylonjs/core';
 import { CombatTarget } from '../CombatSystem';
 import { Territory } from '../TerritoryManager';
 import { Queen } from './Queen';
@@ -63,6 +63,10 @@ export class Hive implements CombatTarget {
     private isActive: boolean = true;
     private lastUpdateTime: number = 0;
     
+    // Visual mesh
+    private mesh: Mesh | null = null;
+    private scene: Scene | null = null;
+    
     // Event callbacks
     private onDestroyedCallbacks: ((hive: Hive) => void)[] = [];
     private onConstructionCompleteCallbacks: ((hive: Hive) => void)[] = [];
@@ -89,7 +93,151 @@ export class Hive implements CombatTarget {
         // Defensive swarm size (50+ parasites as per requirements)
         this.swarmSize = 50 + Math.floor(Math.random() * 20); // 50-70 parasites
         
-        console.log(`🏠 Hive ${this.id} created at ${this.position.x}, ${this.position.z} (${this.constructionDuration}s construction)`);
+        // Hive created silently
+
+        // Create visual mesh
+        this.createHiveMesh();
+    }
+
+    /**
+     * Create visual mesh for the Hive - termite mound style, tall hollow tubes
+     */
+    private createHiveMesh(): void {
+        // Get scene from GameEngine
+        const gameEngine = require('../GameEngine').GameEngine.getInstance();
+        this.scene = gameEngine?.getScene();
+
+        if (!this.scene) {
+            console.warn('🏠 Hive: No scene available for mesh creation');
+            return;
+        }
+
+        // Create materials - various shades of mud
+        const lightMud = new StandardMaterial(`hive_mat_light_${this.id}`, this.scene);
+        lightMud.diffuseColor = new Color3(0.5, 0.38, 0.22); // Light mud
+        lightMud.emissiveColor = new Color3(0.08, 0.06, 0.03);
+        lightMud.specularColor = new Color3(0.2, 0.15, 0.1);
+
+        const material = new StandardMaterial(`hive_mat_${this.id}`, this.scene);
+        material.diffuseColor = new Color3(0.4, 0.3, 0.15); // Medium mud
+        material.emissiveColor = new Color3(0.06, 0.04, 0.02);
+        material.specularColor = new Color3(0.15, 0.1, 0.08);
+
+        const darkMaterial = new StandardMaterial(`hive_mat_dark_${this.id}`, this.scene);
+        darkMaterial.diffuseColor = new Color3(0.3, 0.2, 0.1); // Dark mud
+        darkMaterial.emissiveColor = new Color3(0.04, 0.03, 0.01);
+        darkMaterial.specularColor = new Color3(0.1, 0.07, 0.05);
+
+        const darkestMud = new StandardMaterial(`hive_mat_darkest_${this.id}`, this.scene);
+        darkestMud.diffuseColor = new Color3(0.2, 0.12, 0.06); // Darkest mud
+        darkestMud.emissiveColor = new Color3(0.02, 0.01, 0.005);
+        darkestMud.specularColor = new Color3(0.08, 0.05, 0.03);
+
+        const meshes: Mesh[] = [];
+
+        // Dark material for cutouts
+        const cutoutMaterial = new StandardMaterial(`hive_cutout_${this.id}`, this.scene);
+        cutoutMaterial.diffuseColor = new Color3(0.08, 0.05, 0.03);
+        cutoutMaterial.emissiveColor = new Color3(0, 0, 0);
+
+        const moundHeight = 14;
+        const moundBaseRadius = 8;
+        const layers = 10;
+
+        // Stepped cone - stacked layers with variation
+        for (let i = 0; i < layers; i++) {
+            const t = i / layers;
+            const y = t * moundHeight;
+            const baseRadius = moundBaseRadius * (1 - t * 0.92);
+
+            // Vary each layer for rough organic look
+            const radiusVar = 0.8 + Math.random() * 0.4;
+            const offsetX = (Math.random() - 0.5) * 0.8;
+            const offsetZ = (Math.random() - 0.5) * 0.8;
+
+            const layer = MeshBuilder.CreateCylinder(`layer_${this.id}_${i}`, {
+                height: moundHeight / layers + 0.3,
+                diameterTop: baseRadius * 0.75 * radiusVar,
+                diameterBottom: baseRadius * radiusVar,
+                tessellation: 6
+            }, this.scene);
+
+            layer.position = new Vector3(offsetX, y, offsetZ);
+            layer.material = [lightMud, material, darkMaterial, darkestMud][i % 4];
+            meshes.push(layer);
+        }
+
+        // Big cutouts (dark cones reaching to ground)
+        const cutoutData = [
+            { angle: 0.5, tipHeight: 0.4, size: 2.5 },
+            { angle: 1.5, tipHeight: 0.55, size: 2.2 },
+            { angle: 2.5, tipHeight: 0.3, size: 2.8 },
+            { angle: 3.5, tipHeight: 0.5, size: 2 },
+            { angle: 4.5, tipHeight: 0.35, size: 3 },
+            { angle: 5.5, tipHeight: 0.6, size: 1.8 },
+        ];
+
+        for (const cut of cutoutData) {
+            const coneLength = cut.tipHeight * moundHeight;
+            const radiusAtHeight = moundBaseRadius * (1 - cut.tipHeight * 0.5);
+
+            const cutout = MeshBuilder.CreateCylinder(`cutout_${this.id}_${cut.angle}`, {
+                height: coneLength,
+                diameterTop: cut.size * 0.3,
+                diameterBottom: cut.size,
+                tessellation: 5
+            }, this.scene);
+            cutout.position = new Vector3(
+                Math.cos(cut.angle) * radiusAtHeight * 0.7,
+                coneLength / 2, // Base at y=0
+                Math.sin(cut.angle) * radiusAtHeight * 0.7
+            );
+            cutout.rotation.x = Math.cos(cut.angle) * 0.15;
+            cutout.rotation.z = -Math.sin(cut.angle) * 0.15;
+            cutout.material = cutoutMaterial;
+            meshes.push(cutout);
+        }
+
+        // Wide flat spreading base
+        const base = MeshBuilder.CreateCylinder(`base_${this.id}`, {
+            height: 0.8,
+            diameterTop: moundBaseRadius * 2.2,
+            diameterBottom: moundBaseRadius * 3,
+            tessellation: 10
+        }, this.scene);
+        base.position.y = 0;
+        base.material = darkestMud;
+        meshes.push(base);
+
+        // Merge all meshes
+        this.mesh = Mesh.MergeMeshes(
+            meshes,
+            true,
+            true,
+            undefined,
+            false,
+            true
+        );
+
+        if (!this.mesh) {
+            console.warn('🏠 Hive: Failed to merge meshes');
+            return;
+        }
+
+        this.mesh.name = `hive_${this.id}`;
+
+        // Position on terrain
+        this.mesh.position = this.position.clone();
+
+        const terrainGenerator = gameEngine?.getTerrainGenerator();
+        if (terrainGenerator && terrainGenerator.getHeightAtPosition) {
+            const centerHeight = terrainGenerator.getHeightAtPosition(this.position.x, this.position.z);
+            this.mesh.position.y = centerHeight - 1; // Embed base in ground
+        } else {
+            this.mesh.position.y = 10;
+        }
+
+        // Hive mesh created
     }
 
     /**
@@ -112,7 +260,7 @@ export class Hive implements CombatTarget {
         this.constructionProgress = 0.0;
         this.constructionElapsedTime = 0.0;
         
-        console.log(`🏠 Hive ${this.id} construction started (${this.constructionDuration}s)`);
+        // Hive construction started
     }
 
     /**
@@ -166,15 +314,15 @@ export class Hive implements CombatTarget {
 
         this.isConstructed = true;
         this.constructionProgress = 1.0;
-        
-        // Spawn defensive swarm (requirement 3.2)
-        this.spawnDefensiveSwarm();
-        
+
+        // Defensive swarm disabled for now
+        // this.spawnDefensiveSwarm();
+
         // Make Queen vulnerable now that hive is constructed
         this.queen.setHive(this);
-        
-        console.log(`🏠 Hive ${this.id} construction completed! Spawned ${this.swarmSize} defensive parasites`);
-        
+
+        // Hive construction completed
+
         // Notify construction complete callbacks
         this.onConstructionCompleteCallbacks.forEach(callback => callback(this));
     }
@@ -271,7 +419,7 @@ export class Hive implements CombatTarget {
      */
     private getClosestMineralDeposit(): any {
         const gameEngine = require('../GameEngine').GameEngine.getInstance();
-        const mineralDeposits = gameEngine?.getMineralDeposits() || [];
+        const mineralDeposits = gameEngine?.getGameState()?.getAllMineralDeposits() || [];
         
         if (mineralDeposits.length === 0) {
             return null;

@@ -196,6 +196,10 @@ export class TerritoryManager {
     private websocketClient?: WebSocketClient;
     private gameState?: GameState;
     private enableAILearning: boolean = false;
+
+    // Event callbacks for SystemIntegration
+    public onQueenCreated?: (queen: AdaptiveQueen) => void;
+    public onQueenDeath?: (queen: AdaptiveQueen) => void;
     
     constructor() {
         this.territoryGrid = new TerritoryGrid(this.TERRITORY_SIZE_CHUNKS, this.CHUNK_SIZE);
@@ -222,15 +226,15 @@ export class TerritoryManager {
             
             // Set up performance callbacks
             this.performanceMonitor.onWarning((metrics) => {
-                console.warn(`🏰 Territory Performance Warning: ${metrics.performanceGrade} - Memory: ${metrics.totalTerritoryMemory.toFixed(1)}MB, CPU: ${metrics.cpuOverheadPercentage.toFixed(1)}%`);
+//                 console.warn(`🏰 Territory Performance Warning: ${metrics.performanceGrade} - Memory: ${metrics.totalTerritoryMemory.toFixed(1)}MB, CPU: ${metrics.cpuOverheadPercentage.toFixed(1)}%`);
             });
             
             this.performanceMonitor.onCritical((metrics) => {
-                console.error(`🏰 Territory Performance Critical: ${metrics.performanceGrade} - Memory: ${metrics.totalTerritoryMemory.toFixed(1)}MB, CPU: ${metrics.cpuOverheadPercentage.toFixed(1)}%`);
+//                 console.error(`🏰 Territory Performance Critical: ${metrics.performanceGrade} - Memory: ${metrics.totalTerritoryMemory.toFixed(1)}MB, CPU: ${metrics.cpuOverheadPercentage.toFixed(1)}%`);
             });
             
             this.performanceMonitor.onOptimization((level, description) => {
-                console.log(`🏰 Territory Performance Optimization: Level ${level} - ${description}`);
+//                 console.log(`🏰 Territory Performance Optimization: Level ${level} - ${description}`);
             });
         }
         
@@ -240,7 +244,7 @@ export class TerritoryManager {
             this.errorRecoveryManager = new ErrorRecoveryManager(this, parasiteManager, gameEngine);
         }
         
-        console.log('🏰 TerritoryManager initialized');
+//         console.log('🏰 TerritoryManager initialized');
     }
 
     /**
@@ -251,27 +255,39 @@ export class TerritoryManager {
         this.gameState = gameState;
         this.enableAILearning = true;
         
-        console.log('🧠 TerritoryManager: AI learning capabilities initialized');
+//         console.log('🧠 TerritoryManager: AI learning capabilities initialized');
     }
 
     /**
      * Enable or disable AI learning
      */
     public setAILearningEnabled(enabled: boolean): void {
-        this.enableAILearning = enabled && this.websocketClient && this.gameState;
-        console.log(`🧠 TerritoryManager: AI learning ${this.enableAILearning ? 'enabled' : 'disabled'}`);
+        this.enableAILearning = !!(enabled && this.websocketClient && this.gameState);
+//         console.log(`🧠 TerritoryManager: AI learning ${this.enableAILearning ? 'enabled' : 'disabled'}`);
     }
 
     /**
      * Create a new territory at the specified center coordinates
+     * @param skipAlignment - If true, use exact coordinates instead of aligning to grid
      */
-    public createTerritory(centerX: number, centerZ: number): Territory {
-        // Ensure center coordinates align with territory grid
-        const territorySize = this.TERRITORY_SIZE_UNITS;
-        const alignedCenterX = Math.floor(centerX / territorySize) * territorySize + territorySize / 2;
-        const alignedCenterZ = Math.floor(centerZ / territorySize) * territorySize + territorySize / 2;
-        
-        const territoryId = this.territoryGrid.getTerritoryIdAt(alignedCenterX, alignedCenterZ);
+    public createTerritory(centerX: number, centerZ: number, skipAlignment: boolean = false): Territory {
+        let finalCenterX: number;
+        let finalCenterZ: number;
+
+        if (skipAlignment) {
+            // Use exact coordinates (for development/testing)
+            finalCenterX = centerX;
+            finalCenterZ = centerZ;
+        } else {
+            // Ensure center coordinates align with territory grid
+            const territorySize = this.TERRITORY_SIZE_UNITS;
+            finalCenterX = Math.floor(centerX / territorySize) * territorySize + territorySize / 2;
+            finalCenterZ = Math.floor(centerZ / territorySize) * territorySize + territorySize / 2;
+        }
+
+        const territoryId = skipAlignment
+            ? `territory_dev_${centerX}_${centerZ}`
+            : this.territoryGrid.getTerritoryIdAt(finalCenterX, finalCenterZ);
         
         // Check if territory already exists
         if (this.territories.has(territoryId)) {
@@ -279,11 +295,11 @@ export class TerritoryManager {
         }
         
         // Calculate chunk bounds
-        const chunkBounds = this.territoryGrid.calculateChunkBounds(alignedCenterX, alignedCenterZ);
+        const chunkBounds = this.territoryGrid.calculateChunkBounds(finalCenterX, finalCenterZ);
         
         const territory: Territory = {
             id: territoryId,
-            centerPosition: new Vector3(alignedCenterX, 0, alignedCenterZ),
+            centerPosition: new Vector3(finalCenterX, 0, finalCenterZ),
             size: this.TERRITORY_SIZE_UNITS,
             chunkBounds,
             queen: null,
@@ -296,7 +312,15 @@ export class TerritoryManager {
         
         this.territories.set(territoryId, territory);
         this.territoryGrid.addTerritory(territory);
-        
+
+        // Immediately spawn Queen for new territory (like parasites)
+        const queen = this.createQueenForTerritory(territoryId, 1);
+        if (queen) {
+            // Queen spawned successfully
+        } else {
+            console.warn(`⚠️ Failed to spawn Queen for territory ${territoryId}`);
+        }
+
         return territory;
     }
 
@@ -539,13 +563,12 @@ export class TerritoryManager {
             return territory.queen;
         }
 
-        // Create Queen with random health (40-100 hits) and growth duration (60-120 seconds)
-        // Requirements 4.4: Growth phase 60-120 seconds
+        // Create Queen with random health - instant spawn for game start
         const queenConfig = {
             territory,
             generation,
-            health: 40 + Math.random() * 60, // 40-100 hits (requirement 2.1)
-            growthDuration: 60 + Math.random() * 60 // 60-120 seconds (requirement 4.4)
+            health: 40 + Math.random() * 60, // 40-100 hits
+            growthDuration: 0 // Instant - no growth phase
         };
 
         let queen: Queen;
@@ -559,10 +582,10 @@ export class TerritoryManager {
                 enableLearning: true
             };
             queen = new AdaptiveQueen(adaptiveConfig);
-            console.log(`🧠 Created AdaptiveQueen ${queen.id} for territory ${territoryId} (Gen ${generation}) with AI learning`);
+            // AdaptiveQueen created with AI learning
         } else {
             queen = new Queen(queenConfig);
-            console.log(`👑 Created Queen ${queen.id} for territory ${territoryId} (Gen ${generation})`);
+            // Queen created for territory
         }
         
         territory.queen = queen;

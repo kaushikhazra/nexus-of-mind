@@ -229,7 +229,7 @@ export class AdaptiveQueen extends Queen {
         
         this.websocketClient = config.websocketClient;
         this.gameState = config.gameState;
-        this.enableLearning = config.enableLearning !== false;
+        this.enableLearning = config.enableLearning === true; // Default to disabled (KISS)
         
         // Initialize learning data
         this.learningData = {
@@ -934,6 +934,20 @@ export class AdaptiveQueen extends Queen {
         } else {
             this.stopDataCollection();
         }
+    }
+
+    /**
+     * Get survival time (time since spawn)
+     */
+    public getSurvivalTime(): number {
+        return (Date.now() - this.learningData.birthTime) / 1000;
+    }
+
+    /**
+     * Get death cause (reason for death)
+     */
+    public getDeathCause(): string {
+        return this.determineDeathCause();
     }
 
     /**
