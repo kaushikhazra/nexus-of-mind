@@ -207,13 +207,6 @@ export class AdaptiveQueenExample {
     }
 
     /**
-     * Toggle learning progress UI visibility
-     */
-    public toggleLearningUI(): void {
-        this.adaptiveQueenIntegration?.toggleLearningUI();
-    }
-
-    /**
      * Get AI statistics for debugging
      */
     public getAIStatistics(): any {
@@ -292,24 +285,20 @@ export function setupAdaptiveQueenGameLoop(example: AdaptiveQueenExample): void 
                 example.toggleAILearning();
                 break;
             case '4':
-                example.toggleLearningUI();
-                break;
-            case '5':
                 console.log('AI Statistics:', example.getAIStatistics());
                 break;
-            case '6':
+            case '5':
                 console.log('Current Queen:', example.getCurrentQueenInfo());
                 break;
         }
     });
-    
+
     console.log(`
 🎮 AdaptiveQueen Example Controls:
 1 - Simulate Queen Death
 2 - Create Next Generation
 3 - Toggle AI Learning
-4 - Toggle Learning UI
-5 - Show AI Statistics
-6 - Show Current Queen Info
+4 - Show AI Statistics
+5 - Show Current Queen Info
     `);
 }

@@ -453,15 +453,7 @@ export class DebugUI {
                 stats += `No active Queen\n`;
             }
             
-            stats += `\n📈 GENERATION HISTORY\n`;
-            const history = aiStats.generationHistory;
-            if (history.size > 0) {
-                Array.from(history.entries()).slice(-5).forEach(([gen, data]) => {
-                    stats += `Gen ${gen}: ${data.survivalTime || 'N/A'}s\n`;
-                });
-            } else {
-                stats += `No generation data yet\n`;
-            }
+            stats += `\nQueued Messages: ${aiStats.queuedMessages}\n`;
             
         } else {
             stats += `AI Integration not available\n`;

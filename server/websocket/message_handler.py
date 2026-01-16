@@ -12,9 +12,10 @@ import jsonschema
 from jsonschema import validate, ValidationError
 
 from ai_engine.data_models import (
-    QueenDeathData, QueenDeathMessage, QueenStrategyMessage, 
+    QueenDeathData, QueenDeathMessage, QueenStrategyMessage,
     LearningProgressMessage, serialize_message, deserialize_message
 )
+from ai_engine.continuous_trainer import ContinuousTrainer, AsyncContinuousTrainer
 
 logger = logging.getLogger(__name__)
 
@@ -33,13 +34,29 @@ class MessageHandler:
             "game_outcome": self._handle_game_outcome,
             "difficulty_status_request": self._handle_difficulty_status_request,
             "learning_progress_request": self._handle_learning_progress_request,
+            "observation_data": self._handle_observation_data,
+            "training_status_request": self._handle_training_status_request,
             "ping": self._handle_ping,
             "health_check": self._handle_health_check,
-            "reconnect": self._handle_reconnect
+            "reconnect": self._handle_reconnect,
+            "heartbeat_response": self._handle_heartbeat_response,
+            "reset_nn": self._handle_reset_nn
         }
+
+        # Continuous trainer for real-time learning
+        self.continuous_trainer = None
+        self._init_continuous_trainer()
         
         # Message validation schemas
         self.message_schemas = self._initialize_schemas()
+
+    def _init_continuous_trainer(self) -> None:
+        """Initialize the continuous trainer for real-time learning."""
+        try:
+            self.continuous_trainer = AsyncContinuousTrainer()
+            logger.info("ContinuousTrainer initialized for real-time learning")
+        except Exception as e:
+            logger.warning(f"Failed to initialize ContinuousTrainer: {e}. Continuous learning disabled.")
         
         # Message processing statistics
         self.message_stats = {
@@ -184,6 +201,58 @@ class MessageHandler:
                     "type": {"type": "string", "enum": ["difficulty_status_request"]},
                     "timestamp": {"type": "number"}
                 }
+            },
+            "observation_data": {
+                "type": "object",
+                "required": ["type", "data"],
+                "properties": {
+                    "type": {"type": "string", "enum": ["observation_data"]},
+                    "timestamp": {"type": "number"},
+                    "data": {
+                        "type": "object",
+                        "required": ["timestamp", "gameTime", "player", "queen", "events"],
+                        "properties": {
+                            "timestamp": {"type": "number"},
+                            "gameTime": {"type": "number"},
+                            "sequenceNumber": {"type": "integer"},
+                            "player": {"type": "object"},
+                            "queen": {"type": "object"},
+                            "events": {"type": "object"},
+                            "snapshotCount": {"type": "integer"},
+                            "windowDuration": {"type": "number"}
+                        }
+                    }
+                }
+            },
+            "training_status_request": {
+                "type": "object",
+                "required": ["type"],
+                "properties": {
+                    "type": {"type": "string", "enum": ["training_status_request"]},
+                    "timestamp": {"type": "number"}
+                }
+            },
+            "heartbeat_response": {
+                "type": "object",
+                "required": ["type"],
+                "properties": {
+                    "type": {"type": "string", "enum": ["heartbeat_response"]},
+                    "timestamp": {"type": "number"}
+                }
+            },
+            "reset_nn": {
+                "type": "object",
+                "required": ["type"],
+                "properties": {
+                    "type": {"type": "string", "enum": ["reset_nn"]},
+                    "timestamp": {"type": "number"},
+                    "data": {
+                        "type": "object",
+                        "properties": {
+                            "confirm": {"type": "boolean"}
+                        }
+                    }
+                }
             }
         }
     
@@ -223,8 +292,9 @@ class MessageHandler:
             if handler:
                 response = await handler(message, client_id)
                 if response:
-                    # Add message ID for tracking
-                    response["messageId"] = self._generate_message_id()
+                    # Echo back original message ID for request-response matching
+                    # Use original messageId if present, otherwise generate new one
+                    response["messageId"] = message.get("messageId") or self._generate_message_id()
                     response["clientId"] = client_id
                     
                 self.message_stats["successful"] += 1
@@ -552,6 +622,94 @@ class MessageHandler:
                 error_code="RECONNECTION_ERROR"
             )
     
+    async def _handle_observation_data(self, message: Dict[str, Any], client_id: str) -> Dict[str, Any]:
+        """
+        Handle observation data for continuous learning.
+
+        Processes game state observations and returns strategy updates.
+        """
+        try:
+            observation = message.get("data")
+            if not observation:
+                logger.warning(f"[ObservationHandler] Missing observation data from client {client_id}")
+                return self._create_error_response("Missing observation data", error_code="MISSING_DATA")
+
+            if not self.continuous_trainer:
+                logger.warning(f"[ObservationHandler] Continuous trainer not available for client {client_id}")
+                return self._create_error_response(
+                    "Continuous learning not available",
+                    error_code="TRAINER_NOT_AVAILABLE"
+                )
+
+            sequence_number = observation.get("sequenceNumber", 0)
+            logger.info(f"[ObservationHandler] Processing observation #{sequence_number} from client {client_id}")
+
+            # Process observation and get strategy update
+            try:
+                strategy = await asyncio.wait_for(
+                    self.continuous_trainer.process_observation_async(observation),
+                    timeout=2.0  # 2 second timeout for real-time response
+                )
+
+                logger.info(f"[ObservationHandler] Sending strategy_update v{strategy.version} to client {client_id}")
+                return {
+                    "type": "strategy_update",
+                    "timestamp": asyncio.get_event_loop().time(),
+                    "inResponseTo": sequence_number,
+                    "payload": strategy.to_dict()
+                }
+
+            except asyncio.TimeoutError:
+                logger.warning(f"Observation processing timeout for client {client_id}")
+                return self._create_error_response(
+                    "Observation processing timeout",
+                    error_code="PROCESSING_TIMEOUT"
+                )
+
+        except Exception as e:
+            logger.error(f"Error processing observation data: {e}")
+            return self._create_error_response(
+                f"Failed to process observation: {str(e)}",
+                error_code="PROCESSING_ERROR"
+            )
+
+    async def _handle_training_status_request(self, message: Dict[str, Any], client_id: str) -> Dict[str, Any]:
+        """Handle request for continuous training status."""
+        try:
+            if not self.continuous_trainer:
+                return {
+                    "type": "training_status",
+                    "timestamp": asyncio.get_event_loop().time(),
+                    "data": {
+                        "status": "not_available",
+                        "message": "Continuous learning not initialized"
+                    }
+                }
+
+            stats = self.continuous_trainer.get_stats()
+
+            return {
+                "type": "training_status",
+                "timestamp": asyncio.get_event_loop().time(),
+                "data": {
+                    "status": "active",
+                    "trainingCount": stats["training_count"],
+                    "totalSamplesProcessed": stats["total_samples_processed"],
+                    "strategyVersion": stats["strategy_version"],
+                    "bufferSize": stats["buffer_size"],
+                    "lastTrainingLoss": stats["last_training_loss"],
+                    "modelParameters": stats["model_parameters"],
+                    "config": stats["config"]
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting training status: {e}")
+            return self._create_error_response(
+                f"Failed to get training status: {str(e)}",
+                error_code="PROCESSING_ERROR"
+            )
+
     async def _handle_ping(self, message: Dict[str, Any], client_id: str) -> Dict[str, Any]:
         """Handle ping message for connection testing with enhanced metrics"""
         request_timestamp = message.get("timestamp", 0)
@@ -591,7 +749,58 @@ class MessageHandler:
                 }
             }
         }
-    
+
+    async def _handle_heartbeat_response(self, message: Dict[str, Any], client_id: str) -> Optional[Dict[str, Any]]:
+        """Handle heartbeat response from client - no response needed"""
+        logger.debug(f"Heartbeat response received from client {client_id}")
+        # No response needed for heartbeat acknowledgment
+        return None
+
+    async def _handle_reset_nn(self, message: Dict[str, Any], client_id: str) -> Dict[str, Any]:
+        """
+        Handle neural network reset request.
+
+        Fully resets the NN to initial random state and clears training history.
+        """
+        try:
+            # Check for confirmation flag (safety)
+            data = message.get("data", {})
+            confirm = data.get("confirm", False)
+
+            if not confirm:
+                return {
+                    "type": "reset_nn_response",
+                    "timestamp": asyncio.get_event_loop().time(),
+                    "data": {
+                        "status": "confirmation_required",
+                        "message": "Send with {confirm: true} to confirm reset"
+                    }
+                }
+
+            if not self.continuous_trainer:
+                return self._create_error_response(
+                    "Continuous trainer not available",
+                    error_code="TRAINER_NOT_AVAILABLE"
+                )
+
+            # Perform full reset
+            logger.info(f"[ResetNN] Full neural network reset requested by client {client_id}")
+            result = self.continuous_trainer.full_reset()
+            logger.info(f"[ResetNN] Reset complete: {result}")
+
+            return {
+                "type": "reset_nn_response",
+                "timestamp": asyncio.get_event_loop().time(),
+                "data": result
+            }
+
+        except Exception as e:
+            logger.error(f"Error resetting neural network: {e}")
+            return self._create_error_response(
+                f"Failed to reset neural network: {str(e)}",
+                error_code="RESET_ERROR"
+            )
+
     def _create_error_response(self, error_message: str, error_code: str = "GENERIC_ERROR") -> Dict[str, Any]:
         """Create standardized error response with enhanced error information"""
         return {

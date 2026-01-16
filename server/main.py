@@ -513,8 +513,79 @@ async def get_message_statistics():
     """Get message processing statistics"""
     if not message_handler:
         return {"error": "Message handler not initialized"}
-    
+
     return message_handler.get_message_statistics()
+
+
+@app.get("/reset-db")
+async def reset_database():
+    """
+    Reset the database to initial state.
+
+    Clears all player progress data.
+    Access via: http://localhost:8000/reset-db
+    """
+    try:
+        from database.energy_lords import init_db
+
+        db = init_db()
+        db.reset_progress('default')
+
+        logger.info("Database reset via /reset-db endpoint")
+        log_ai_event("database_reset", {"source": "http_endpoint"})
+
+        return {
+            "status": "success",
+            "message": "Database reset successfully. Starting fresh at Level 0."
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to reset database: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Reset failed: {str(e)}"}
+        )
+
+
+@app.get("/reset-nn")
+async def reset_neural_network():
+    """
+    Reset the neural network to initial random state.
+
+    Deletes saved model file and clears all training history.
+    Access via: http://localhost:8000/reset-nn
+    """
+    if not message_handler:
+        return JSONResponse(
+            status_code=503,
+            content={"error": "Message handler not initialized"}
+        )
+
+    if not message_handler.continuous_trainer:
+        return JSONResponse(
+            status_code=503,
+            content={"error": "Continuous trainer not available"}
+        )
+
+    try:
+        logger.info("Neural network reset requested via HTTP endpoint")
+        result = message_handler.continuous_trainer.full_reset()
+
+        log_ai_event("neural_network_reset", result)
+        logger.info(f"Neural network reset complete: {result}")
+
+        return {
+            "status": "success",
+            "message": "Neural network reset to initial state",
+            "details": result
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to reset neural network: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Reset failed: {str(e)}"}
+        )
 
 
 if __name__ == "__main__":

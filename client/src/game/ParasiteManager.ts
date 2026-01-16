@@ -23,6 +23,8 @@ import { TerritoryManager, Territory } from './TerritoryManager';
 import { Queen } from './entities/Queen';
 import { SpatialIndex } from './SpatialIndex';
 import { GameEngine } from './GameEngine';
+import { StrategyExecutor } from './systems/StrategyExecutor';
+import { SpawnDecision, SwarmBehavior, TargetPriority, FormationType } from './types/StrategyTypes';
 
 export interface TerritorialParasiteConfig {
     territory: Territory;
@@ -90,7 +92,11 @@ export class ParasiteManager {
     private readonly PERFORMANCE_CHECK_INTERVAL = 1000; // Check every second
     private renderingOptimizationLevel: number = 0; // 0 = no optimization, 1 = basic, 2 = aggressive
     private maxActiveParasites: number = 10; // Dynamic limit based on performance
-    
+
+    // Strategy executor for AI-controlled spawning and behavior
+    private strategyExecutor: StrategyExecutor | null = null;
+    private currentSwarmBehavior: SwarmBehavior | null = null;
+
     constructor(config: ParasiteManagerConfig) {
         this.scene = config.scene;
         this.materialManager = config.materialManager;
@@ -114,15 +120,205 @@ export class ParasiteManager {
      */
     public setTerrainGenerator(terrainGenerator: any): void {
         this.terrainGenerator = terrainGenerator;
-        
+
         // Update existing parasites
         for (const parasite of this.parasites.values()) {
             parasite.setTerrainGenerator(terrainGenerator);
         }
-        
+
         // ParasiteManager terrain generator updated
     }
-    
+
+    /**
+     * Set strategy executor for AI-controlled spawning and behavior
+     */
+    public setStrategyExecutor(executor: StrategyExecutor): void {
+        this.strategyExecutor = executor;
+
+        // Subscribe to spawn decisions
+        executor.setOnSpawnDecision((decision: SpawnDecision) => {
+            this.handleStrategySpawn(decision);
+        });
+
+        // Subscribe to swarm behavior changes
+        executor.setOnSwarmBehaviorChange((behavior: SwarmBehavior) => {
+            this.handleSwarmBehaviorChange(behavior);
+        });
+
+        console.log('[ParasiteManager] ✅ Strategy executor connected');
+    }
+
+    /**
+     * Handle spawn decision from strategy executor
+     */
+    private handleStrategySpawn(decision: SpawnDecision): void {
+        // Convert Position (x, y) to Vector3 (x, 0, z) - y becomes z in 3D space
+        const spawnCenter = new Vector3(decision.position.x, 0, decision.position.y);
+
+        console.log(`[ParasiteManager] 🎯 Strategy spawn: ${decision.count} parasites at (${spawnCenter.x.toFixed(1)}, ${spawnCenter.z.toFixed(1)})`);
+
+        // Find the nearest territory/queen for this spawn
+        const territory = this.findNearestTerritory(spawnCenter);
+        if (!territory || !territory.queen) {
+            console.warn('[ParasiteManager] No territory/queen found for strategy spawn');
+            return;
+        }
+
+        // Spawn parasites at the strategy-specified location
+        for (let i = 0; i < decision.count; i++) {
+            // Add small random offset for each parasite in burst
+            const offset = new Vector3(
+                (Math.random() - 0.5) * 10,
+                0,
+                (Math.random() - 0.5) * 10
+            );
+            const spawnPos = spawnCenter.add(offset);
+
+            this.spawnParasiteAtPosition(spawnPos, territory, territory.queen);
+        }
+    }
+
+    /**
+     * Spawn a parasite at a specific position (for strategy-controlled spawning)
+     */
+    private spawnParasiteAtPosition(position: Vector3, territory: Territory, queen: Queen): void {
+        // Determine type based on current swarm behavior
+        let parasiteType: ParasiteType;
+        if (this.currentSwarmBehavior) {
+            // Higher aggression = more combat parasites
+            const combatChance = 0.25 + (this.currentSwarmBehavior.aggression * 0.5); // 25-75%
+            parasiteType = Math.random() < combatChance ? ParasiteType.COMBAT : ParasiteType.ENERGY;
+        } else {
+            parasiteType = this.distributionTracker.getNextParasiteType();
+        }
+
+        // Find nearest deposit for home assignment
+        const nearestDeposit = this.findNearestDeposit(position);
+        if (!nearestDeposit) {
+            console.warn('[ParasiteManager] No deposit found for strategy spawn');
+            return;
+        }
+
+        // Create parasite
+        const parasite = this.createParasite(parasiteType, {
+            position: position,
+            scene: this.scene,
+            materialManager: this.materialManager,
+            homeDeposit: nearestDeposit
+        });
+
+        if (this.terrainGenerator) {
+            parasite.setTerrainGenerator(this.terrainGenerator);
+        }
+
+        this.parasites.set(parasite.getId(), parasite);
+
+        // Add to spatial index
+        const gameEngine = GameEngine.getInstance();
+        const spatialIndex = gameEngine?.getSpatialIndex();
+        if (spatialIndex) {
+            const entityType = parasiteType === ParasiteType.COMBAT ? 'combat_parasite' : 'parasite';
+            spatialIndex.add(parasite.getId(), position, entityType);
+        }
+
+        // Add to Queen control
+        queen.addControlledParasite(parasite.getId());
+
+        // Apply current swarm behavior to new parasite
+        if (this.currentSwarmBehavior) {
+            this.applyBehaviorToParasite(parasite, this.currentSwarmBehavior);
+        }
+
+        // Update tracking
+        this.distributionTracker.recordSpawn(parasiteType, nearestDeposit.getId());
+        const currentTypeCount = this.parasiteCountByType.get(parasiteType) || 0;
+        this.parasiteCountByType.set(parasiteType, currentTypeCount + 1);
+    }
+
+    /**
+     * Handle swarm behavior change from strategy executor
+     */
+    private handleSwarmBehaviorChange(behavior: SwarmBehavior): void {
+        console.log(`[ParasiteManager] 🐝 Swarm behavior updated: aggression=${(behavior.aggression * 100).toFixed(0)}%, target=${behavior.targetPriority}, formation=${behavior.formation}`);
+
+        this.currentSwarmBehavior = behavior;
+
+        // Apply to all existing parasites
+        for (const parasite of this.parasites.values()) {
+            this.applyBehaviorToParasite(parasite, behavior);
+        }
+    }
+
+    /**
+     * Apply swarm behavior to a single parasite
+     */
+    private applyBehaviorToParasite(parasite: EnergyParasite | CombatParasite, behavior: SwarmBehavior): void {
+        // Set aggression level (affects attack range and pursuit)
+        if ('setAggression' in parasite) {
+            (parasite as any).setAggression(behavior.aggression);
+        }
+
+        // Set target priority
+        if ('setTargetPriority' in parasite) {
+            (parasite as any).setTargetPriority(behavior.targetPriority);
+        }
+
+        // Set formation behavior
+        if ('setFormation' in parasite) {
+            (parasite as any).setFormation(behavior.formation);
+        }
+    }
+
+    /**
+     * Find nearest territory to a position
+     */
+    private findNearestTerritory(position: Vector3): Territory | null {
+        if (!this.territoryManager) return null;
+
+        const territories = this.territoryManager.getAllTerritories();
+        let nearest: Territory | null = null;
+        let nearestDist = Infinity;
+
+        for (const territory of territories) {
+            const dist = Vector3.Distance(position, territory.centerPosition);
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearest = territory;
+            }
+        }
+
+        return nearest;
+    }
+
+    /**
+     * Find nearest mineral deposit to a position
+     */
+    private findNearestDeposit(position: Vector3): MineralDeposit | null {
+        // Get all deposits from tracked parasites' home deposits
+        let nearest: MineralDeposit | null = null;
+        let nearestDist = Infinity;
+
+        // First try to get deposits from existing parasites
+        for (const parasite of this.parasites.values()) {
+            const deposit = parasite.getHomeDeposit();
+            if (deposit) {
+                const dist = Vector3.Distance(position, deposit.getPosition());
+                if (dist < nearestDist) {
+                    nearestDist = dist;
+                    nearest = deposit;
+                }
+            }
+        }
+
+        // If no parasites exist yet, use the last spawn attempt deposits
+        if (!nearest && this.lastSpawnAttempt.size > 0) {
+            // Return null - will be handled by caller
+            return null;
+        }
+
+        return nearest;
+    }
+
     /**
      * Update all parasites and handle spawning
      */

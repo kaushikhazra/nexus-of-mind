@@ -15,6 +15,7 @@ import { MaterialManager } from '../../rendering/MaterialManager';
 import { Worker } from './Worker';
 import { MineralDeposit } from '../../world/MineralDeposit';
 import { Parasite, ParasiteConfig, ParasiteState, TargetType } from './Parasite';
+import { TargetPriority, FormationType } from '../types/StrategyTypes';
 
 // Re-export for backward compatibility
 export { ParasiteState } from './Parasite';
@@ -41,6 +42,11 @@ export class EnergyParasite extends Parasite {
 
     // Lifecycle
     protected maxLifetime: number = 180000; // 3 minutes
+
+    // Strategy-controlled behavior
+    protected aggressionLevel: number = 0.5;
+    protected strategyTargetPriority: TargetPriority = TargetPriority.MINERS;
+    protected strategyFormation: FormationType = FormationType.SWARM;
 
     constructor(config: EnergyParasiteConfig) {
         super(config);
@@ -349,5 +355,52 @@ export class EnergyParasite extends Parasite {
     public dispose(): void {
         this.removeDrainBeam();
         super.dispose();
+    }
+
+    // ==================== Strategy Control ====================
+
+    /**
+     * Set aggression level from strategy (0-1)
+     * Higher aggression = more pursuit, faster drain
+     */
+    public setAggression(level: number): void {
+        this.aggressionLevel = Math.max(0, Math.min(1, level));
+        // Adjust drain rate based on aggression (1.5-3 range)
+        this.drainRate = 1.5 + (level * 1.5);
+    }
+
+    /**
+     * Set target priority from strategy
+     */
+    public setTargetPriority(priority: TargetPriority): void {
+        this.strategyTargetPriority = priority;
+    }
+
+    /**
+     * Set formation behavior from strategy
+     */
+    public setFormation(formation: FormationType): void {
+        this.strategyFormation = formation;
+    }
+
+    /**
+     * Get current aggression level
+     */
+    public getAggression(): number {
+        return this.aggressionLevel;
+    }
+
+    /**
+     * Get strategy-controlled target priority
+     */
+    public getStrategyTargetPriority(): TargetPriority {
+        return this.strategyTargetPriority;
+    }
+
+    /**
+     * Get strategy-controlled formation
+     */
+    public getStrategyFormation(): FormationType {
+        return this.strategyFormation;
     }
 }

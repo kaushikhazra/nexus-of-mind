@@ -8,10 +8,15 @@
 import { AdvancedDynamicTexture } from '@babylonjs/gui';
 import { AdaptiveQueen } from './entities/AdaptiveQueen';
 import { WebSocketClient } from '../networking/WebSocketClient';
-import { LearningProgressUI } from '../ui/LearningProgressUI';
 import { TerritoryManager } from './TerritoryManager';
 import { GameState } from './GameState';
 import { GameEngine } from './GameEngine';
+import { ObservationCollector } from './systems/ObservationCollector';
+import { StrategyExecutor, MapBounds } from './systems/StrategyExecutor';
+import { StrategyUpdate, StrategyUpdateMessage } from './types/StrategyTypes';
+import { UnitManager } from './UnitManager';
+import { ParasiteManager } from './ParasiteManager';
+import { EnergyManager } from './EnergyManager';
 
 export interface AdaptiveQueenIntegrationConfig {
     gameEngine: GameEngine;
@@ -20,6 +25,11 @@ export interface AdaptiveQueenIntegrationConfig {
     guiTexture: AdvancedDynamicTexture;
     websocketUrl?: string;
     enableLearning?: boolean;
+    // New: Dependencies for continuous learning
+    unitManager?: UnitManager;
+    parasiteManager?: ParasiteManager;
+    energyManager?: EnergyManager;
+    mapBounds?: MapBounds;
 }
 
 /**
@@ -30,16 +40,31 @@ export class AdaptiveQueenIntegration {
     private territoryManager: TerritoryManager;
     private gameState: GameState;
     private guiTexture: AdvancedDynamicTexture;
-    
+
     private websocketClient: WebSocketClient;
-    private learningProgressUI: LearningProgressUI;
+
+    // Continuous learning systems
+    private observationCollector: ObservationCollector | null = null;
+    private strategyExecutor: StrategyExecutor | null = null;
+    private unitManager: UnitManager | null = null;
+    private parasiteManager: ParasiteManager | null = null;
+    private energyManager: EnergyManager | null = null;
 
     private enableLearning: boolean;
+    private enableContinuousLearning: boolean = true;
     private isInitialized: boolean = false;
     private currentQueen?: AdaptiveQueen;
-    
+
     // Default WebSocket URL for AI backend
     private readonly DEFAULT_WEBSOCKET_URL = 'ws://localhost:8000/ws';
+
+    // Default map bounds (can be overridden)
+    private readonly DEFAULT_MAP_BOUNDS: MapBounds = {
+        minX: -100,
+        maxX: 100,
+        minZ: -100,
+        maxZ: 100
+    };
 
     constructor(config: AdaptiveQueenIntegrationConfig) {
         this.gameEngine = config.gameEngine;
@@ -47,6 +72,11 @@ export class AdaptiveQueenIntegration {
         this.gameState = config.gameState;
         this.guiTexture = config.guiTexture;
         this.enableLearning = config.enableLearning !== false;
+
+        // Store dependencies for continuous learning
+        this.unitManager = config.unitManager || null;
+        this.parasiteManager = config.parasiteManager || null;
+        this.energyManager = config.energyManager || null;
 
         // Initialize WebSocket client
         const websocketUrl = config.websocketUrl || this.DEFAULT_WEBSOCKET_URL;
@@ -58,14 +88,69 @@ export class AdaptiveQueenIntegration {
             heartbeatInterval: 30000,
             messageTimeout: 30000
         });
-        
-        // Initialize learning progress UI
-        this.learningProgressUI = new LearningProgressUI({
-            parentTexture: this.guiTexture,
-            visible: this.enableLearning
-        });
-        
+
+        // Initialize continuous learning systems only if learning is enabled and dependencies available
+        this.enableContinuousLearning = this.enableLearning;
+        if (this.enableLearning) {
+            this.initializeContinuousLearning(config.mapBounds || this.DEFAULT_MAP_BOUNDS);
+        }
+
         // AdaptiveQueenIntegration created silently
+    }
+
+    /**
+     * Initialize continuous learning systems (ObservationCollector + StrategyExecutor)
+     */
+    private initializeContinuousLearning(mapBounds: MapBounds): void {
+        // Only initialize if all dependencies are available
+        if (!this.unitManager || !this.parasiteManager || !this.energyManager) {
+            console.log('Continuous learning: Missing dependencies, will be initialized later');
+            return;
+        }
+
+        try {
+            // Create observation collector with SpatialIndex for O(1) lookups
+            const spatialIndex = this.gameEngine.getSpatialIndex();
+            this.observationCollector = new ObservationCollector(
+                this.gameState,
+                this.unitManager,
+                this.parasiteManager,
+                this.territoryManager,
+                this.energyManager,
+                spatialIndex
+            );
+            this.observationCollector.setWebSocketClient(this.websocketClient);
+
+            // Create strategy executor
+            this.strategyExecutor = new StrategyExecutor(mapBounds);
+
+            // Wire strategy executor to parasite manager for spawn and behavior control
+            this.parasiteManager.setStrategyExecutor(this.strategyExecutor);
+
+            // Set up callback for when observation data triggers a strategy update
+            this.observationCollector.setOnObservationReady((data) => {
+                // Observation sent to backend via WebSocket
+            });
+
+            console.log('Continuous learning systems initialized');
+        } catch (error) {
+            console.error('Failed to initialize continuous learning:', error);
+        }
+    }
+
+    /**
+     * Late initialization of continuous learning (when dependencies become available)
+     */
+    public initializeContinuousLearningWithDependencies(
+        unitManager: UnitManager,
+        parasiteManager: ParasiteManager,
+        energyManager: EnergyManager,
+        mapBounds?: MapBounds
+    ): void {
+        this.unitManager = unitManager;
+        this.parasiteManager = parasiteManager;
+        this.energyManager = energyManager;
+        this.initializeContinuousLearning(mapBounds || this.DEFAULT_MAP_BOUNDS);
     }
 
     /**
@@ -99,9 +184,8 @@ export class AdaptiveQueenIntegration {
             // Fallback to non-learning mode
             this.enableLearning = false;
             this.territoryManager.setAILearningEnabled(false);
-            this.learningProgressUI.hide();
-            
-            console.log('🧠 Falling back to standard Queen behavior');
+
+            console.log('Falling back to standard Queen behavior');
         }
     }
 
@@ -130,23 +214,65 @@ export class AdaptiveQueenIntegration {
         // Note: TerritoryManager doesn't have onQueenCreated event yet
         // This would need to be added to TerritoryManager for full integration
         // For now, we'll monitor Queens through other means
-        
+
         // Handle WebSocket connection events
         this.websocketClient.on('connected', () => {
-            console.log('🧠 AI backend connected');
+            console.log('AI backend connected');
         });
-        
+
         this.websocketClient.on('disconnected', () => {
-            console.log('🧠 AI backend disconnected');
+            console.log('AI backend disconnected');
         });
-        
+
         this.websocketClient.on('reconnected', () => {
-            console.log('🧠 AI backend reconnected');
+            console.log('AI backend reconnected');
         });
-        
+
         this.websocketClient.on('error', (error: any) => {
-            console.error('🧠 AI backend error:', error);
+            console.error('AI backend error:', error);
         });
+
+        // Handle strategy updates from continuous learning
+        this.websocketClient.on('strategy_update', (message: any) => {
+            console.log(`[AdaptiveQueenIntegration] 📡 Strategy update received from server`);
+            if (message.payload) {
+                this.handleStrategyUpdate(message.payload);
+            }
+        });
+    }
+
+    /**
+     * Handle incoming strategy update from AI backend
+     */
+    private handleStrategyUpdate(strategyData: any): void {
+        if (!this.strategyExecutor) return;
+
+        try {
+            // Convert backend response to StrategyUpdate
+            const strategy: StrategyUpdate = {
+                timestamp: strategyData.timestamp || Date.now(),
+                version: strategyData.version || 0,
+                confidence: strategyData.confidence || 0.5,
+                spawn: {
+                    zone: strategyData.spawn?.zone || { x: 0.5, y: 0.5 },
+                    rate: strategyData.spawn?.rate || 0.5,
+                    burstSize: strategyData.spawn?.burstSize || 3,
+                    secondaryZones: strategyData.spawn?.secondaryZones
+                },
+                tactics: {
+                    aggression: strategyData.tactics?.aggression || 0.5,
+                    targetPriority: strategyData.tactics?.targetPriority || 'MINERS',
+                    formation: strategyData.tactics?.formation || 'SWARM',
+                    attackTiming: strategyData.tactics?.attackTiming || 'OPPORTUNISTIC'
+                },
+                debug: strategyData.debug
+            };
+
+            this.strategyExecutor.applyStrategy(strategy);
+            // Strategy update applied
+        } catch (error) {
+            console.error('Failed to apply strategy update:', error);
+        }
     }
 
     /**
@@ -154,15 +280,6 @@ export class AdaptiveQueenIntegration {
      */
     private monitorAdaptiveQueen(queen: AdaptiveQueen): void {
         this.currentQueen = queen;
-        
-        // Connect UI to Queen
-        this.learningProgressUI.setQueen(queen);
-        
-        // Show learning UI if hidden
-        if (this.enableLearning) {
-            this.learningProgressUI.show();
-        }
-        
         console.log(`🧠 Now monitoring AdaptiveQueen ${queen.id} (Gen ${queen.getGeneration()})`);
     }
 
@@ -180,9 +297,22 @@ export class AdaptiveQueenIntegration {
         if (!this.isInitialized) {
             return;
         }
-        
-        // Update learning progress UI
-        this.learningProgressUI.update(deltaTime);
+
+        const currentTime = performance.now();
+
+        // Update continuous learning systems
+        if (this.enableContinuousLearning) {
+            // Collect observations (handles its own timing)
+            if (this.observationCollector) {
+                this.observationCollector.update(currentTime);
+            }
+
+            // Update strategy executor (handles spawning timing)
+            if (this.strategyExecutor) {
+                this.strategyExecutor.update(deltaTime);
+            }
+        }
+
     }
 
     /**
@@ -190,17 +320,11 @@ export class AdaptiveQueenIntegration {
      */
     public setLearningEnabled(enabled: boolean): void {
         this.enableLearning = enabled;
-        
+
         if (this.isInitialized) {
             this.territoryManager.setAILearningEnabled(enabled);
-            
-            if (enabled) {
-                this.learningProgressUI.show();
-            } else {
-                this.learningProgressUI.hide();
-            }
         }
-        
+
         console.log(`🧠 AI learning ${enabled ? 'enabled' : 'disabled'}`);
     }
 
@@ -226,13 +350,6 @@ export class AdaptiveQueenIntegration {
     }
 
     /**
-     * Get learning progress UI
-     */
-    public getLearningProgressUI(): LearningProgressUI {
-        return this.learningProgressUI;
-    }
-
-    /**
      * Get WebSocket client for advanced usage
      */
     public getWebSocketClient(): WebSocketClient {
@@ -240,10 +357,48 @@ export class AdaptiveQueenIntegration {
     }
 
     /**
-     * Toggle learning progress UI visibility
+     * Enable or disable continuous learning
      */
-    public toggleLearningUI(): void {
-        this.learningProgressUI.toggleVisibility();
+    public setContinuousLearningEnabled(enabled: boolean): void {
+        this.enableContinuousLearning = enabled;
+        if (this.observationCollector) {
+            this.observationCollector.setEnabled(enabled);
+        }
+        if (this.strategyExecutor) {
+            this.strategyExecutor.setEnabled(enabled);
+        }
+        console.log(`Continuous learning ${enabled ? 'enabled' : 'disabled'}`);
+    }
+
+    /**
+     * Check if continuous learning is enabled
+     */
+    public isContinuousLearningEnabled(): boolean {
+        return this.enableContinuousLearning;
+    }
+
+    /**
+     * Get the observation collector for external access
+     */
+    public getObservationCollector(): ObservationCollector | null {
+        return this.observationCollector;
+    }
+
+    /**
+     * Get the strategy executor for external access
+     */
+    public getStrategyExecutor(): StrategyExecutor | null {
+        return this.strategyExecutor;
+    }
+
+    /**
+     * Get current strategy info for debugging
+     */
+    public getStrategyDebugInfo(): any {
+        if (!this.strategyExecutor) {
+            return { status: 'not_available' };
+        }
+        return this.strategyExecutor.getDebugInfo();
     }
 
     /**
@@ -254,13 +409,50 @@ export class AdaptiveQueenIntegration {
             console.warn('🧠 AI learning is disabled, cannot reconnect');
             return;
         }
-        
+
         try {
             await this.websocketClient.disconnect();
             await this.websocketClient.connect();
             console.log('🧠 Reconnected to AI backend');
         } catch (error) {
             console.error('🧠 Failed to reconnect to AI backend:', error);
+        }
+    }
+
+    /**
+     * Reset the neural network to initial random state
+     * Clears all training history and deletes saved model
+     */
+    public async resetNeuralNetwork(): Promise<{ success: boolean; message: string }> {
+        console.log('🧠 Requesting neural network reset...');
+
+        try {
+            const response = await this.websocketClient.send({
+                type: 'reset_nn',
+                data: { confirm: true }
+            }, true);
+
+            if (response && (response as any).data?.status === 'success') {
+                console.log('🧠 ✅ Neural network reset successfully!');
+                console.log('🧠    Model file deleted:', (response as any).data?.deleted_model_file);
+
+                // Reset local strategy executor
+                if (this.strategyExecutor) {
+                    this.strategyExecutor.resetToDefault();
+                }
+
+                return {
+                    success: true,
+                    message: (response as any).data?.message || 'Reset successful'
+                };
+            } else {
+                const errorMsg = (response as any)?.data?.message || 'Unknown error';
+                console.error('🧠 ❌ Neural network reset failed:', errorMsg);
+                return { success: false, message: errorMsg };
+            }
+        } catch (error) {
+            console.error('🧠 ❌ Neural network reset error:', error);
+            return { success: false, message: String(error) };
         }
     }
 
@@ -272,14 +464,12 @@ export class AdaptiveQueenIntegration {
         currentGeneration: number;
         learningEnabled: boolean;
         queuedMessages: number;
-        generationHistory: Map<number, any>;
     } {
         return {
             isConnected: this.websocketClient.getStatus().connected,
             currentGeneration: this.currentQueen?.getGeneration() || 0,
             learningEnabled: this.enableLearning,
-            queuedMessages: this.websocketClient.getQueuedMessageCount(),
-            generationHistory: this.learningProgressUI.getGenerationHistory()
+            queuedMessages: this.websocketClient.getQueuedMessageCount()
         };
     }
 
@@ -363,17 +553,24 @@ export class AdaptiveQueenIntegration {
      * Dispose integration and cleanup resources
      */
     public dispose(): void {
+        // Dispose continuous learning systems
+        if (this.observationCollector) {
+            this.observationCollector.dispose();
+            this.observationCollector = null;
+        }
+        if (this.strategyExecutor) {
+            this.strategyExecutor.dispose();
+            this.strategyExecutor = null;
+        }
+
         // Disconnect WebSocket
         this.websocketClient.disconnect();
-
-        // Dispose UI
-        this.learningProgressUI.dispose();
 
         // Clear references
         this.currentQueen = undefined;
         this.isInitialized = false;
 
-        console.log('🧠 AdaptiveQueenIntegration disposed');
+        console.log('AdaptiveQueenIntegration disposed');
     }
 }
 
