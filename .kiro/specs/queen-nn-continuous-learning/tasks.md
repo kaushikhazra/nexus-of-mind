@@ -257,13 +257,79 @@ Transform the Queen AI from death-triggered learning to continuous real-time ada
     - Verify smooth transitions
     - _Requirements: 4.1-4.5, 5.1-5.4_
 
-- [ ] 11. Final Checkpoint
+### Phase 7: Queen Energy System
+
+- [ ] 12. Create Queen Energy System (Frontend)
+  - [ ] 12.1 Create QueenEnergySystem class
+    - File: `client/src/game/systems/QueenEnergySystem.ts` (new)
+    - Implement energy reserve (maxEnergy, currentEnergy)
+    - Implement passive regeneration (regenRate × deltaTime)
+    - Implement spawn cost tracking per parasite type
+    - _Requirements: 11.1-11.3_
+
+  - [ ] 12.2 Define energy configuration
+    - File: `client/src/game/types/QueenEnergyTypes.ts` (new)
+    - Define QueenEnergyConfig interface
+    - Define default values (maxEnergy: 100, regenRate: 3.0)
+    - Define spawn costs per ParasiteType
+    - _Requirements: 11.5, 11.8_
+
+  - [ ] 12.3 Integrate with ParasiteManager
+    - File: `client/src/game/ParasiteManager.ts`
+    - Check canAffordSpawn() before spawning
+    - Call consumeForSpawn() when spawning
+    - Skip spawn if insufficient energy (log warning)
+    - _Requirements: 11.4_
+
+  - [ ] 12.4 Integrate with StrategyExecutor
+    - File: `client/src/game/systems/StrategyExecutor.ts`
+    - Add energy awareness to spawn decisions
+    - Delay spawn attempts when low energy
+    - _Requirements: 11.7_
+
+- [ ] 13. Update Observation & NN Integration
+  - [ ] 13.1 Add energy to observation data
+    - File: `client/src/game/systems/ObservationCollector.ts`
+    - Add queenEnergyLevel to QueenStateData
+    - Normalize to 0-1 range
+    - _Requirements: 11.6_
+
+  - [ ] 13.2 Update feature extractor
+    - File: `server/ai_engine/feature_extractor.py`
+    - Add queen_energy feature to Queen State (5th feature)
+    - Update input_size from 20 to 21 (or replace time_since_spawn)
+    - _Requirements: 11.6_
+
+  - [ ] 13.3 Update NN config
+    - File: `server/config/nn_config.json`
+    - Update input_size if adding new feature
+    - Document the energy feature
+    - _Requirements: 11.6_
+
+- [ ] 14. Debug & Visualization (Optional)
+  - [ ] 14.1 Add energy display to debug UI
+    - File: `client/src/ui/DebugUI.ts`
+    - Show current energy / max energy
+    - Show regen rate
+    - Show spawn costs
+    - _Requirements: 11.9_
+
+  - [ ] 14.2 Add energy logging
+    - File: `client/src/game/systems/QueenEnergySystem.ts`
+    - Log energy changes (spawn deductions, regen ticks)
+    - Log spawn rejections due to insufficient energy
+    - _Requirements: 11.4_
+
+- [ ] 15. Final Checkpoint (Updated)
   - [ ] Data collection works at 500ms intervals
   - [ ] Batches sent every 10-20 seconds
   - [ ] NN trains incrementally without death trigger
   - [ ] Strategy updates received by Queen
   - [ ] Queen controls spawn location
   - [ ] Swarm behavior responds to strategy
+  - [ ] **Queen energy limits spawn rate naturally**
+  - [ ] **Different parasite types have different costs**
+  - [ ] **Energy regenerates passively over time**
   - [ ] No performance degradation (60 FPS)
   - [ ] Fallback works when backend unavailable
 
@@ -275,15 +341,18 @@ Transform the Queen AI from death-triggered learning to continuous real-time ada
 | `client/.../StrategyExecutor.ts` | New | Strategy application |
 | `client/.../ObservationTypes.ts` | New | Observation data types |
 | `client/.../StrategyTypes.ts` | New | Strategy data types |
+| `client/.../QueenEnergySystem.ts` | **New** | Queen spawn energy management |
+| `client/.../QueenEnergyTypes.ts` | **New** | Energy configuration types |
 | `client/.../GameEngine.ts` | Modify | Integration point |
 | `client/.../Queen.ts` | Modify | Spawn & behavior control |
 | `client/.../Parasite.ts` | Modify | Behavior modes |
+| `client/.../ParasiteManager.ts` | **Modify** | Energy check before spawn |
 | `client/.../AdaptiveQueenIntegration.ts` | Modify | WebSocket updates |
-| `server/.../feature_extractor.py` | New | Feature extraction |
+| `server/.../feature_extractor.py` | New/**Modify** | Feature extraction (+energy) |
 | `server/.../continuous_trainer.py` | New | Real-time training |
 | `server/.../reward_calculator.py` | New | Reward computation |
 | `server/.../nn_config.py` | New | NN configuration dataclass |
-| `server/config/nn_config.json` | New | Default NN configuration |
+| `server/config/nn_config.json` | New/**Modify** | Default NN configuration |
 | `server/.../neural_network.py` | Modify | Dynamic model building |
 | `server/.../data_models.py` | Modify | Strategy structures |
 | `server/.../message_handler.py` | Modify | Message routing |

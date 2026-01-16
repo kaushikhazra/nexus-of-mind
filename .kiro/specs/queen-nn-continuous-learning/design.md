@@ -714,3 +714,174 @@ If backend is unavailable or strategy is stale (>30s old):
    - Aggression: 0.7
    - Target: MINERS
    - Formation: SWARM
+
+## Queen Energy System
+
+### Overview
+
+The Queen Energy System introduces an intrinsic resource management layer for parasite spawning.
+Instead of arbitrary rate limits, spawning is naturally throttled by energy availability.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                              QUEEN ENERGY FLOW                                          │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+
+                          Passive Regeneration
+     Planetary            (energy/second)
+     Environment  ─────────────────────────────►  ┌───────────────────┐
+                                                  │  Queen Energy     │
+                                                  │  Reserve          │
+                                                  │                   │
+                                                  │  ┌─────────────┐  │
+                                                  │  │ Current: 75 │  │
+                                                  │  │ Max: 100    │  │
+                                                  │  └─────────────┘  │
+                                                  └────────┬──────────┘
+                                                           │
+                          Spawn Cost                       │
+                          (per parasite)                   ▼
+                                                  ┌───────────────────┐
+                                                  │  Spawn Decision   │
+                                                  │                   │
+                                                  │  Energy Parasite  │───► Cost: 15
+                                                  │  Combat Parasite  │───► Cost: 25
+                                                  │                   │
+                                                  └───────────────────┘
+```
+
+### Energy Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| maxEnergy | 100 | Maximum energy capacity |
+| currentEnergy | 50 | Starting energy (50% of max) |
+| regenRate | 3.0 | Energy regenerated per second |
+| energyParasiteCost | 15 | Cost to spawn Energy Parasite |
+| combatParasiteCost | 25 | Cost to spawn Combat Parasite |
+
+### Energy Flow Timing
+
+```
+Time (seconds)  Energy Level    Events
+─────────────   ────────────    ──────
+    0           50              Game starts
+    5           65              +15 regen
+   10           80              +15 regen
+   12           55              -25 spawn Combat Parasite
+   15           64              +9 regen
+   17           49              -15 spawn Energy Parasite
+   20           58              +9 regen
+   ...
+```
+
+### Integration with NN
+
+The energy system provides additional learning signals:
+
+**Observation Updates (add to Queen State features):**
+```
+Queen State (5 features instead of 4):
+┌───────────────────┐
+│ parasite_count    │────┐
+│ queen_health      │────┤
+│ time_since_spawn  │────┼───► Input to NN
+│ hive_discovered   │────┤
+│ energy_level      │────┘  (NEW: normalized 0-1)
+└───────────────────┘
+```
+
+**Learning Opportunities:**
+1. **Resource Management** - NN learns when to save vs spend energy
+2. **Burst Timing** - Save energy for coordinated attacks
+3. **Type Selection** - Choose cheaper Energy Parasites or stronger Combat Parasites
+4. **Recovery Periods** - Recognize low-energy states, play defensively
+
+### QueenEnergySystem Class Design
+
+```typescript
+// client/src/game/systems/QueenEnergySystem.ts
+
+interface QueenEnergyConfig {
+    maxEnergy: number;           // Default: 100
+    startingEnergy: number;      // Default: 50
+    regenRate: number;           // Energy/second, Default: 3.0
+    energyParasiteCost: number;  // Default: 15
+    combatParasiteCost: number;  // Default: 25
+}
+
+class QueenEnergySystem {
+    private currentEnergy: number;
+    private maxEnergy: number;
+    private regenRate: number;
+    private spawnCosts: Map<ParasiteType, number>;
+
+    /**
+     * Update energy (called from game loop)
+     * @param deltaTime Time since last update in seconds
+     */
+    public update(deltaTime: number): void {
+        // Passive regeneration
+        this.currentEnergy = Math.min(
+            this.maxEnergy,
+            this.currentEnergy + (this.regenRate * deltaTime)
+        );
+    }
+
+    /**
+     * Check if spawn is affordable
+     */
+    public canAffordSpawn(parasiteType: ParasiteType): boolean {
+        const cost = this.spawnCosts.get(parasiteType) || 0;
+        return this.currentEnergy >= cost;
+    }
+
+    /**
+     * Consume energy for spawn (returns false if insufficient)
+     */
+    public consumeForSpawn(parasiteType: ParasiteType): boolean {
+        const cost = this.spawnCosts.get(parasiteType) || 0;
+        if (this.currentEnergy >= cost) {
+            this.currentEnergy -= cost;
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Get normalized energy level for NN observation (0-1)
+     */
+    public getNormalizedEnergy(): number {
+        return this.currentEnergy / this.maxEnergy;
+    }
+}
+```
+
+### Spawn Decision Flow with Energy
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   NN Strategy   │────►│  StrategyExec   │────►│   ParasiteMgr   │
+│                 │     │                 │     │                 │
+│ spawn.zone      │     │ getSpawnDecision│     │ handleStrategy  │
+│ spawn.rate      │     │                 │     │ Spawn()         │
+│ spawn.burstSize │     │                 │     │                 │
+└─────────────────┘     └────────┬────────┘     └────────┬────────┘
+                                 │                       │
+                                 ▼                       ▼
+                        ┌─────────────────┐     ┌─────────────────┐
+                        │  Energy Check   │────►│  Spawn Parasite │
+                        │                 │     │  (if affordable) │
+                        │ canAffordSpawn? │     │                 │
+                        │ consumeForSpawn │     │ OR skip spawn   │
+                        └─────────────────┘     └─────────────────┘
+```
+
+### Benefits of Energy System
+
+1. **Natural Throttling** - No arbitrary rate limits; spawning limited by available energy
+2. **Strategic Depth** - Queen must balance spawn timing vs energy reserves
+3. **Learnable Mechanic** - NN can learn optimal energy management over time
+4. **Lore-Friendly** - Makes intuitive sense that spawning costs something
+5. **Future Counterplay** - Players could eventually disrupt Queen's energy gathering
+6. **Type Differentiation** - Stronger parasites cost more, creating trade-offs

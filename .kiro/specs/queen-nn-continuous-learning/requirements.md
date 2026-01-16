@@ -199,3 +199,24 @@ This specification transforms the Queen AI from a death-triggered learning syste
 2. THE System SHALL load previous weights on game start
 3. THE System SHALL support model versioning
 4. THE System SHALL allow model reset for fresh learning
+
+### Requirement 11: Queen Energy System for Spawn Control
+
+**User Story:** As the Queen, I need an energy reserve for spawning so that my spawn rate is naturally limited and I must manage resources strategically.
+
+#### Acceptance Criteria
+
+1. THE Queen SHALL have an energy reserve with a defined capacity
+2. THE Queen SHALL regenerate energy passively from the planetary environment
+3. THE spawning of each parasite SHALL cost energy from the reserve
+4. THE Queen SHALL NOT spawn when insufficient energy is available
+5. THE energy system SHALL provide the following configurable parameters:
+   - Maximum energy capacity (default: 100)
+   - Energy cost per parasite spawn (default: varies by type)
+   - Passive regeneration rate (energy/second)
+6. THE NN observation space SHALL include Queen's current energy level
+7. THE NN action space SHALL consider energy availability when deciding spawn timing
+8. THE System SHALL support different spawn costs for different parasite types:
+   - Energy Parasite: Lower cost (basic unit)
+   - Combat Parasite: Higher cost (stronger unit)
+9. THE energy reserve status SHALL be visible in debug UI (optional)
