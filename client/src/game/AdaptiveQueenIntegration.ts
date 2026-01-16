@@ -134,12 +134,18 @@ export class AdaptiveQueenIntegration {
             // Create Queen energy system for spawn cost control
             this.queenEnergySystem = new QueenEnergySystem({
                 maxEnergy: 100,
-                startingEnergyPercent: 0.5,  // Start at 50%
-                regenRate: 3.0               // 3 energy per second
+                startingEnergyPercent: 0.3,  // Start at 30%
+                regenRate: 0.5               // 0.5 energy per second (1 Energy Parasite every 30s)
             });
 
             // Wire energy system to parasite manager
             this.parasiteManager.setQueenEnergySystem(this.queenEnergySystem);
+
+            // Wire Queen systems to EnergyDisplay for UI
+            const energyDisplay = this.gameEngine.getEnergyDisplay();
+            if (energyDisplay) {
+                energyDisplay.setQueenSystems(this.queenEnergySystem, this.parasiteManager);
+            }
 
             // Set up callback for when observation data triggers a strategy update
             this.observationCollector.setOnObservationReady((data) => {

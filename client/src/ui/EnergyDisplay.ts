@@ -6,6 +6,9 @@
  */
 
 import { EnergyManager, EnergyStats } from '../game/EnergyManager';
+import { QueenEnergySystem } from '../game/systems/QueenEnergySystem';
+import { ParasiteManager } from '../game/ParasiteManager';
+import { ParasiteType } from '../game/types/ParasiteTypes';
 
 export interface EnergyDisplayConfig {
     containerId: string;
@@ -28,6 +31,17 @@ export class EnergyDisplay {
     private efficiencyElement: HTMLElement | null = null;
     private transactionHistoryElement: HTMLElement | null = null;
     private netRateElement: HTMLElement | null = null;
+
+    // Queen stats UI elements
+    private queenStatsContainer: HTMLElement | null = null;
+    private queenEnergyElement: HTMLElement | null = null;
+    private queenEnergyBarElement: HTMLElement | null = null;
+    private energyParasiteCountElement: HTMLElement | null = null;
+    private combatParasiteCountElement: HTMLElement | null = null;
+
+    // Queen system references
+    private queenEnergySystem: QueenEnergySystem | null = null;
+    private parasiteManager: ParasiteManager | null = null;
     
     // Update management
     private updateInterval: number | null = null;
@@ -181,8 +195,124 @@ export class EnergyDisplay {
 
         this.container.appendChild(energyHUD);
 
+        // Create Queen stats section (initially hidden until systems are set)
+        this.createQueenStatsUI();
+
         // Add minimal CSS animations
         this.addMinimalAnimations();
+    }
+
+    /**
+     * Create Queen stats UI section
+     */
+    private createQueenStatsUI(): void {
+        if (!this.container) return;
+
+        this.queenStatsContainer = document.createElement('div');
+        this.queenStatsContainer.className = 'queen-stats-hud';
+        this.queenStatsContainer.style.cssText = `
+            background: rgba(20, 0, 10, 0.3);
+            border: 1px solid rgba(255, 100, 100, 0.4);
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-family: 'Orbitron', monospace;
+            color: #ff6666;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 0 10px rgba(255, 100, 100, 0.15);
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            margin-top: 6px;
+            display: none;
+        `;
+
+        // Queen energy bar
+        const queenEnergyBarContainer = document.createElement('div');
+        queenEnergyBarContainer.style.cssText = `
+            width: 100%;
+            height: 3px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 6px;
+        `;
+
+        this.queenEnergyBarElement = document.createElement('div');
+        this.queenEnergyBarElement.style.cssText = `
+            height: 100%;
+            background: linear-gradient(90deg,
+                rgba(255, 50, 50, 0.8) 0%,
+                rgba(255, 150, 50, 0.8) 50%,
+                rgba(255, 200, 50, 0.8) 100%);
+            width: 50%;
+            transition: width 0.3s ease;
+        `;
+        queenEnergyBarContainer.appendChild(this.queenEnergyBarElement);
+
+        // Stats line
+        const statsLine = document.createElement('div');
+        statsLine.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        `;
+
+        // Label
+        const labelSpan = document.createElement('span');
+        labelSpan.style.cssText = 'color: #ff8888; font-size: 10px;';
+        labelSpan.textContent = 'QUEEN';
+
+        // Queen energy
+        this.queenEnergyElement = document.createElement('span');
+        this.queenEnergyElement.style.cssText = `
+            font-size: 12px;
+            font-weight: 700;
+            color: #ffaa00;
+            text-shadow: 0 0 6px rgba(255, 170, 0, 0.6);
+        `;
+        this.queenEnergyElement.textContent = '50/100';
+
+        // Energy parasites
+        const energyParasiteContainer = document.createElement('span');
+        energyParasiteContainer.style.cssText = 'color: #ffcc00;';
+        energyParasiteContainer.innerHTML = '⚡';
+        this.energyParasiteCountElement = document.createElement('span');
+        this.energyParasiteCountElement.style.cssText = 'font-weight: 600; margin-left: 2px;';
+        this.energyParasiteCountElement.textContent = '0';
+        energyParasiteContainer.appendChild(this.energyParasiteCountElement);
+
+        // Combat parasites
+        const combatParasiteContainer = document.createElement('span');
+        combatParasiteContainer.style.cssText = 'color: #ff4444;';
+        combatParasiteContainer.innerHTML = '⚔';
+        this.combatParasiteCountElement = document.createElement('span');
+        this.combatParasiteCountElement.style.cssText = 'font-weight: 600; margin-left: 2px;';
+        this.combatParasiteCountElement.textContent = '0';
+        combatParasiteContainer.appendChild(this.combatParasiteCountElement);
+
+        // Assemble
+        statsLine.appendChild(labelSpan);
+        statsLine.appendChild(this.queenEnergyElement);
+        statsLine.appendChild(energyParasiteContainer);
+        statsLine.appendChild(combatParasiteContainer);
+
+        this.queenStatsContainer.appendChild(queenEnergyBarContainer);
+        this.queenStatsContainer.appendChild(statsLine);
+        this.container.appendChild(this.queenStatsContainer);
+    }
+
+    /**
+     * Set Queen energy system and parasite manager for display
+     */
+    public setQueenSystems(queenEnergySystem: QueenEnergySystem, parasiteManager: ParasiteManager): void {
+        this.queenEnergySystem = queenEnergySystem;
+        this.parasiteManager = parasiteManager;
+
+        // Show Queen stats container
+        if (this.queenStatsContainer) {
+            this.queenStatsContainer.style.display = 'block';
+        }
+
+        console.log('[EnergyDisplay] Queen systems connected - showing Queen stats');
     }
 
     /**
@@ -255,6 +385,45 @@ export class EnergyDisplay {
     private updateDisplay(): void {
         const stats = this.energyManager.getEnergyStats();
         this.updateDisplayWithStats(stats);
+        this.updateQueenStats();
+    }
+
+    /**
+     * Update Queen stats display
+     */
+    private updateQueenStats(): void {
+        if (!this.queenEnergySystem || !this.parasiteManager) return;
+
+        // Update Queen energy
+        const energyState = this.queenEnergySystem.getState();
+        if (this.queenEnergyElement) {
+            this.queenEnergyElement.textContent = `${Math.round(energyState.currentEnergy)}/${energyState.maxEnergy}`;
+
+            // Color based on energy level
+            if (energyState.normalizedEnergy < 0.2) {
+                this.queenEnergyElement.style.color = '#ff4444';
+            } else if (energyState.normalizedEnergy < 0.5) {
+                this.queenEnergyElement.style.color = '#ffaa00';
+            } else {
+                this.queenEnergyElement.style.color = '#ffdd00';
+            }
+        }
+
+        // Update Queen energy bar
+        if (this.queenEnergyBarElement) {
+            this.queenEnergyBarElement.style.width = `${energyState.normalizedEnergy * 100}%`;
+        }
+
+        // Update parasite counts
+        if (this.energyParasiteCountElement) {
+            const energyCount = this.parasiteManager.getParasiteCountByType(ParasiteType.ENERGY);
+            this.energyParasiteCountElement.textContent = String(energyCount);
+        }
+
+        if (this.combatParasiteCountElement) {
+            const combatCount = this.parasiteManager.getParasiteCountByType(ParasiteType.COMBAT);
+            this.combatParasiteCountElement.textContent = String(combatCount);
+        }
     }
 
     /**

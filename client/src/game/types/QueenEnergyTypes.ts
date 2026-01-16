@@ -37,8 +37,8 @@ export const DEFAULT_SPAWN_COSTS: Record<ParasiteType, number> = {
  */
 export const DEFAULT_QUEEN_ENERGY_CONFIG: QueenEnergyConfig = {
     maxEnergy: 100,
-    startingEnergyPercent: 0.5,  // Start at 50%
-    regenRate: 3.0,              // 3 energy per second (~5 seconds for 1 Energy Parasite)
+    startingEnergyPercent: 0.3,  // Start at 30%
+    regenRate: 0.5,              // 0.5 energy per second (~30 seconds for 1 Energy Parasite)
     spawnCosts: new Map(Object.entries(DEFAULT_SPAWN_COSTS).map(
         ([key, value]) => [key as ParasiteType, value]
     )),

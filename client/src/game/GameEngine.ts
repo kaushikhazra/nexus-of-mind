@@ -754,6 +754,13 @@ export class GameEngine {
     }
 
     /**
+     * Get energy display UI
+     */
+    public getEnergyDisplay(): EnergyDisplay | null {
+        return this.energyDisplay;
+    }
+
+    /**
      * Get performance monitor
      */
     public getPerformanceMonitor(): PerformanceMonitor | null {
