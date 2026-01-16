@@ -17,6 +17,7 @@ import { StrategyUpdate, StrategyUpdateMessage } from './types/StrategyTypes';
 import { UnitManager } from './UnitManager';
 import { ParasiteManager } from './ParasiteManager';
 import { EnergyManager } from './EnergyManager';
+import { QueenEnergySystem } from './systems/QueenEnergySystem';
 
 export interface AdaptiveQueenIntegrationConfig {
     gameEngine: GameEngine;
@@ -49,6 +50,9 @@ export class AdaptiveQueenIntegration {
     private unitManager: UnitManager | null = null;
     private parasiteManager: ParasiteManager | null = null;
     private energyManager: EnergyManager | null = null;
+
+    // Queen energy system for spawn cost control
+    private queenEnergySystem: QueenEnergySystem | null = null;
 
     private enableLearning: boolean;
     private enableContinuousLearning: boolean = true;
@@ -127,12 +131,22 @@ export class AdaptiveQueenIntegration {
             // Wire strategy executor to parasite manager for spawn and behavior control
             this.parasiteManager.setStrategyExecutor(this.strategyExecutor);
 
+            // Create Queen energy system for spawn cost control
+            this.queenEnergySystem = new QueenEnergySystem({
+                maxEnergy: 100,
+                startingEnergyPercent: 0.5,  // Start at 50%
+                regenRate: 3.0               // 3 energy per second
+            });
+
+            // Wire energy system to parasite manager
+            this.parasiteManager.setQueenEnergySystem(this.queenEnergySystem);
+
             // Set up callback for when observation data triggers a strategy update
             this.observationCollector.setOnObservationReady((data) => {
                 // Observation sent to backend via WebSocket
             });
 
-            console.log('Continuous learning systems initialized');
+            console.log('Continuous learning systems initialized (with Queen energy system)');
         } catch (error) {
             console.error('Failed to initialize continuous learning:', error);
         }
@@ -300,6 +314,11 @@ export class AdaptiveQueenIntegration {
 
         const currentTime = performance.now();
 
+        // Update Queen energy system (passive regeneration)
+        if (this.queenEnergySystem) {
+            this.queenEnergySystem.update(deltaTime);
+        }
+
         // Update continuous learning systems
         if (this.enableContinuousLearning) {
             // Collect observations (handles its own timing)
@@ -389,6 +408,13 @@ export class AdaptiveQueenIntegration {
      */
     public getStrategyExecutor(): StrategyExecutor | null {
         return this.strategyExecutor;
+    }
+
+    /**
+     * Get the Queen energy system for external access
+     */
+    public getQueenEnergySystem(): QueenEnergySystem | null {
+        return this.queenEnergySystem;
     }
 
     /**

@@ -285,7 +285,8 @@ export class ObservationCollector {
                 hivePosition: { x: 0, y: 0 },
                 hiveDiscovered: false,
                 lastSpawnTime: 0,
-                parasiteCount: 0
+                parasiteCount: 0,
+                energyLevel: 0
             };
         }
 
@@ -305,6 +306,10 @@ export class ObservationCollector {
             };
         });
 
+        // Get energy level from Queen energy system (via ParasiteManager)
+        const energySystem = this.parasiteManager.getQueenEnergySystem();
+        const energyLevel = energySystem ? energySystem.getNormalizedEnergy() : 0.5;
+
         return {
             position: { x: queenPos.x, y: queenPos.z },
             health: queenStats.health / queenStats.maxHealth, // Normalized
@@ -312,7 +317,8 @@ export class ObservationCollector {
             hivePosition: { x: hivePos.x, y: hivePos.z },
             hiveDiscovered: false, // TODO: Implement hive discovery tracking
             lastSpawnTime: 0, // TODO: Track spawn time
-            parasiteCount: parasites.length
+            parasiteCount: parasites.length,
+            energyLevel: energyLevel
         };
     }
 

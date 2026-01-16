@@ -76,6 +76,8 @@ export interface QueenStateData {
     hiveDiscovered: boolean;
     lastSpawnTime: number;
     parasiteCount: number;
+    /** Queen's current energy level for spawning (normalized 0-1) */
+    energyLevel: number;
 }
 
 /**

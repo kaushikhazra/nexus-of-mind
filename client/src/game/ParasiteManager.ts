@@ -25,6 +25,7 @@ import { SpatialIndex } from './SpatialIndex';
 import { GameEngine } from './GameEngine';
 import { StrategyExecutor } from './systems/StrategyExecutor';
 import { SpawnDecision, SwarmBehavior, TargetPriority, FormationType } from './types/StrategyTypes';
+import { QueenEnergySystem } from './systems/QueenEnergySystem';
 
 export interface TerritorialParasiteConfig {
     territory: Territory;
@@ -97,6 +98,9 @@ export class ParasiteManager {
     private strategyExecutor: StrategyExecutor | null = null;
     private currentSwarmBehavior: SwarmBehavior | null = null;
 
+    // Queen energy system for spawn cost control
+    private queenEnergySystem: QueenEnergySystem | null = null;
+
     constructor(config: ParasiteManagerConfig) {
         this.scene = config.scene;
         this.materialManager = config.materialManager;
@@ -130,6 +134,21 @@ export class ParasiteManager {
     }
 
     /**
+     * Set Queen energy system for spawn cost control
+     */
+    public setQueenEnergySystem(energySystem: QueenEnergySystem): void {
+        this.queenEnergySystem = energySystem;
+        console.log('[ParasiteManager] ✅ Queen energy system connected');
+    }
+
+    /**
+     * Get Queen energy system (for observation collector)
+     */
+    public getQueenEnergySystem(): QueenEnergySystem | null {
+        return this.queenEnergySystem;
+    }
+
+    /**
      * Set strategy executor for AI-controlled spawning and behavior
      */
     public setStrategyExecutor(executor: StrategyExecutor): void {
@@ -155,7 +174,7 @@ export class ParasiteManager {
         // Convert Position (x, y) to Vector3 (x, 0, z) - y becomes z in 3D space
         const spawnCenter = new Vector3(decision.position.x, 0, decision.position.y);
 
-        console.log(`[ParasiteManager] 🎯 Strategy spawn: ${decision.count} parasites at (${spawnCenter.x.toFixed(1)}, ${spawnCenter.z.toFixed(1)})`);
+        console.log(`[ParasiteManager] 🎯 Strategy spawn request: ${decision.count} parasites at (${spawnCenter.x.toFixed(1)}, ${spawnCenter.z.toFixed(1)})`);
 
         // Find the nearest territory/queen for this spawn
         const territory = this.findNearestTerritory(spawnCenter);
@@ -163,6 +182,10 @@ export class ParasiteManager {
             console.warn('[ParasiteManager] No territory/queen found for strategy spawn');
             return;
         }
+
+        // Track how many we actually spawn
+        let spawnedCount = 0;
+        let deniedCount = 0;
 
         // Spawn parasites at the strategy-specified location
         for (let i = 0; i < decision.count; i++) {
@@ -174,14 +197,24 @@ export class ParasiteManager {
             );
             const spawnPos = spawnCenter.add(offset);
 
-            this.spawnParasiteAtPosition(spawnPos, territory, territory.queen);
+            // Try to spawn (energy check happens inside)
+            if (this.spawnParasiteAtPosition(spawnPos, territory, territory.queen)) {
+                spawnedCount++;
+            } else {
+                deniedCount++;
+            }
+        }
+
+        if (spawnedCount > 0 || deniedCount > 0) {
+            console.log(`[ParasiteManager] ✅ Spawned ${spawnedCount}/${decision.count} parasites (${deniedCount} denied - insufficient energy)`);
         }
     }
 
     /**
      * Spawn a parasite at a specific position (for strategy-controlled spawning)
+     * @returns true if spawn was successful, false if insufficient energy
      */
-    private spawnParasiteAtPosition(position: Vector3, territory: Territory, queen: Queen): void {
+    private spawnParasiteAtPosition(position: Vector3, territory: Territory, queen: Queen): boolean {
         // Determine type based on current swarm behavior
         let parasiteType: ParasiteType;
         if (this.currentSwarmBehavior) {
@@ -192,11 +225,22 @@ export class ParasiteManager {
             parasiteType = this.distributionTracker.getNextParasiteType();
         }
 
+        // Check energy cost if energy system is connected
+        if (this.queenEnergySystem) {
+            if (!this.queenEnergySystem.canAffordSpawn(parasiteType)) {
+                return false; // Insufficient energy
+            }
+            // Consume energy for spawn
+            if (!this.queenEnergySystem.consumeForSpawn(parasiteType)) {
+                return false; // Failed to consume (race condition protection)
+            }
+        }
+
         // Find nearest deposit for home assignment
         const nearestDeposit = this.findNearestDeposit(position);
         if (!nearestDeposit) {
             console.warn('[ParasiteManager] No deposit found for strategy spawn');
-            return;
+            return false;
         }
 
         // Create parasite
@@ -233,6 +277,8 @@ export class ParasiteManager {
         this.distributionTracker.recordSpawn(parasiteType, nearestDeposit.getId());
         const currentTypeCount = this.parasiteCountByType.get(parasiteType) || 0;
         this.parasiteCountByType.set(parasiteType, currentTypeCount + 1);
+
+        return true; // Spawn successful
     }
 
     /**
@@ -731,23 +777,23 @@ export class ParasiteManager {
      */
     private spawnTerritorialParasite(deposit: MineralDeposit, territory: Territory, queen: Queen): void {
         const depositPosition = deposit.getPosition();
-        
+
         // Generate random spawn position near deposit
         const angle = Math.random() * Math.PI * 2;
         const distance = 5 + Math.random() * (this.spawnConfig.spawnRadius - 5);
-        
+
         const spawnOffset = new Vector3(
             Math.cos(angle) * distance,
             0.5,
             Math.sin(angle) * distance
         );
-        
+
         const spawnPosition = depositPosition.add(spawnOffset);
-        
+
         // Get territorial configuration for spawn strategy
         const territorialConfig = this.territorialConfigs.get(territory.id);
         const spawnStrategy = territorialConfig?.spawnStrategy || 'balanced';
-        
+
         // Determine parasite type based on spawn strategy
         let parasiteType: ParasiteType;
         switch (spawnStrategy) {
@@ -765,7 +811,18 @@ export class ParasiteManager {
                 parasiteType = this.distributionTracker.getNextParasiteType();
                 break;
         }
-        
+
+        // Check energy cost if energy system is connected
+        if (this.queenEnergySystem) {
+            if (!this.queenEnergySystem.canAffordSpawn(parasiteType)) {
+                return; // Insufficient energy - skip spawn
+            }
+            // Consume energy for spawn
+            if (!this.queenEnergySystem.consumeForSpawn(parasiteType)) {
+                return; // Failed to consume
+            }
+        }
+
         // Create parasite using factory pattern
         const parasite = this.createParasite(parasiteType, {
             position: spawnPosition,
@@ -773,12 +830,12 @@ export class ParasiteManager {
             materialManager: this.materialManager,
             homeDeposit: deposit
         });
-        
+
         // Set terrain generator with fallback
         if (this.terrainGenerator) {
             parasite.setTerrainGenerator(this.terrainGenerator);
         }
-        
+
         this.parasites.set(parasite.getId(), parasite);
 
         // Add to spatial index for O(1) lookups
@@ -791,19 +848,19 @@ export class ParasiteManager {
 
         // Add parasite to Queen's control (requirement 2.3)
         queen.addControlledParasite(parasite.getId());
-        
+
         // Record spawn in distribution tracker
         this.distributionTracker.recordSpawn(parasiteType, deposit.getId());
-        
+
         // Update enhanced tracking
         const depositId = deposit.getId();
         const currentCount = this.depositParasiteCount.get(depositId) || 0;
         this.depositParasiteCount.set(depositId, currentCount + 1);
-        
+
         // Update type tracking
         const currentTypeCount = this.parasiteCountByType.get(parasiteType) || 0;
         this.parasiteCountByType.set(parasiteType, currentTypeCount + 1);
-        
+
         // Update deposit-specific tracking
         if (!this.parasitesByDeposit.has(depositId)) {
             this.parasitesByDeposit.set(depositId, new Set());
@@ -962,22 +1019,33 @@ export class ParasiteManager {
      */
     private spawnParasite(deposit: MineralDeposit): void {
         const depositPosition = deposit.getPosition();
-        
+
         // Generate random spawn position near deposit
         const angle = Math.random() * Math.PI * 2;
         const distance = 5 + Math.random() * (this.spawnConfig.spawnRadius - 5); // 5-15 units from deposit
-        
+
         const spawnOffset = new Vector3(
             Math.cos(angle) * distance,
             0.5, // Slightly above ground
             Math.sin(angle) * distance
         );
-        
+
         const spawnPosition = depositPosition.add(spawnOffset);
-        
+
         // Determine parasite type using distribution tracker
         const parasiteType = this.distributionTracker.getNextParasiteType();
-        
+
+        // Check energy cost if energy system is connected
+        if (this.queenEnergySystem) {
+            if (!this.queenEnergySystem.canAffordSpawn(parasiteType)) {
+                return; // Insufficient energy - skip spawn
+            }
+            // Consume energy for spawn
+            if (!this.queenEnergySystem.consumeForSpawn(parasiteType)) {
+                return; // Failed to consume
+            }
+        }
+
         // Create parasite using factory pattern
         const parasite = this.createParasite(parasiteType, {
             position: spawnPosition,
@@ -985,12 +1053,12 @@ export class ParasiteManager {
             materialManager: this.materialManager,
             homeDeposit: deposit
         });
-        
+
         // Set terrain generator with fallback
         if (this.terrainGenerator) {
             parasite.setTerrainGenerator(this.terrainGenerator);
         }
-        
+
         this.parasites.set(parasite.getId(), parasite);
 
         // Add to spatial index for O(1) lookups
