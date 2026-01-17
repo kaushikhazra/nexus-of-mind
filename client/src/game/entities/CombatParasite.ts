@@ -17,7 +17,6 @@ import { Worker } from './Worker';
 import { Protector } from './Protector';
 import { MineralDeposit } from '../../world/MineralDeposit';
 import { ParasiteType, PARASITE_STATS, TARGETING_BEHAVIORS } from '../types/ParasiteTypes';
-import { TargetPriority, FormationType } from '../types/StrategyTypes';
 
 export interface CombatParasiteConfig extends ParasiteConfig {
     materialManager: MaterialManager;
@@ -54,10 +53,6 @@ export class CombatParasite extends Parasite {
     private lastAggressionUpdate: number = 0;
     private targetLockDuration: number = 3000;
     private lastTargetLockTime: number = 0;
-
-    // Strategy-controlled behavior
-    private strategyTargetPriority: TargetPriority = TargetPriority.BALANCED;
-    private strategyFormation: FormationType = FormationType.SWARM;
 
     // Feeding behavior (inherited pattern)
     protected drainRate: number = 3;
@@ -625,47 +620,5 @@ export class CombatParasite extends Parasite {
             speed: this.speed,
             healthRatio: this.health / this.maxHealth
         };
-    }
-
-    // ==================== Strategy Control ====================
-
-    /**
-     * Set aggression level from strategy (0-1)
-     * Higher aggression = more pursuit, faster attacks, less retreat
-     */
-    public setAggression(level: number): void {
-        this.aggressionLevel = Math.max(0, Math.min(1, level));
-        // Adjust engagement distance based on aggression
-        this.engagementDistance = 2.5 + (level * 2); // 2.5-4.5 range
-        // Adjust retreat threshold (more aggressive = less likely to retreat)
-        this.retreatThreshold = 0.25 - (level * 0.15); // 0.25-0.10 range
-    }
-
-    /**
-     * Set target priority from strategy
-     */
-    public setTargetPriority(priority: TargetPriority): void {
-        this.strategyTargetPriority = priority;
-    }
-
-    /**
-     * Set formation behavior from strategy
-     */
-    public setFormation(formation: FormationType): void {
-        this.strategyFormation = formation;
-    }
-
-    /**
-     * Get strategy-controlled target priority
-     */
-    public getStrategyTargetPriority(): TargetPriority {
-        return this.strategyTargetPriority;
-    }
-
-    /**
-     * Get strategy-controlled formation
-     */
-    public getStrategyFormation(): FormationType {
-        return this.strategyFormation;
     }
 }

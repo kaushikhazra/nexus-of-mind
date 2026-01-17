@@ -584,9 +584,9 @@ export class GameEngine {
         }
 
         try {
-            // AI learning enabled for continuous learning testing
-            // Ensure AI backend is running: cd server && python -m uvicorn main:app --reload --port 8000
-            const enableLearning = true;
+            // AI learning disabled by default (KISS principle)
+            // To enable: set enableLearning to true and ensure AI backend is running
+            const enableLearning = false;
 
             this.adaptiveQueenIntegration = await createAdaptiveQueenIntegration({
                 gameEngine: this,
@@ -594,17 +594,7 @@ export class GameEngine {
                 gameState: this.gameState,
                 guiTexture: this.guiTexture,
                 websocketUrl: 'ws://localhost:8000/ws',
-                enableLearning: enableLearning,
-                // Dependencies for continuous learning
-                unitManager: this.unitManager || undefined,
-                parasiteManager: this.parasiteManager || undefined,
-                energyManager: this.energyManager || undefined,
-                mapBounds: {
-                    minX: -100,
-                    maxX: 100,
-                    minZ: -100,
-                    maxZ: 100
-                }
+                enableLearning: enableLearning
             });
 
 //             console.log(`🧠 AdaptiveQueenIntegration initialized (Learning: ${backendAvailable ? 'enabled' : 'disabled'})`);
@@ -618,10 +608,7 @@ export class GameEngine {
                 territoryManager: this.territoryManager,
                 gameState: this.gameState,
                 guiTexture: this.guiTexture,
-                enableLearning: false,
-                unitManager: this.unitManager || undefined,
-                parasiteManager: this.parasiteManager || undefined,
-                energyManager: this.energyManager || undefined
+                enableLearning: false
             });
         }
     }
@@ -751,13 +738,6 @@ export class GameEngine {
      */
     public getTerritoryVisualUI(): TerritoryVisualUI | null {
         return this.territoryVisualUI;
-    }
-
-    /**
-     * Get energy display UI
-     */
-    public getEnergyDisplay(): EnergyDisplay | null {
-        return this.energyDisplay;
     }
 
     /**
