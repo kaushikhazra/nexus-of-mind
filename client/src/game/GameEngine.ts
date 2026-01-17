@@ -37,6 +37,7 @@ import { AdvancedDynamicTexture } from '@babylonjs/gui';
 import { EnergyLordsManager, EnergyLordsEvent } from './systems/EnergyLordsManager';
 import { EnergyLordsHUD } from '../ui/EnergyLordsHUD';
 import { VictoryScreen } from '../ui/VictoryScreen';
+import { FPSCounter } from '../ui/FPSCounter';
 
 export class GameEngine {
     private static instance: GameEngine | null = null;
@@ -97,6 +98,9 @@ export class GameEngine {
     private energyLordsHUD: EnergyLordsHUD | null = null;
     private victoryScreen: VictoryScreen | null = null;
 
+    // FPS Counter (toggle with 'f' key)
+    private fpsCounter: FPSCounter | null = null;
+
     // Throttling for spatial index checks
     private lastDetectionCheckTime: number = 0;
     private readonly DETECTION_CHECK_INTERVAL: number = 200; // Check every 200ms
@@ -155,6 +159,9 @@ export class GameEngine {
             this.lightingSetup = new LightingSetup(this.scene);
             this.materialManager = new MaterialManager(this.scene);
             this.performanceMonitor = new PerformanceMonitor(this.scene, this.engine);
+
+            // Initialize FPS counter (toggle with 'f' key)
+            this.fpsCounter = new FPSCounter(this.engine);
 
             // Initialize spatial index for O(1) entity lookups
             this.spatialIndex = new SpatialIndex();
@@ -1168,6 +1175,7 @@ export class GameEngine {
         this.protectorSelectionUI?.dispose();
         this.energyManager?.dispose();
         this.performanceMonitor?.dispose();
+        this.fpsCounter?.dispose();
         this.materialManager?.dispose();
         this.lightingSetup?.dispose();
         this.cameraController?.dispose();
