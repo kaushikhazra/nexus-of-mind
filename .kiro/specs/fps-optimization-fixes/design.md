@@ -1287,8 +1287,236 @@ private updateTierProgress(): void {
 | 13. Beam/Ray mesh recreation | Per-frame | +15-25 FPS | During combat/mining effects |
 | 14. Mouse hover/UI string allocations | Per-event | +10-15 FPS | During mouse movement |
 | 15. Energy display consolidation | UI cleanup | N/A | Cleaner UI, less redundancy |
+| 16. Parasite segment animation | Per-frame | +10-15 FPS | During 4-5 parasite combat |
+| 17. BuildingRenderer animations | Per-frame | +3-5 FPS | During building animations |
+| 18. CameraController movement | Per-frame | +2-3 FPS | During WASD movement |
 
-**Total Expected Gain: +20-35 FPS (idle), +70-90 FPS (during gameplay)**
+**Total Expected Gain: +20-35 FPS (idle), +85-110 FPS (during gameplay)**
+
+---
+
+### Fix 16: Parasite Segment Animation Per-Frame Allocation Elimination
+
+**Problem:** Every frame, `updateSegmentAnimation()` creates 40-50 Vector3 objects for a typical 4-5 parasite combat encounter.
+
+```typescript
+// BEFORE - Parasite.ts updateSegmentAnimation()
+for (let i = 0; i < this.segments.length; i++) {
+    if (i === 0) {
+        this.segments[i].position = Vector3.Zero();  // NEW Vector3
+        this.segmentPositions[i] = this.position.clone();  // NEW Vector3
+    } else {
+        this.segments[i].position = new Vector3(0, 0, -i * trailingDistance);  // NEW Vector3
+        const worldOffset = new Vector3(...);  // NEW Vector3
+        this.segmentPositions[i] = this.position.add(worldOffset);  // add() creates NEW Vector3
+    }
+}
+```
+
+**Solution:** Cache Vector3 objects as class members, use set()/copyFrom()/addToRef().
+
+```typescript
+// AFTER - Parasite.ts
+// Add cached vectors as class members
+protected cachedZeroVector: Vector3 = Vector3.Zero();
+protected cachedSegmentPos: Vector3 = new Vector3();
+protected cachedWorldOffset: Vector3 = new Vector3();
+
+protected updateSegmentAnimation(): void {
+    for (let i = 0; i < this.segments.length; i++) {
+        if (i === 0) {
+            // Reuse cached zero vector (don't create new one)
+            this.segments[i].position.copyFrom(this.cachedZeroVector);
+            this.segmentPositions[i].copyFrom(this.position);  // Mutate existing
+        } else {
+            // Mutate existing position instead of creating new
+            this.segments[i].position.set(0, 0, -i * trailingDistance);
+
+            // Reuse cached worldOffset vector
+            this.cachedWorldOffset.set(
+                -Math.sin(worldRotation) * i * trailingDistance,
+                0,
+                -Math.cos(worldRotation) * i * trailingDistance
+            );
+            this.position.addToRef(this.cachedWorldOffset, this.segmentPositions[i]);
+        }
+    }
+}
+```
+
+**Impact:** Eliminates 40-50 Vector3 allocations per frame during combat.
+
+---
+
+### Fix 17: BuildingRenderer Per-Frame Allocation Elimination
+
+**Problem:** Building animations create new Vector3/Color3 objects every frame for scaling and emissive colors.
+
+```typescript
+// BEFORE - BuildingRenderer.ts
+buildingVisual.energyCoreMaterial.emissiveColor = new Color3(r, g, b);  // NEW Color3
+buildingVisual.energyCore.scaling = new Vector3(coreScale, coreScale, coreScale);  // NEW Vector3
+buildingVisual.energyIndicator.scaling = new Vector3(pulseScale, pulseScale, pulseScale);  // NEW Vector3
+this.energyIndicatorMaterial.emissiveColor = new Color3(0, intensity, 0);  // NEW Color3
+```
+
+**Solution:** Use direct property assignment for colors, use scaling.set() for vectors.
+
+```typescript
+// AFTER - BuildingRenderer.ts
+// For emissive colors - direct property assignment
+const emissive = buildingVisual.energyCoreMaterial.emissiveColor;
+emissive.r = 0.3 * baseIntensity;
+emissive.g = 1.2 * baseIntensity;
+emissive.b = 1.5 * baseIntensity;
+
+// For scaling - use set() to mutate existing vector
+buildingVisual.energyCore.scaling.set(coreScale, coreScale, coreScale);
+buildingVisual.energyIndicator.scaling.set(pulseScale, pulseScale, pulseScale);
+
+// For energy indicator material
+this.energyIndicatorMaterial.emissiveColor.r = 0;
+this.energyIndicatorMaterial.emissiveColor.g = intensity;
+this.energyIndicatorMaterial.emissiveColor.b = 0;
+```
+
+**Impact:** Eliminates 4-8 allocations per frame per building.
+
+---
+
+### Fix 18: CameraController Movement Per-Frame Allocation Elimination
+
+**Problem:** During WASD movement, `Vector3.Forward()` and `Vector3.Backward()` create new vectors, and `getDirection()` also returns a new vector.
+
+```typescript
+// BEFORE - CameraController.ts
+if (pressedKeys.has('KeyW')) {
+    const forward = this.camera.getDirection(Vector3.Forward());  // 2 NEW Vector3s
+    forward.scaleInPlace(moveSpeed);
+    // ...
+}
+```
+
+**Solution:** Cache static direction vectors and reuse them.
+
+```typescript
+// AFTER - CameraController.ts
+// Add cached direction vectors as class members
+private static readonly FORWARD = new Vector3(0, 0, 1);
+private static readonly BACKWARD = new Vector3(0, 0, -1);
+private cachedDirection: Vector3 = new Vector3();
+
+// In keyboard handler
+if (pressedKeys.has('KeyW')) {
+    this.camera.getDirectionToRef(CameraController.FORWARD, this.cachedDirection);
+    this.cachedDirection.scaleInPlace(moveSpeed);
+    this.cachedMoveVector.set(this.cachedDirection.x, 0, this.cachedDirection.z);
+    // ...
+}
+```
+
+**Impact:** Eliminates 4 Vector3 allocations per frame during camera movement.
+
+---
+
+### Fix 19: Mouse Move Scene.pick() Elimination via Click-Based Tooltip
+
+**Problem:** During mouse movement, `GameEngine.handleMouseMove()` calls `scene.pick()` at 20Hz (every 50ms) to detect hovering over Protectors. This ray casting is expensive and causes FPS dips during mouse movement, especially during combat.
+
+```typescript
+// BEFORE - GameEngine.ts
+private handleMouseMove(): void {
+    // Throttle: scene.pick() is expensive, only check every 50ms
+    const now = performance.now();
+    if (now - this.lastMouseMoveCheckTime < this.MOUSE_MOVE_CHECK_INTERVAL) {
+        return;
+    }
+    this.lastMouseMoveCheckTime = now;
+
+    const pickInfo = this.scene.pick(this.scene.pointerX, this.scene.pointerY);  // EXPENSIVE!
+
+    if (pickInfo && pickInfo.hit && pickInfo.pickedMesh) {
+        if (meshName.startsWith('unit_')) {
+            // Show Protector tooltip on hover
+            this.protectorSelectionUI.show(...);
+        }
+    }
+    this.protectorSelectionUI.hide();
+}
+```
+
+**Solution:** Move Protector tooltip from hover to right-click, matching MiningAnalysisTooltip pattern. Remove scene.pick() from mouse move entirely.
+
+```typescript
+// AFTER - GameEngine.ts
+// Remove handleMouseMove() entirely - no scene.pick() on POINTERMOVE
+
+// In setupInputControls()
+this.scene.onPointerObservable.add((pointerInfo) => {
+    if (pointerInfo.type === PointerEventTypes.POINTERDOWN) {
+        const event = pointerInfo.event as PointerEvent;
+        if (event.button === 2) {  // Right-click
+            this.handleRightClick();  // Show Protector tooltip
+        } else if (event.button === 0) {  // Left-click
+            this.handleMouseClick(pointerInfo);
+            this.protectorSelectionUI.hide();  // Hide tooltip on left-click elsewhere
+        }
+    }
+    // No POINTERMOVE handler with scene.pick() anymore
+});
+
+private handleRightClick(): void {
+    const pickInfo = this.scene.pick(this.scene.pointerX, this.scene.pointerY);
+    if (pickInfo && pickInfo.hit && pickInfo.pickedMesh) {
+        const meshName = pickInfo.pickedMesh.name;
+        if (meshName.startsWith('unit_')) {
+            const unitId = meshName.replace('unit_', '');
+            const unit = this.unitManager.getUnit(unitId);
+            if (unit && unit.getUnitType() === 'protector') {
+                this.protectorSelectionUI.show(unit as Protector, this.scene.pointerX, this.scene.pointerY);
+            }
+        }
+    }
+}
+```
+
+**Impact:** Eliminates all scene.pick() calls on mouse movement in GameEngine. FPS will remain stable during rapid mouse movement and camera rotation.
+
+---
+
+### Fix 19b: MiningAnalysisTooltip Wrong Enum Bug Fix
+
+**Problem:** `MiningAnalysisTooltip.ts` used magic number `4` with a misleading comment claiming it was POINTERDOWN. In Babylon.js, `4` is actually `POINTERMOVE`, causing the tooltip to trigger on every mouse move instead of click.
+
+```typescript
+// BEFORE - MiningAnalysisTooltip.ts (BUG!)
+this.pointerObserver = this.scene.onPointerObservable.add((pointerInfo) => {
+    if (pointerInfo.type === 4) { // POINTERDOWN (click)  <-- WRONG! 4 is POINTERMOVE!
+        this.handleMouseClick();
+    }
+});
+// This was calling scene.pick() on EVERY mouse move, not click!
+```
+
+**Solution:** Use proper enum constant and add right-click check for consistency with Protector tooltip.
+
+```typescript
+// AFTER - MiningAnalysisTooltip.ts
+import { PointerEventTypes } from '@babylonjs/core';
+
+this.pointerObserver = this.scene.onPointerObservable.add((pointerInfo) => {
+    if (pointerInfo.type === PointerEventTypes.POINTERDOWN) {
+        const event = pointerInfo.event as PointerEvent;
+        if (event.button === 2) { // Right-click: show tooltip
+            this.handleRightClick();
+        } else { // Left-click: hide tooltip
+            this.hideTooltip();
+        }
+    }
+});
+```
+
+**Impact:** Eliminates scene.pick() on mouse movement from MiningAnalysisTooltip. Combined with GameEngine fix, completely removes scene.pick() from mouse move events.
 
 ## File Locations
 
@@ -1311,6 +1539,9 @@ private updateTierProgress(): void {
 | `client/src/world/MineralDeposit.ts` | Use scaling.set(), add getPositionRef(), direct color assignment |
 | `client/src/game/entities/Unit.ts` | Add getPositionRef() for zero-allocation access |
 | `client/src/game/actions/MiningAction.ts` | Use copyFrom(), use getPositionRef() |
+| `client/src/game/entities/Parasite.ts` | Cache segment position vectors, use set()/copyFrom()/addToRef() |
+| `client/src/rendering/BuildingRenderer.ts` | Use scaling.set(), direct color property assignment |
+| `client/src/ui/MiningAnalysisTooltip.ts` | Fix wrong enum (4→POINTERDOWN), right-click only, hide on left-click |
 
 ## Testing Strategy
 

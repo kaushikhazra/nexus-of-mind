@@ -210,3 +210,56 @@ This specification addresses performance issues causing low baseline FPS (25-38)
 3. THE EnergyDisplay SHALL keep delta percentage tracking displays (generation, consumption, efficiency, net rate)
 4. THE consolidated display SHALL not increase update frequency or allocations
 
+### Requirement 16: Parasite Segment Animation Per-Frame Allocation Elimination
+
+**User Story:** As a player, I want smooth FPS during parasite combat encounters, so that multiple parasites don't cause performance degradation.
+
+#### Acceptance Criteria
+
+1. THE Parasite.updateSegmentAnimation() SHALL NOT create new Vector3 objects every frame
+2. THE System SHALL cache Vector3 objects for segment positions as class members
+3. THE System SHALL use Vector3.set() or copyFrom() to mutate existing vectors
+4. THE System SHALL NOT call position.clone() in hot animation loops
+5. THE System SHALL NOT call position.add() which creates new vectors - use addToRef() instead
+6. WHEN 4-5 parasites are active in combat, THE FPS SHALL remain above 45
+7. THE per-frame Vector3 allocations in parasite animation SHALL be reduced from ~50 to 0
+
+### Requirement 17: BuildingRenderer Per-Frame Allocation Elimination
+
+**User Story:** As a player, I want smooth FPS with multiple buildings on screen, so that base building doesn't cause performance issues.
+
+#### Acceptance Criteria
+
+1. THE BuildingRenderer animation methods SHALL NOT create new Vector3 for scaling every frame
+2. THE BuildingRenderer SHALL NOT create new Color3 for emissive colors every frame
+3. THE System SHALL cache Color3 and use direct r/g/b property assignment
+4. THE System SHALL use mesh.scaling.set() instead of new Vector3 assignment
+5. WHEN multiple buildings are animating, THE FPS SHALL remain above 50
+6. THE per-frame allocations in building animation SHALL be reduced by at least 90%
+
+### Requirement 18: CameraController Movement Per-Frame Allocation Elimination
+
+**User Story:** As a player, I want smooth FPS during camera movement with WASD keys, so that map navigation doesn't cause performance stutters.
+
+#### Acceptance Criteria
+
+1. THE CameraController keyboard movement SHALL NOT call Vector3.Forward()/Backward() which create new vectors
+2. THE CameraController SHALL cache direction vectors as class members
+3. THE System SHALL use getDirectionToRef() if available, or cache and transform existing vectors
+4. WHEN moving camera with WASD during combat, THE FPS SHALL remain above 50
+5. THE per-frame Vector3 allocations during camera movement SHALL be reduced from 4 to 0
+
+### Requirement 19: Mouse Move Scene.pick() Elimination via Click-Based Tooltips
+
+**User Story:** As a player, I want smooth FPS during mouse movement, so that camera rotation and cursor positioning don't cause performance dips.
+
+#### Acceptance Criteria
+
+1. THE GameEngine.handleMouseMove() SHALL be removed entirely (no scene.pick() on mouse move)
+2. THE Protector tooltip SHALL be displayed on right-click instead of hover
+3. THE MiningAnalysisTooltip SHALL use correct PointerEventTypes.POINTERDOWN (was using wrong value 4 = POINTERMOVE)
+4. THE MiningAnalysisTooltip SHALL be displayed on right-click only (consistent with Protector tooltip)
+5. BOTH tooltips SHALL hide when left-clicking elsewhere
+6. THE mouse movement FPS impact SHALL be eliminated (no scene.pick() on POINTERMOVE)
+7. WHEN moving mouse during combat, THE FPS SHALL remain stable (no dips from scene.pick())
+

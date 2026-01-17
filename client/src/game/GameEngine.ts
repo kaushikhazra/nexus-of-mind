@@ -113,9 +113,7 @@ export class GameEngine {
     private lastDetectionCheckTime: number = 0;
     private readonly DETECTION_CHECK_INTERVAL: number = 200; // Check every 200ms
 
-    // Throttling for mouse move (scene.pick is expensive)
-    private lastMouseMoveCheckTime: number = 0;
-    private readonly MOUSE_MOVE_CHECK_INTERVAL: number = 50; // Check every 50ms (20 Hz)
+    // Fix 19: Removed mouse move throttling variables - no longer using scene.pick() on mouse move
 
     // Round-robin throttled system updates (prevents burst updates)
     private throttledSystems: ThrottledSystem[] = [];
@@ -899,27 +897,27 @@ export class GameEngine {
         }
 
         // Add pointer observable for mouse clicks
+        // Fix 19: Removed POINTERMOVE handler - no scene.pick() on mouse move
         this.scene.onPointerObservable.add((pointerInfo) => {
             if (pointerInfo.type === PointerEventTypes.POINTERDOWN) {
-                this.handleMouseClick(pointerInfo);
-            } else if (pointerInfo.type === PointerEventTypes.POINTERMOVE) {
-                this.handleMouseMove();
+                const event = pointerInfo.event as PointerEvent;
+                if (event.button === 2) {
+                    // Right-click: Show Protector tooltip (Fix 19)
+                    this.handleRightClick();
+                } else {
+                    // Left-click: Normal click handling
+                    this.handleMouseClick(pointerInfo);
+                }
             }
+            // No POINTERMOVE handler - eliminates scene.pick() on mouse move
         });
     }
 
     /**
-     * Handle mouse move for hover detection (Protector tooltip)
-     * Throttled to 20Hz because scene.pick() is expensive (ray casting)
+     * Handle right-click for Protector info tooltip (Fix 19)
+     * Replaces hover-based detection to eliminate scene.pick() on mouse move
      */
-    private handleMouseMove(): void {
-        // Throttle: scene.pick() is expensive, only check every 50ms
-        const now = performance.now();
-        if (now - this.lastMouseMoveCheckTime < this.MOUSE_MOVE_CHECK_INTERVAL) {
-            return;
-        }
-        this.lastMouseMoveCheckTime = now;
-
+    private handleRightClick(): void {
         if (!this.scene || !this.unitManager || !this.protectorSelectionUI) return;
 
         const pickInfo = this.scene.pick(this.scene.pointerX, this.scene.pointerY);
@@ -927,7 +925,7 @@ export class GameEngine {
         if (pickInfo && pickInfo.hit && pickInfo.pickedMesh) {
             const meshName = pickInfo.pickedMesh.name;
 
-            // Check if hovering over a unit
+            // Check if right-clicked on a unit
             if (meshName.startsWith('unit_')) {
                 const unitId = meshName.replace('unit_', '');
                 const unit = this.unitManager.getUnit(unitId);
@@ -944,7 +942,7 @@ export class GameEngine {
             }
         }
 
-        // Hide tooltip if not hovering over a Protector
+        // Right-clicked elsewhere - hide tooltip
         this.protectorSelectionUI.hide();
     }
 
@@ -953,6 +951,11 @@ export class GameEngine {
      */
     private handleMouseClick(pointerInfo: any): void {
         if (!this.scene || !this.unitManager) return;
+
+        // Fix 19: Hide Protector tooltip on left-click (user clicked elsewhere)
+        if (this.protectorSelectionUI) {
+            this.protectorSelectionUI.hide();
+        }
 
         // Get the pick result
         const pickInfo = this.scene.pick(this.scene.pointerX, this.scene.pointerY);

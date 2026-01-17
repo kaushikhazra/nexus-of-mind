@@ -654,17 +654,22 @@ export class BuildingRenderer {
                     const pulse = Math.sin(time * 2) * 0.15 + 0.85;
                     const baseIntensity = pulseIntensity * pulse;
 
-                    buildingVisual.energyCoreMaterial.emissiveColor = new Color3(
-                        0.3 * baseIntensity,
-                        1.2 * baseIntensity,
-                        1.5 * baseIntensity
-                    );
+                    // Fix 17: Direct property assignment instead of new Color3
+                    const emissive = buildingVisual.energyCoreMaterial.emissiveColor;
+                    emissive.r = 0.3 * baseIntensity;
+                    emissive.g = 1.2 * baseIntensity;
+                    emissive.b = 1.5 * baseIntensity;
 
+                    // Fix 17: Use set() instead of new Vector3
                     const coreScale = 0.95 + pulse * 0.1;
-                    buildingVisual.energyCore.scaling = new Vector3(coreScale, coreScale, coreScale);
+                    buildingVisual.energyCore.scaling.set(coreScale, coreScale, coreScale);
                 } else {
                     const pulse = Math.sin(time * 2) * 0.2 + 0.8;
-                    buildingVisual.energyCoreMaterial.emissiveColor = new Color3(0.4 * pulse, 1.2 * pulse, 1.5 * pulse);
+                    // Fix 17: Direct property assignment
+                    const emissive = buildingVisual.energyCoreMaterial.emissiveColor;
+                    emissive.r = 0.4 * pulse;
+                    emissive.g = 1.2 * pulse;
+                    emissive.b = 1.5 * pulse;
                 }
             }
         }
@@ -685,30 +690,30 @@ export class BuildingRenderer {
                 const pulseSpeed = 3 + energyGeneration * 0.5;
                 const pulse = Math.sin(time * pulseSpeed) * 0.2 + 0.8;
 
-                // Orange/yellow glow for plasma
-                buildingVisual.energyCoreMaterial.emissiveColor = new Color3(
-                    1.5 * pulse,
-                    0.9 * pulse,
-                    0.3 * pulse
-                );
+                // Fix 17: Direct property assignment instead of new Color3
+                const emissive = buildingVisual.energyCoreMaterial.emissiveColor;
+                emissive.r = 1.5 * pulse;
+                emissive.g = 0.9 * pulse;
+                emissive.b = 0.3 * pulse;
 
-                // Core scale pulsing
+                // Fix 17: Use set() instead of new Vector3
                 const coreScale = 0.9 + pulse * 0.15;
-                buildingVisual.energyCore.scaling = new Vector3(coreScale, coreScale, coreScale);
+                buildingVisual.energyCore.scaling.set(coreScale, coreScale, coreScale);
             }
         }
     }
 
     /**
      * Update construction progress visualization - INSTANT BUILDING PLACEMENT
+     * Fix 17: Uses set() instead of new Vector3
      */
     private updateConstructionVisualization(buildingVisual: BuildingVisual): void {
         // Buildings appear instantly at full size - no construction animation
-        buildingVisual.mesh.scaling = new Vector3(1, 1, 1); // Always full size
-        
+        buildingVisual.mesh.scaling.set(1, 1, 1); // Always full size (Fix 17)
+
         // Always hide construction indicator for instant placement
         buildingVisual.constructionIndicator.setEnabled(false);
-        
+
         // Always full opacity for instant placement
         if (buildingVisual.material) {
             buildingVisual.material.alpha = 1.0; // Full opacity
@@ -717,23 +722,26 @@ export class BuildingRenderer {
 
     /**
      * Update energy generation visualization
+     * Fix 17: Uses set() and direct property assignment instead of new Vector3/Color3
      */
     private updateEnergyVisualization(buildingVisual: BuildingVisual): void {
         const building = buildingVisual.building;
         const energyGeneration = building.getEnergyGeneration();
-        
+
         if (energyGeneration > 0 && building.isComplete() && buildingVisual.energyIndicator) {
             // Show energy indicator for power-generating buildings
             buildingVisual.energyIndicator.setEnabled(true);
-            
-            // Pulse based on energy generation rate
+
+            // Pulse based on energy generation rate - Fix 17: use set()
             const pulseScale = 1.0 + (energyGeneration * 0.1);
-            buildingVisual.energyIndicator.scaling = new Vector3(pulseScale, pulseScale, pulseScale);
-            
-            // Color based on generation rate
+            buildingVisual.energyIndicator.scaling.set(pulseScale, pulseScale, pulseScale);
+
+            // Color based on generation rate - Fix 17: direct property assignment
             if (this.energyIndicatorMaterial) {
                 const intensity = Math.min(1.0, energyGeneration / 3.0); // Normalize to max 3 energy/sec
-                this.energyIndicatorMaterial.emissiveColor = new Color3(0, intensity, 0);
+                this.energyIndicatorMaterial.emissiveColor.r = 0;
+                this.energyIndicatorMaterial.emissiveColor.g = intensity;
+                this.energyIndicatorMaterial.emissiveColor.b = 0;
             }
         } else if (buildingVisual.energyIndicator) {
             // Hide energy indicator for non-generating buildings

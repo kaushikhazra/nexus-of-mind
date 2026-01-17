@@ -13,9 +13,14 @@ export class CameraController {
     private canvas: HTMLCanvasElement;
     private camera: ArcRotateCamera | null = null;
 
+    // Fix 18: Static direction vectors to avoid per-frame allocation from Vector3.Forward()/Backward()
+    private static readonly FORWARD = new Vector3(0, 0, 1);
+    private static readonly BACKWARD = new Vector3(0, 0, -1);
+
     // Cached vectors for keyboard movement (avoid per-frame allocations)
     private cachedMoveVector: Vector3 = new Vector3();
     private cachedNewTarget: Vector3 = new Vector3();
+    private cachedDirection: Vector3 = new Vector3(); // Fix 18: for getDirectionToRef result
 
     // Camera configuration
     private readonly INITIAL_RADIUS = 75; // Increased 3x for better overview (was 25)
@@ -141,6 +146,7 @@ export class CameraController {
         });
 
         // Update camera position based on pressed keys (called each frame)
+        // Fix 18: Uses static direction vectors and getDirectionToRef to eliminate per-frame allocations
         this.scene.registerBeforeRender(() => {
             if (!this.camera) return;
 
@@ -148,21 +154,23 @@ export class CameraController {
             let moved = false;
 
             // W/Up Arrow: Move forward in the map
+            // Fix 18: Use static FORWARD and getDirectionToRef instead of Vector3.Forward() and getDirection()
             if (pressedKeys.has('KeyW') || pressedKeys.has('ArrowUp')) {
-                const forward = this.camera.getDirection(Vector3.Forward());
-                forward.scaleInPlace(moveSpeed);
-                this.cachedMoveVector.set(forward.x, 0, forward.z);  // Keep Y constant, reuse vector
-                target.addToRef(this.cachedMoveVector, this.cachedNewTarget);  // No allocation
+                this.camera.getDirectionToRef(CameraController.FORWARD, this.cachedDirection);
+                this.cachedDirection.scaleInPlace(moveSpeed);
+                this.cachedMoveVector.set(this.cachedDirection.x, 0, this.cachedDirection.z);
+                target.addToRef(this.cachedMoveVector, this.cachedNewTarget);
                 this.camera.setTarget(this.cachedNewTarget);
                 moved = true;
             }
 
             // S/Down Arrow: Move backward in the map
+            // Fix 18: Use static BACKWARD and getDirectionToRef
             if (pressedKeys.has('KeyS') || pressedKeys.has('ArrowDown')) {
-                const backward = this.camera.getDirection(Vector3.Backward());
-                backward.scaleInPlace(moveSpeed);
-                this.cachedMoveVector.set(backward.x, 0, backward.z);  // Keep Y constant, reuse vector
-                target.addToRef(this.cachedMoveVector, this.cachedNewTarget);  // No allocation
+                this.camera.getDirectionToRef(CameraController.BACKWARD, this.cachedDirection);
+                this.cachedDirection.scaleInPlace(moveSpeed);
+                this.cachedMoveVector.set(this.cachedDirection.x, 0, this.cachedDirection.z);
+                target.addToRef(this.cachedMoveVector, this.cachedNewTarget);
                 this.camera.setTarget(this.cachedNewTarget);
                 moved = true;
             }

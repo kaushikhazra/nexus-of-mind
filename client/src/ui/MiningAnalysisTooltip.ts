@@ -1,11 +1,12 @@
 /**
  * MiningAnalysisTooltip - Proximity-based mining potential analysis
- * 
- * Shows mining potential analysis when mouse hovers near mineral clusters.
+ *
+ * Shows mining potential analysis when clicking on mineral clusters.
  * Provides strategic information before base placement commitment.
+ * Fix 19: Changed from hover to click to eliminate scene.pick() on mouse move.
  */
 
-import { Scene, Vector3 } from '@babylonjs/core';
+import { Scene, Vector3, PointerEventTypes } from '@babylonjs/core';
 import { GameEngine } from '../game/GameEngine';
 import { MineralDeposit } from '../world/MineralDeposit';
 import { MovementAction } from '../game/actions/MovementAction';
@@ -90,17 +91,23 @@ export class MiningAnalysisTooltip {
     private setupMouseTracking(): void {
         if (!this.scene) return;
 
+        // Fix 19: Right-click to show mining analysis, any click to hide
         this.pointerObserver = this.scene.onPointerObservable.add((pointerInfo) => {
-            if (pointerInfo.type === 4) { // POINTERDOWN (click)
-                this.handleMouseClick();
+            if (pointerInfo.type === PointerEventTypes.POINTERDOWN) {
+                const event = pointerInfo.event as PointerEvent;
+                if (event.button === 2) { // Right-click: show tooltip
+                    this.handleRightClick();
+                } else { // Left-click: hide tooltip
+                    this.hideTooltip();
+                }
             }
         });
     }
 
     /**
-     * Handle mouse click for mineral deposit detection
+     * Handle right-click for mineral deposit detection
      */
-    private handleMouseClick(): void {
+    private handleRightClick(): void {
         if (!this.scene) return;
 
         // Get world position from mouse

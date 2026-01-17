@@ -524,6 +524,128 @@ Fix 11 performance issues: 3 memory leaks causing FPS decay over time, and 8 per
   - Verify top right bar shows only delta stats
   - _Requirements: 15.1, 15.4_
 
+### Phase 2j: Parasite Segment Animation Allocation Fixes
+
+- [x] 40. Fix Parasite segment animation per-frame allocations
+  - [x] 40.1 Add cached Vector3 class members
+    - File: `client/src/game/entities/Parasite.ts`
+    - Added `protected cachedZeroVector: Vector3 = Vector3.Zero()`
+    - Added `protected cachedWorldOffset: Vector3 = new Vector3()`
+    - _Requirements: 16.2_
+
+  - [x] 40.2 Initialize segmentPositions array with Vector3 instances
+    - File: `client/src/game/entities/Parasite.ts`
+    - segmentPositions already contains pre-allocated Vector3 objects from createMesh()
+    - _Requirements: 16.2_
+
+  - [x] 40.3 Update updateSegmentAnimation() to use zero-allocation patterns
+    - File: `client/src/game/entities/Parasite.ts`
+    - Changed `this.segments[i].position = Vector3.Zero()` to `copyFrom(cachedZeroVector)`
+    - Changed `this.segmentPositions[i] = this.position.clone()` to `copyFrom()`
+    - Changed `new Vector3(...)` to `set()`
+    - Changed `this.position.add(worldOffset)` to `addToRef()`
+    - _Requirements: 16.1, 16.3, 16.4, 16.5_
+
+- [ ] 41. Checkpoint - Parasite allocations fixed
+  - Verify FPS above 45 with 4-5 parasites active
+  - Verify no Vector3 allocations in updateSegmentAnimation()
+  - _Requirements: 16.6, 16.7_
+
+### Phase 2k: BuildingRenderer Animation Allocation Fixes
+
+- [x] 42. Fix BuildingRenderer per-frame allocations
+  - [x] 42.1 Fix energy core scaling allocations
+    - File: `client/src/rendering/BuildingRenderer.ts`
+    - Changed `new Vector3(coreScale, ...)` to `scaling.set(coreScale, ...)`
+    - _Requirements: 17.1_
+
+  - [x] 42.2 Fix energy core emissive color allocations
+    - File: `client/src/rendering/BuildingRenderer.ts`
+    - Changed `new Color3(...)` to direct r/g/b property assignment
+    - _Requirements: 17.2, 17.3_
+
+  - [x] 42.3 Fix energy indicator scaling allocations
+    - File: `client/src/rendering/BuildingRenderer.ts`
+    - Changed `new Vector3(pulseScale, ...)` to `scaling.set(pulseScale, ...)`
+    - _Requirements: 17.1, 17.4_
+
+  - [x] 42.4 Fix energy indicator color allocations
+    - File: `client/src/rendering/BuildingRenderer.ts`
+    - Changed `new Color3(0, intensity, 0)` to direct property assignment
+    - _Requirements: 17.2, 17.3_
+
+  - [x] 42.5 Fix construction visualization scaling
+    - File: `client/src/rendering/BuildingRenderer.ts`
+    - Changed `new Vector3(1, 1, 1)` to `scaling.set(1, 1, 1)`
+    - _Requirements: 17.1_
+
+- [ ] 43. Checkpoint - BuildingRenderer allocations fixed
+  - Verify FPS above 50 with multiple buildings
+  - Verify no per-frame Vector3/Color3 allocations in animations
+  - _Requirements: 17.5, 17.6_
+
+### Phase 2l: CameraController Movement Allocation Fixes
+
+- [x] 44. Fix CameraController per-frame allocations
+  - [x] 44.1 Add cached static direction vectors
+    - File: `client/src/rendering/CameraController.ts`
+    - Added `private static readonly FORWARD = new Vector3(0, 0, 1)`
+    - Added `private static readonly BACKWARD = new Vector3(0, 0, -1)`
+    - Added `private cachedDirection: Vector3 = new Vector3()`
+    - _Requirements: 18.2_
+
+  - [x] 44.2 Update keyboard movement to use cached vectors
+    - File: `client/src/rendering/CameraController.ts`
+    - Changed `Vector3.Forward()` to `CameraController.FORWARD`
+    - Changed `getDirection()` to `getDirectionToRef()`
+    - _Requirements: 18.1, 18.3_
+
+- [ ] 45. Checkpoint - CameraController allocations fixed
+  - Verify FPS above 50 during WASD movement in combat
+  - Verify no per-frame Vector3 allocations during movement
+  - _Requirements: 18.4, 18.5_
+
+### Phase 2m: Mouse Move Scene.pick() Elimination
+
+- [x] 46. Move Protector tooltip from hover to right-click
+  - [x] 46.1 Remove handleMouseMove() scene.pick() logic
+    - File: `client/src/game/GameEngine.ts`
+    - Removed POINTERMOVE handler entirely, added handleRightClick() method
+    - _Requirements: 19.1_
+
+  - [x] 46.2 Add right-click handler for Protector tooltip
+    - File: `client/src/game/GameEngine.ts`
+    - Check for button === 2 (right-click) in POINTERDOWN handler
+    - Call scene.pick() only on right-click
+    - Show ProtectorSelectionUI when right-clicking on Protector
+    - _Requirements: 19.2_
+
+  - [x] 46.3 Hide tooltip on left-click elsewhere
+    - File: `client/src/game/GameEngine.ts`
+    - In handleMouseClick(), hide ProtectorSelectionUI at start
+    - _Requirements: 19.3_
+
+- [x] 48. Fix MiningAnalysisTooltip wrong enum value
+  - [x] 48.1 Fix POINTERMOVE vs POINTERDOWN bug
+    - File: `client/src/ui/MiningAnalysisTooltip.ts`
+    - Changed `pointerInfo.type === 4` to `PointerEventTypes.POINTERDOWN`
+    - Bug: Code used magic number 4 (POINTERMOVE) instead of 1 (POINTERDOWN)
+    - _Requirements: 19.4_
+
+  - [x] 48.2 Make MiningAnalysisTooltip right-click only
+    - File: `client/src/ui/MiningAnalysisTooltip.ts`
+    - Added check for `event.button === 2` (right-click)
+    - Left-click now hides tooltip (consistent with Protector tooltip)
+    - _Requirements: 19.2, 19.3_
+
+- [x] 49. Checkpoint - Mouse move scene.pick() eliminated
+  - Verified FPS stable during mouse movement (no more dips from scene.pick())
+  - Verified Protector tooltip shows on right-click
+  - Verified Mining Analysis tooltip shows on right-click
+  - Verified both tooltips hide on left-click elsewhere
+  - FPS during heavy load (rapid movement + 5 fights + 10 workers + 8 protectors): 45 FPS
+  - _Requirements: 19.4, 19.5, 19.6_
+
 ### Phase 3: Validation
 
 - [ ] 12. Performance validation
@@ -571,7 +693,7 @@ Fix 11 performance issues: 3 memory leaks causing FPS decay over time, and 8 per
 | `client/src/rendering/CombatEffects.ts` | Material tracking, shared UI, disposal fixes |
 | `client/src/utils/PerformanceMonitor.ts` | **DELETE** |
 | `client/src/game/TerritoryPerformanceMonitor.ts` | **DELETE** |
-| `client/src/game/GameEngine.ts` | Remove PerformanceMonitor, sync render loop, system throttling, mouse move throttling |
+| `client/src/game/GameEngine.ts` | Remove PerformanceMonitor, sync render loop, system throttling, Fix 19: remove handleMouseMove(), add handleRightClick() for Protector tooltip |
 | `client/src/game/TerritoryManager.ts` | Remove TerritoryPerformanceMonitor references |
 | `client/src/game/UnitManager.ts` | Sync update method, typed unit arrays for zero-allocation getUnitsByType() |
 | `client/src/game/GameState.ts` | Maintain mineralDepositsArray for zero-allocation getAllMineralDeposits() |
@@ -585,3 +707,4 @@ Fix 11 performance issues: 3 memory leaks causing FPS decay over time, and 8 per
 | `client/src/world/MineralDeposit.ts` | Use scaling.set(), add getPositionRef(), direct color assignment |
 | `client/src/game/entities/Unit.ts` | Add getPositionRef() for zero-allocation access |
 | `client/src/game/actions/MiningAction.ts` | Use copyFrom(), use getPositionRef() |
+| `client/src/ui/MiningAnalysisTooltip.ts` | Fix 19: Fix wrong enum (4→POINTERDOWN), right-click only, hide on left-click |
