@@ -35,13 +35,6 @@ describe('SystemIntegration End-to-End Tests', () => {
     beforeEach(() => {
         // Setup mocks
         mockGameEngine = {
-            getPerformanceMonitor: jest.fn().mockReturnValue({
-                getPerformanceSummary: jest.fn().mockReturnValue({
-                    averageFPS: 60,
-                    memoryUsage: 100 * 1024 * 1024 // 100MB
-                }),
-                canMaintain60FPSDuringCombat: jest.fn().mockReturnValue(true)
-            }),
             getPerformanceOptimizer: jest.fn().mockReturnValue({
                 configureIsolation: jest.fn(),
                 setCallbacks: jest.fn(),

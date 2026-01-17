@@ -13,7 +13,6 @@ import { AdaptiveQueen } from './entities/AdaptiveQueen';
 import { Hive } from './entities/Hive';
 import { LiberationManager } from './LiberationManager';
 import { EnergyManager } from './EnergyManager';
-import { TerritoryPerformanceMonitor } from './TerritoryPerformanceMonitor';
 import { ErrorRecoveryManager } from './ErrorRecoveryManager';
 import { WebSocketClient } from '../networking/WebSocketClient';
 import { GameState } from './GameState';
@@ -176,7 +175,6 @@ export class TerritoryManager {
     private territoryGrid: TerritoryGrid;
     private gameEngine: GameEngine | null = null;
     private liberationManager: LiberationManager | null = null;
-    private performanceMonitor: TerritoryPerformanceMonitor | null = null;
     private errorRecoveryManager: ErrorRecoveryManager | null = null;
     
     // Territory constants
@@ -216,26 +214,6 @@ export class TerritoryManager {
         if (energyManager) {
             this.liberationManager = new LiberationManager(energyManager);
             this.liberationManager.setTerritoryManager(this);
-        }
-        
-        // Initialize performance monitor
-        const mainPerformanceMonitor = gameEngine.getPerformanceMonitor();
-        if (mainPerformanceMonitor) {
-            this.performanceMonitor = new TerritoryPerformanceMonitor(this, mainPerformanceMonitor);
-            this.performanceMonitor.startMonitoring();
-            
-            // Set up performance callbacks
-            this.performanceMonitor.onWarning((metrics) => {
-//                 console.warn(`🏰 Territory Performance Warning: ${metrics.performanceGrade} - Memory: ${metrics.totalTerritoryMemory.toFixed(1)}MB, CPU: ${metrics.cpuOverheadPercentage.toFixed(1)}%`);
-            });
-            
-            this.performanceMonitor.onCritical((metrics) => {
-//                 console.error(`🏰 Territory Performance Critical: ${metrics.performanceGrade} - Memory: ${metrics.totalTerritoryMemory.toFixed(1)}MB, CPU: ${metrics.cpuOverheadPercentage.toFixed(1)}%`);
-            });
-            
-            this.performanceMonitor.onOptimization((level, description) => {
-//                 console.log(`🏰 Territory Performance Optimization: Level ${level} - ${description}`);
-            });
         }
         
         // Initialize error recovery manager
@@ -395,26 +373,13 @@ export class TerritoryManager {
      * Update territory system (called each frame)
      */
     public update(deltaTime: number): void {
-        const currentTime = performance.now() / 1000; // Convert to seconds
-        
-        // Start performance measurement
-        if (this.performanceMonitor) {
-            this.performanceMonitor.startFrameMeasurement();
-            this.performanceMonitor.startTerritoryUpdateMeasurement();
-        }
-        
         // Update liberation manager
         if (this.liberationManager) {
             this.liberationManager.updateLiberations(deltaTime);
         }
-        
+
         // Update all Queens and Hives first
         this.updateQueensAndHives(deltaTime);
-        
-        // End territory update measurement
-        if (this.performanceMonitor) {
-            this.performanceMonitor.endTerritoryUpdateMeasurement();
-        }
         
         for (const territory of this.territories.values()) {
             // Update liberation timers using LiberationManager
@@ -448,11 +413,6 @@ export class TerritoryManager {
                     }
                 }
             }
-        }
-        
-        // Update performance monitoring
-        if (this.performanceMonitor) {
-            this.performanceMonitor.update(deltaTime);
         }
         
         // Update error recovery system
@@ -517,13 +477,6 @@ export class TerritoryManager {
      */
     public getLiberationManager(): LiberationManager | null {
         return this.liberationManager;
-    }
-
-    /**
-     * Get territory performance monitor
-     */
-    public getPerformanceMonitor(): TerritoryPerformanceMonitor | null {
-        return this.performanceMonitor;
     }
 
     /**
@@ -657,76 +610,28 @@ export class TerritoryManager {
      * Update all Queens and Hives in territories
      */
     private updateQueensAndHives(deltaTime: number): void {
-        // Start Queen update measurement
-        if (this.performanceMonitor) {
-            this.performanceMonitor.startQueenUpdateMeasurement();
-        }
-        
-        // Get optimization level for performance degradation handling
-        const optimizationLevel = this.performanceMonitor?.getOptimizationLevel() || 0;
-        
-        // Apply performance optimizations based on level
-        let queensToUpdate = this.territories.values();
-        let updateFrequency = 1; // Update every frame by default
-        
-        if (optimizationLevel >= 1) {
-            // Light optimization: Update Queens every other frame
-            updateFrequency = 2;
-        }
-        
-        if (optimizationLevel >= 2) {
-            // Moderate optimization: Update Queens every 3rd frame
-            updateFrequency = 3;
-        }
-        
-        if (optimizationLevel >= 3) {
-            // Aggressive optimization: Update Queens every 4th frame
-            updateFrequency = 4;
-        }
-        
-        // Frame-based update limiting
-        const frameCount = Math.floor(performance.now() / 16.67); // Approximate frame count
-        const shouldUpdateThisFrame = frameCount % updateFrequency === 0;
-        
-        if (shouldUpdateThisFrame) {
-            for (const territory of queensToUpdate) {
-                // Update Queen
-                if (territory.queen) {
-                    territory.queen.update(deltaTime);
-                    
-                    // Check if Queen was destroyed and handle cleanup
-                    if (!territory.queen.isActiveQueen()) {
-                        this.removeQueenFromTerritory(territory.id);
-                    }
+        // Update Queens
+        for (const territory of this.territories.values()) {
+            if (territory.queen) {
+                territory.queen.update(deltaTime);
+
+                // Check if Queen was destroyed and handle cleanup
+                if (!territory.queen.isActiveQueen()) {
+                    this.removeQueenFromTerritory(territory.id);
                 }
             }
         }
-        
-        // End Queen update measurement
-        if (this.performanceMonitor) {
-            this.performanceMonitor.endQueenUpdateMeasurement();
-        }
-        
-        // Start Hive update measurement
-        if (this.performanceMonitor) {
-            this.performanceMonitor.startHiveUpdateMeasurement();
-        }
-        
-        // Update Hives (always update for construction timing)
+
+        // Update Hives
         for (const territory of this.territories.values()) {
             if (territory.hive) {
                 territory.hive.update(deltaTime);
-                
+
                 // Check if Hive was destroyed and handle cleanup
                 if (!territory.hive.isActiveHive()) {
                     territory.hive = null;
                 }
             }
-        }
-        
-        // End Hive update measurement
-        if (this.performanceMonitor) {
-            this.performanceMonitor.endHiveUpdateMeasurement();
         }
     }
 
@@ -739,13 +644,7 @@ export class TerritoryManager {
             this.errorRecoveryManager.dispose();
             this.errorRecoveryManager = null;
         }
-        
-        // Stop performance monitoring
-        if (this.performanceMonitor) {
-            this.performanceMonitor.dispose();
-            this.performanceMonitor = null;
-        }
-        
+
         // Dispose all Queens and Hives
         for (const territory of this.territories.values()) {
             if (territory.queen) {

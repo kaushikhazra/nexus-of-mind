@@ -11,7 +11,6 @@ import { SceneManager } from '../rendering/SceneManager';
 import { CameraController } from '../rendering/CameraController';
 import { LightingSetup } from '../rendering/LightingSetup';
 import { MaterialManager } from '../rendering/MaterialManager';
-import { PerformanceMonitor } from '../utils/PerformanceMonitor';
 import { EnergyManager } from './EnergyManager';
 import { EnergyDisplay } from '../ui/EnergyDisplay';
 import { GameState } from './GameState';
@@ -39,6 +38,16 @@ import { EnergyLordsHUD } from '../ui/EnergyLordsHUD';
 import { VictoryScreen } from '../ui/VictoryScreen';
 import { FPSCounter } from '../ui/FPSCounter';
 
+/**
+ * Interface for throttled system updates (round-robin scheduling)
+ */
+interface ThrottledSystem {
+    name: string;
+    interval: number;      // ms between updates
+    lastUpdate: number;    // timestamp of last update
+    update: () => void;    // update function
+}
+
 export class GameEngine {
     private static instance: GameEngine | null = null;
 
@@ -51,7 +60,6 @@ export class GameEngine {
     private cameraController: CameraController | null = null;
     private lightingSetup: LightingSetup | null = null;
     private materialManager: MaterialManager | null = null;
-    private performanceMonitor: PerformanceMonitor | null = null;
 
     // Energy system
     private energyManager: EnergyManager | null = null;
@@ -104,6 +112,15 @@ export class GameEngine {
     // Throttling for spatial index checks
     private lastDetectionCheckTime: number = 0;
     private readonly DETECTION_CHECK_INTERVAL: number = 200; // Check every 200ms
+
+    // Throttling for mouse move (scene.pick is expensive)
+    private lastMouseMoveCheckTime: number = 0;
+    private readonly MOUSE_MOVE_CHECK_INTERVAL: number = 50; // Check every 50ms (20 Hz)
+
+    // Round-robin throttled system updates (prevents burst updates)
+    private throttledSystems: ThrottledSystem[] = [];
+    private currentSystemIndex: number = 0;
+    private lastDeltaTime: number = 0;
 
     // Pending upgrade bonus to apply after BuildingManager is created
     private pendingUpgradeBonus: number = 0;
@@ -158,7 +175,6 @@ export class GameEngine {
             this.cameraController = new CameraController(this.scene, this.canvas);
             this.lightingSetup = new LightingSetup(this.scene);
             this.materialManager = new MaterialManager(this.scene);
-            this.performanceMonitor = new PerformanceMonitor(this.scene, this.engine);
 
             // Initialize FPS counter (toggle with 'f' key)
             this.fpsCounter = new FPSCounter(this.engine);
@@ -203,12 +219,7 @@ export class GameEngine {
 
             // Initialize central combat system with scene for visual effects
             this.combatSystem = new CombatSystem(this.energyManager, this.scene);
-            
-            // Connect combat system to performance monitor for combat-specific monitoring
-            if (this.performanceMonitor) {
-                this.performanceMonitor.setCombatSystem(this.combatSystem);
-            }
-            
+
             // Register combat system with UnitManager for auto-attack integration
             if (this.unitManager) {
                 this.unitManager.setCombatSystem(this.combatSystem);
@@ -286,6 +297,11 @@ export class GameEngine {
             // Initialize GUI texture for advanced UI components
             this.guiTexture = AdvancedDynamicTexture.CreateFullscreenUI("MainUI", true, this.scene);
 
+            // Share GUI texture with combat system to avoid duplicate fullscreen UIs
+            if (this.combatSystem && this.guiTexture) {
+                this.combatSystem.setSharedUI(this.guiTexture);
+            }
+
             // Initialize Adaptive Queen Intelligence Integration
             await this.initializeAdaptiveQueenIntegration();
 
@@ -327,23 +343,28 @@ export class GameEngine {
                 throw new Error('Engine or scene not initialized');
             }
 
-            // Start performance monitoring
-            this.performanceMonitor?.startMonitoring();
+            // Initialize throttled systems for round-robin updates
+            this.initThrottledSystems();
 
-            // Start render loop
-            this.engine.runRenderLoop(async () => {
+            // Start render loop (synchronous for performance)
+            this.engine.runRenderLoop(() => {
                 if (this.scene && this.engine) {
+                    const now = performance.now();
+
                     // Calculate delta time
                     const deltaTime = this.engine.getDeltaTime() / 1000; // Convert to seconds
+                    this.lastDeltaTime = deltaTime;
+
+                    // === 60 Hz UPDATES (critical for gameplay) ===
 
                     // Update game state
                     if (this.gameState) {
                         this.gameState.update(deltaTime);
                     }
 
-                    // Update unit system (async for command processing)
+                    // Update unit system
                     if (this.unitManager) {
-                        await this.unitManager.update(deltaTime);
+                        this.unitManager.update(deltaTime);
                     }
 
                     // Update building system
@@ -351,12 +372,7 @@ export class GameEngine {
                         this.buildingManager.update(deltaTime);
                     }
 
-                    // Update energy system
-                    if (this.energyManager) {
-                        this.energyManager.update();
-                    }
-
-                    // Update combat system
+                    // Update combat system (parasites)
                     if (this.parasiteManager && this.gameState && this.unitManager) {
                         const mineralDeposits = this.gameState.getAllMineralDeposits();
                         const workers = this.unitManager.getUnitsByType('worker') as Worker[];
@@ -366,16 +382,8 @@ export class GameEngine {
 
                     // Update central combat system with auto-attack integration
                     if (this.combatSystem && this.unitManager) {
-                        // Handle movement-combat transitions for all protectors
                         this.handleMovementCombatTransitions();
-                        
-                        // Update combat system
                         this.combatSystem.update(deltaTime);
-                    }
-
-                    // Update territory system
-                    if (this.territoryManager) {
-                        this.territoryManager.update(deltaTime);
                     }
 
                     // Update territory renderer player position
@@ -386,24 +394,32 @@ export class GameEngine {
                         }
                     }
 
-                    // Update liberation system
-                    if (this.liberationManager) {
-                        this.liberationManager.updateLiberations(deltaTime);
-                    }
-
                     // Update Adaptive Queen Integration
                     if (this.adaptiveQueenIntegration) {
                         this.adaptiveQueenIntegration.update(deltaTime);
                     }
 
-                    // Update Energy Lords progression system
-                    if (this.energyLordsManager) {
-                        this.energyLordsManager.update(performance.now());
-                    }
-
                     // Update vegetation animations
                     if (this.treeRenderer) {
                         this.treeRenderer.updateAnimations();
+                    }
+
+                    // === ROUND-ROBIN THROTTLED UPDATES ===
+                    // Check ONE system per frame to prevent burst updates
+                    if (this.throttledSystems.length > 0) {
+                        // Guard: Clamp to valid range before access
+                        if (this.currentSystemIndex < 0 || this.currentSystemIndex >= this.throttledSystems.length) {
+                            this.currentSystemIndex = 0;
+                        }
+
+                        const system = this.throttledSystems[this.currentSystemIndex];
+                        if (now - system.lastUpdate >= system.interval) {
+                            system.update();
+                            system.lastUpdate = now;
+                        }
+
+                        // Move to next system for next frame
+                        this.currentSystemIndex = (this.currentSystemIndex + 1) % this.throttledSystems.length;
                     }
 
                     this.scene.render();
@@ -429,7 +445,6 @@ export class GameEngine {
             this.engine.stopRenderLoop();
         }
 
-        this.performanceMonitor?.stopMonitoring();
         this.isRunning = false;
     }
 
@@ -629,17 +644,50 @@ export class GameEngine {
                 method: 'GET',
                 timeout: 5000
             } as any);
-            
+
             if (response.ok) {
                 const health = await response.json();
                 return health.status === 'healthy';
             }
-            
+
             return false;
         } catch (error) {
             console.log('🧠 AI backend not available, using fallback behavior');
             return false;
         }
+    }
+
+    /**
+     * Initialize throttled systems for round-robin updates
+     * These systems don't need 60 Hz updates, so we spread them across frames
+     */
+    private initThrottledSystems(): void {
+        this.throttledSystems = [
+            {
+                name: 'energy',
+                interval: 100,  // 10 Hz
+                lastUpdate: 0,
+                update: () => this.energyManager?.update()
+            },
+            {
+                name: 'territory',
+                interval: 100,  // 10 Hz
+                lastUpdate: 0,
+                update: () => this.territoryManager?.update(this.lastDeltaTime)
+            },
+            {
+                name: 'liberation',
+                interval: 200,  // 5 Hz
+                lastUpdate: 0,
+                update: () => this.liberationManager?.updateLiberations(this.lastDeltaTime)
+            },
+            {
+                name: 'energyLords',
+                interval: 100,  // 10 Hz
+                lastUpdate: 0,
+                update: () => this.energyLordsManager?.update(performance.now())
+            }
+        ];
     }
 
     /**
@@ -745,13 +793,6 @@ export class GameEngine {
      */
     public getTerritoryVisualUI(): TerritoryVisualUI | null {
         return this.territoryVisualUI;
-    }
-
-    /**
-     * Get performance monitor
-     */
-    public getPerformanceMonitor(): PerformanceMonitor | null {
-        return this.performanceMonitor;
     }
 
     /**
@@ -869,8 +910,16 @@ export class GameEngine {
 
     /**
      * Handle mouse move for hover detection (Protector tooltip)
+     * Throttled to 20Hz because scene.pick() is expensive (ray casting)
      */
     private handleMouseMove(): void {
+        // Throttle: scene.pick() is expensive, only check every 50ms
+        const now = performance.now();
+        if (now - this.lastMouseMoveCheckTime < this.MOUSE_MOVE_CHECK_INTERVAL) {
+            return;
+        }
+        this.lastMouseMoveCheckTime = now;
+
         if (!this.scene || !this.unitManager || !this.protectorSelectionUI) return;
 
         const pickInfo = this.scene.pick(this.scene.pointerX, this.scene.pointerY);
@@ -1174,7 +1223,6 @@ export class GameEngine {
         this.miningAnalysisTooltip?.dispose();
         this.protectorSelectionUI?.dispose();
         this.energyManager?.dispose();
-        this.performanceMonitor?.dispose();
         this.fpsCounter?.dispose();
         this.materialManager?.dispose();
         this.lightingSetup?.dispose();

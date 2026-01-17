@@ -90,7 +90,19 @@ export class ParasiteManager {
     private readonly PERFORMANCE_CHECK_INTERVAL = 1000; // Check every second
     private renderingOptimizationLevel: number = 0; // 0 = no optimization, 1 = basic, 2 = aggressive
     private maxActiveParasites: number = 10; // Dynamic limit based on performance
-    
+
+    // Cached references for per-frame allocation elimination
+    private gameEngine: GameEngine | null = null;
+    private cachedCameraTarget: Vector3 = new Vector3(0, 0, 0);
+    private lastCameraTargetUpdate: number = 0;
+    private readonly CAMERA_TARGET_UPDATE_INTERVAL = 100; // Update 10x/sec
+
+    // Cached deposit arrays (reused to avoid allocations)
+    private cachedDeposits: MineralDeposit[] = [];
+    private depositDistances: { deposit: MineralDeposit; distance: number }[] = [];
+    private lastDepositCacheTime: number = 0;
+    private readonly DEPOSIT_CACHE_INTERVAL = 1000; // Refresh every 1 second
+
     constructor(config: ParasiteManagerConfig) {
         this.scene = config.scene;
         this.materialManager = config.materialManager;
@@ -128,29 +140,25 @@ export class ParasiteManager {
      */
     public update(deltaTime: number, mineralDeposits: MineralDeposit[], workers: Worker[], protectors: Protector[]): void {
         const currentTime = Date.now();
+        const now = performance.now();
 
         // Update existing parasites (pass protectors to Combat Parasites)
         this.updateParasites(deltaTime, workers, protectors);
 
-        // Get camera position to prioritize nearby deposits for spawning
-        const gameEngine = GameEngine.getInstance();
-        const cameraController = gameEngine?.getCameraController();
-        const camera = cameraController?.getCamera();
-        const cameraTarget = camera?.getTarget() || new Vector3(0, 0, 0);
+        // Update cached camera target periodically (not every frame)
+        if (now - this.lastCameraTargetUpdate >= this.CAMERA_TARGET_UPDATE_INTERVAL) {
+            this.updateCachedCameraTarget();
+            this.lastCameraTargetUpdate = now;
+        }
 
-        // Filter to visible, non-depleted deposits and sort by distance to camera
-        const nearbyDeposits = mineralDeposits
-            .filter(d => d.isVisible() && !d.isDepleted())
-            .map(d => ({
-                deposit: d,
-                distance: Vector3.Distance(d.getPosition(), cameraTarget)
-            }))
-            .sort((a, b) => a.distance - b.distance)
-            .slice(0, 20) // Only process 20 nearest deposits
-            .map(item => item.deposit);
+        // Only recalculate deposit list periodically (not every frame)
+        if (now - this.lastDepositCacheTime >= this.DEPOSIT_CACHE_INTERVAL) {
+            this.updateDepositCache(mineralDeposits);
+            this.lastDepositCacheTime = now;
+        }
 
-        // Handle spawning for nearby deposits only
-        for (const deposit of nearbyDeposits) {
+        // Handle spawning for cached nearby deposits
+        for (const deposit of this.cachedDeposits) {
             this.updateSpawning(deposit, workers, currentTime);
         }
 
@@ -169,6 +177,54 @@ export class ParasiteManager {
         if (currentTime - this.lastPerformanceCheck >= this.PERFORMANCE_CHECK_INTERVAL) {
             this.checkAndOptimizePerformance();
             this.lastPerformanceCheck = currentTime;
+        }
+    }
+
+    /**
+     * Update cached camera target (called periodically, not every frame)
+     */
+    private updateCachedCameraTarget(): void {
+        // Cache GameEngine reference on first use
+        if (!this.gameEngine) {
+            this.gameEngine = GameEngine.getInstance();
+        }
+
+        const cameraController = this.gameEngine?.getCameraController();
+        const camera = cameraController?.getCamera();
+        const target = camera?.getTarget();
+
+        if (target) {
+            // Use copyFrom to avoid allocating new Vector3
+            this.cachedCameraTarget.copyFrom(target);
+        }
+    }
+
+    /**
+     * Update cached deposit list (called periodically, not every frame)
+     * Reuses arrays to avoid per-frame allocations
+     */
+    private updateDepositCache(mineralDeposits: MineralDeposit[]): void {
+        // Clear arrays by setting length to 0 (reuses existing allocation)
+        this.depositDistances.length = 0;
+
+        // Build distance list
+        for (const d of mineralDeposits) {
+            if (d.isVisible() && !d.isDepleted()) {
+                this.depositDistances.push({
+                    deposit: d,
+                    distance: Vector3.Distance(d.getPosition(), this.cachedCameraTarget)
+                });
+            }
+        }
+
+        // Sort in place (no new array)
+        this.depositDistances.sort((a, b) => a.distance - b.distance);
+
+        // Clear and rebuild cached deposits (reuses existing allocation)
+        this.cachedDeposits.length = 0;
+        const limit = Math.min(20, this.depositDistances.length);
+        for (let i = 0; i < limit; i++) {
+            this.cachedDeposits.push(this.depositDistances[i].deposit);
         }
     }
 

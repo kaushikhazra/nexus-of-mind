@@ -327,7 +327,7 @@ export class UnitManager {
     /**
      * Process command queue
      */
-    public async processCommands(): Promise<void> {
+    public processCommands(): void {
         if (this.commandQueue.length === 0) {
             return;
         }
@@ -347,7 +347,7 @@ export class UnitManager {
                 continue;
             }
 
-            const executed = await this.executeCommand(unit, command);
+            const executed = this.executeCommand(unit, command);
             if (executed) {
                 commandsToRemove.push(i);
                 this.commandsExecuted++;
@@ -363,15 +363,15 @@ export class UnitManager {
     /**
      * Execute a command on a unit
      */
-    private async executeCommand(unit: Unit, command: UnitCommand): Promise<boolean> {
+    private executeCommand(unit: Unit, command: UnitCommand): boolean {
         try {
             switch (command.commandType) {
                 case 'move':
                     if (command.targetPosition) {
                         // Use moveToLocation for Protectors to enable auto-attack during movement
                         if (unit instanceof Protector) {
-                            const success = await unit.moveToLocation(command.targetPosition);
-                            return success;
+                            unit.moveToLocation(command.targetPosition);
+                            return true;
                         } else {
                             // Use regular movement for other unit types
                             unit.startMovement(command.targetPosition);
@@ -389,7 +389,7 @@ export class UnitManager {
                         if (terrainGenerator) {
                             const target = terrainGenerator.getMineralDepositById(command.targetId);
                             if (target) {
-                                const success = await unit.startMining(target);
+                                unit.startMining(target);
                                 return true;
                             }
                         }
@@ -448,7 +448,7 @@ export class UnitManager {
     /**
      * Update all units
      */
-    public async update(deltaTime: number): Promise<void> {
+    public update(deltaTime: number): void {
         const gameEngine = GameEngine.getInstance();
         const spatialIndex = gameEngine?.getSpatialIndex();
 
@@ -465,7 +465,7 @@ export class UnitManager {
         }
 
         // Process command queue
-        await this.processCommands();
+        this.processCommands();
 
         // Update unit renderer
         this.unitRenderer.updateAllVisuals();

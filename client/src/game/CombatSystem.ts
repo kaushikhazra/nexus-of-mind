@@ -7,6 +7,7 @@
  */
 
 import { Vector3, Scene } from '@babylonjs/core';
+import { AdvancedDynamicTexture } from '@babylonjs/gui';
 import { Protector } from './entities/Protector';
 import { EnergyParasite } from './entities/EnergyParasite';
 import { EnergyManager } from './EnergyManager';
@@ -179,21 +180,30 @@ export class CombatSystem {
         autoAttackEnabled: true // Global auto-attack toggle
     };
 
-    constructor(energyManager: EnergyManager, scene?: Scene) {
+    constructor(energyManager: EnergyManager, scene?: Scene, sharedUI?: AdvancedDynamicTexture) {
         this.energyManager = energyManager;
         if (scene) {
             this.scene = scene;
-            this.combatEffects = new CombatEffects(scene);
+            this.combatEffects = new CombatEffects(scene, sharedUI);
         }
     }
 
     /**
      * Set scene for visual effects (can be called after construction)
      */
-    public setScene(scene: Scene): void {
+    public setScene(scene: Scene, sharedUI?: AdvancedDynamicTexture): void {
         this.scene = scene;
         if (!this.combatEffects) {
-            this.combatEffects = new CombatEffects(scene);
+            this.combatEffects = new CombatEffects(scene, sharedUI);
+        }
+    }
+
+    /**
+     * Set shared UI texture (for deferred initialization after UI is created)
+     */
+    public setSharedUI(sharedUI: AdvancedDynamicTexture): void {
+        if (this.combatEffects) {
+            this.combatEffects.setSharedUI(sharedUI);
         }
     }
 

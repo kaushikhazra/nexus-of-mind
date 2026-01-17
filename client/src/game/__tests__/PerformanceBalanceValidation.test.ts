@@ -9,7 +9,6 @@
 
 import { ParasiteType, PARASITE_STATS, TARGETING_BEHAVIORS } from '../types/ParasiteTypes';
 import { DistributionTracker } from '../types/DistributionTracker';
-import { PerformanceMonitor } from '../../utils/PerformanceMonitor';
 
 describe('Performance and Balance Validation - Task 10.2', () => {
   

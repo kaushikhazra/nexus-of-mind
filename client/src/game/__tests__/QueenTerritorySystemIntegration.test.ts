@@ -31,7 +31,6 @@ class MockGameEngine {
     private unitManager: UnitManager | null = null;
     private energyManager: EnergyManager | null = null;
     private gameState: GameState | null = null;
-    private performanceMonitor: any = null;
 
     public getTerritoryManager(): TerritoryManager | null {
         return this.territoryManager;
@@ -87,14 +86,6 @@ class MockGameEngine {
 
     public setGameState(state: GameState): void {
         this.gameState = state;
-    }
-
-    public getPerformanceMonitor(): any {
-        return this.performanceMonitor;
-    }
-
-    public setPerformanceMonitor(monitor: any): void {
-        this.performanceMonitor = monitor;
     }
 }
 

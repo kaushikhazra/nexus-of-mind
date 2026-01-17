@@ -402,16 +402,8 @@ export class DebugUI {
     private updatePerformanceStats(): void {
         if (!this.statsText) return;
 
-        const performanceMonitor = this.gameEngine.getPerformanceMonitor();
-
         let stats = '🎯 PERFORMANCE METRICS\n\n';
-
-        if (performanceMonitor) {
-            const summary = performanceMonitor.getPerformanceSummary();
-            stats += `FPS: ${summary.averageFPS.toFixed(1)} (${summary.minFPS.toFixed(1)}-${summary.maxFPS.toFixed(1)})\n`;
-            stats += `Current FPS: ${summary.currentFPS.toFixed(1)}\n`;
-            stats += `Performance: ${summary.isPerformingWell ? 'Good' : 'Degraded'}\n\n`;
-        }
+        stats += 'Press F to toggle FPS counter\n\n';
 
         const logStats = this.logger.getLogStatistics();
         stats += `📊 LOGGING STATISTICS\n`;

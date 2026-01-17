@@ -152,20 +152,14 @@ export class SystemIntegration {
      */
     private async establishPerformanceBaseline(): Promise<void> {
         integrationLogger.info('Establishing performance baseline');
-        
-        const performanceMonitor = this.gameEngine.getPerformanceMonitor();
-        if (performanceMonitor) {
-            // Wait a moment for stable readings
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            const summary = performanceMonitor.getPerformanceSummary();
-            this.performanceBaseline = {
-                fps: summary.averageFPS,
-                memory: 0 // Memory tracking not available in PerformanceMonitor
-            };
-            
-            integrationLogger.info('Performance baseline established', this.performanceBaseline);
-        }
+
+        // Use default baseline values (FPSCounter available via 'f' key for real-time monitoring)
+        this.performanceBaseline = {
+            fps: 60, // Target FPS
+            memory: 0
+        };
+
+        integrationLogger.info('Performance baseline established', this.performanceBaseline);
     }
 
     /**
@@ -521,7 +515,7 @@ export class SystemIntegration {
      * Get current memory usage
      */
     private getCurrentMemoryUsage(): number {
-        // Memory tracking not available in PerformanceMonitor
+        // Memory tracking not implemented
         return 0;
     }
 
