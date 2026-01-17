@@ -107,6 +107,13 @@ export class ParasiteManager {
     private cachedWorkerMap: Map<string, Worker> = new Map();
     private cachedProtectorMap: Map<string, Protector> = new Map();
 
+    // Cached arrays for updateParasites() (Fix 22 - zero allocation)
+    private cachedParasiteIds: string[] = [];
+    private cachedNearbyWorkers: Worker[] = [];
+    private cachedNearbyProtectors: Protector[] = [];
+    private cachedWorkerIds: string[] = [];
+    private cachedProtectorIds: string[] = [];
+
     constructor(config: ParasiteManagerConfig) {
         this.scene = config.scene;
         this.materialManager = config.materialManager;
@@ -297,6 +304,7 @@ export class ParasiteManager {
     /**
      * Update parasites near the camera using spatial index for O(1) chunk lookups
      * Only parasites within nearby chunks are updated - distant parasites are skipped
+     * Fix 22: Zero-allocation version - reuses cached arrays instead of creating new ones
      */
     private updateParasites(deltaTime: number, workers: Worker[], protectors: Protector[]): void {
         // Early exit if no parasites
@@ -325,23 +333,24 @@ export class ParasiteManager {
         }
 
         // Get parasites in nearby chunks using spatial index (3x3 chunk area = 192x192 units)
-        let parasiteIdsToUpdate: string[] = [];
-
+        // Fix 22: Use getEntitiesInRangeTo() which writes to cached array instead of creating new one
         if (spatialIndex) {
-            // Use spatial index to get parasites in chunks near camera
-            // Search radius covers ~3 chunks (192 units)
-            parasiteIdsToUpdate = spatialIndex.getEntitiesInRange(
+            spatialIndex.getEntitiesInRangeTo(
                 cameraTarget,
                 192, // 3 chunks radius
-                ['parasite', 'combat_parasite']
+                ['parasite', 'combat_parasite'],
+                this.cachedParasiteIds
             );
         } else {
             // Fallback: update all parasites if no spatial index
-            parasiteIdsToUpdate = Array.from(this.parasites.keys());
+            this.cachedParasiteIds.length = 0;
+            for (const key of this.parasites.keys()) {
+                this.cachedParasiteIds.push(key);
+            }
         }
 
         // Update only nearby parasites
-        for (const parasiteId of parasiteIdsToUpdate) {
+        for (const parasiteId of this.cachedParasiteIds) {
             const parasite = this.parasites.get(parasiteId);
 
             if (!parasite || !parasite.isAlive()) {
@@ -351,44 +360,55 @@ export class ParasiteManager {
             const parasitePosition = parasite.getTerritoryCenter();
             const searchRadius = parasite.getTerritoryRadius() * 1.5;
 
-            let nearbyWorkers: Worker[] = [];
-            let nearbyProtectors: Protector[] = [];
+            // Fix 22: Clear and reuse cached arrays instead of creating new ones
+            this.cachedNearbyWorkers.length = 0;
+            this.cachedNearbyProtectors.length = 0;
 
             // Use spatial index for O(1) lookups if available
             if (spatialIndex) {
-                // Get nearby worker IDs from spatial index
-                const workerIds = spatialIndex.getEntitiesInRange(parasitePosition, searchRadius, 'worker');
-                nearbyWorkers = workerIds
-                    .map(id => this.cachedWorkerMap.get(id))
-                    .filter((w): w is Worker => w !== undefined);
+                // Fix 22: Get nearby worker IDs into cached array, then populate workers with for-loop
+                spatialIndex.getEntitiesInRangeTo(parasitePosition, searchRadius, 'worker', this.cachedWorkerIds);
+                for (const id of this.cachedWorkerIds) {
+                    const worker = this.cachedWorkerMap.get(id);
+                    if (worker) {
+                        this.cachedNearbyWorkers.push(worker);
+                    }
+                }
 
-                // Get nearby protector IDs from spatial index
-                const protectorIds = spatialIndex.getEntitiesInRange(parasitePosition, searchRadius, 'protector');
-                nearbyProtectors = protectorIds
-                    .map(id => this.cachedProtectorMap.get(id))
-                    .filter((p): p is Protector => p !== undefined);
+                // Fix 22: Get nearby protector IDs into cached array, then populate protectors with for-loop
+                spatialIndex.getEntitiesInRangeTo(parasitePosition, searchRadius, 'protector', this.cachedProtectorIds);
+                for (const id of this.cachedProtectorIds) {
+                    const protector = this.cachedProtectorMap.get(id);
+                    if (protector) {
+                        this.cachedNearbyProtectors.push(protector);
+                    }
+                }
             } else {
                 // Fallback to O(n) filtering if spatial index not available
-                nearbyWorkers = workers.filter(worker => {
-                    const distance = Vector3.Distance(worker.getPosition(), parasitePosition);
-                    return distance <= searchRadius;
-                });
-                nearbyProtectors = protectors.filter(protector => {
-                    const distance = Vector3.Distance(protector.getPosition(), parasitePosition);
-                    return distance <= searchRadius;
-                });
+                for (const worker of workers) {
+                    const distance = Vector3.Distance(worker.getPositionRef(), parasitePosition);
+                    if (distance <= searchRadius) {
+                        this.cachedNearbyWorkers.push(worker);
+                    }
+                }
+                for (const protector of protectors) {
+                    const distance = Vector3.Distance(protector.getPositionRef(), parasitePosition);
+                    if (distance <= searchRadius) {
+                        this.cachedNearbyProtectors.push(protector);
+                    }
+                }
             }
 
-            // Update parasite with appropriate targets
+            // Update parasite with cached arrays
             if (parasite instanceof CombatParasite) {
-                parasite.update(deltaTime, nearbyWorkers, nearbyProtectors);
+                parasite.update(deltaTime, this.cachedNearbyWorkers, this.cachedNearbyProtectors);
             } else {
-                parasite.update(deltaTime, nearbyWorkers);
+                parasite.update(deltaTime, this.cachedNearbyWorkers);
             }
 
-            // Update spatial index with new position
+            // Update spatial index with new position - Fix 22: use getPositionRef() instead of getPosition()
             if (spatialIndex) {
-                spatialIndex.updatePosition(parasite.getId(), parasite.getPosition());
+                spatialIndex.updatePosition(parasite.getId(), parasite.getPositionRef());
             }
         }
     }

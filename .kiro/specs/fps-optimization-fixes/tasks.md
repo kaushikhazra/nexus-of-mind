@@ -646,6 +646,210 @@ Fix 11 performance issues: 3 memory leaks causing FPS decay over time, and 8 per
   - FPS during heavy load (rapid movement + 5 fights + 10 workers + 8 protectors): 45 FPS
   - _Requirements: 19.4, 19.5, 19.6_
 
+### Phase 2n: Memory Leak Prevention - Interval and Callback Cleanup
+
+- [x] 50. Fix MiningUI setInterval leak
+  - [x] 50.1 Store interval ID and clear on dispose
+    - File: `client/src/ui/MiningUI.ts`
+    - Added `updateIntervalId` property
+    - Store interval ID from `window.setInterval()`
+    - Clear interval in `dispose()` method
+    - _Requirements: 20.1_
+
+- [x] 51. Fix ProtectorCreationUI setInterval leak
+  - [x] 51.1 Store interval ID and clear on dispose
+    - File: `client/src/ui/ProtectorCreationUI.ts`
+    - Added `updateIntervalId` property
+    - Store interval ID from `window.setInterval()`
+    - Clear interval in `dispose()` method
+    - _Requirements: 20.2_
+
+- [x] 52. Fix DifficultyDisplayUI setInterval leak
+  - [x] 52.1 Store compact display interval ID and clear on destroy
+    - File: `client/src/ui/DifficultyDisplayUI.ts`
+    - Added `compactUpdateInterval` property
+    - Store interval ID in `createCompactDisplay()`
+    - Clear interval in `destroy()` method
+    - _Requirements: 20.3_
+
+- [x] 53. Fix CameraController callback leaks
+  - [x] 53.1 Store and cleanup registerBeforeRender callback
+    - File: `client/src/rendering/CameraController.ts`
+    - Added `renderObserver` property
+    - Store callback reference
+    - Call `unregisterBeforeRender()` in `dispose()`
+    - _Requirements: 20.4_
+
+  - [x] 53.2 Store and cleanup keyboard event listeners
+    - File: `client/src/rendering/CameraController.ts`
+    - Added `keydownHandler` and `keyupHandler` properties
+    - Store handler references (not anonymous functions)
+    - Call `removeEventListener()` in `dispose()`
+    - _Requirements: 20.5_
+
+- [ ] 54. Checkpoint - Memory leaks fixed
+  - Verify no FPS degradation during extended sessions (30+ minutes)
+  - Verify intervals are cleared when components disposed
+  - Verify no accumulating callbacks on scene reinit
+  - _Requirements: 20.6, 20.7, 20.8_
+
+### Phase 2o: Parasite Segment Animation Allocation Fixes
+
+- [ ] 55. Fix Parasite.updateSegmentAnimation() per-frame allocations
+  - [ ] 55.1 Add cached worldOffset Vector3 as class member
+    - File: `client/src/game/entities/Parasite.ts`
+    - Add `protected cachedWorldOffset: Vector3 = new Vector3()`
+    - _Requirements: 21.9_
+
+  - [ ] 55.2 Fix head segment allocation (i === 0 branch)
+    - File: `client/src/game/entities/Parasite.ts`
+    - Change `this.segments[i].position = Vector3.Zero()` to `this.segments[i].position.set(0, 0, 0)`
+    - Change `this.segmentPositions[i] = this.position.clone()` to `this.segmentPositions[i].copyFrom(this.position)`
+    - _Requirements: 21.1, 21.2, 21.6, 21.7_
+
+  - [ ] 55.3 Fix body segment position allocation (else branch)
+    - File: `client/src/game/entities/Parasite.ts`
+    - Change `this.segments[i].position = new Vector3(0, 0, -i * trailingDistance)` to `this.segments[i].position.set(0, 0, -i * trailingDistance)`
+    - _Requirements: 21.3, 21.6_
+
+  - [ ] 55.4 Fix worldOffset allocation
+    - File: `client/src/game/entities/Parasite.ts`
+    - Change `const worldOffset = new Vector3(...)` to `this.cachedWorldOffset.set(...)`
+    - _Requirements: 21.4, 21.9_
+
+  - [ ] 55.5 Fix position.add() allocation
+    - File: `client/src/game/entities/Parasite.ts`
+    - Change `this.segmentPositions[i] = this.position.add(worldOffset)` to `this.position.addToRef(this.cachedWorldOffset, this.segmentPositions[i])`
+    - _Requirements: 21.5, 21.8_
+
+- [ ] 56. Checkpoint - Parasite animation allocations fixed
+  - Verify FPS above 50 with 5+ parasites chasing at ground-level camera
+  - Verify no Vector3 allocations in updateSegmentAnimation()
+  - _Requirements: 21.10, 21.11_
+
+### Phase 2p: ParasiteManager updateParasites Allocation Fixes
+
+- [ ] 57. Add getPositionRef() to Parasite base class
+  - [ ] 57.1 Add getPositionRef() method to Parasite.ts
+    - File: `client/src/game/entities/Parasite.ts`
+    - Add `public getPositionRef(): Vector3 { return this.position; }`
+    - Returns reference instead of clone
+    - _Requirements: 22.5_
+
+- [ ] 58. Add getEntitiesInRangeTo() to SpatialIndex
+  - [ ] 58.1 Add zero-allocation query method to SpatialIndex
+    - File: `client/src/game/SpatialIndex.ts`
+    - Add `getEntitiesInRangeTo(position, radius, entityTypes, outArray)` method
+    - Writes results to provided array instead of creating new one
+    - _Requirements: 22.4, 22.6_
+
+- [ ] 59. Fix ParasiteManager.updateParasites() per-frame allocations
+  - [ ] 59.1 Add cached arrays as class members
+    - File: `client/src/game/ParasiteManager.ts`
+    - Add `cachedParasiteIds: string[] = []`
+    - Add `cachedNearbyWorkers: Worker[] = []`
+    - Add `cachedNearbyProtectors: Protector[] = []`
+    - Add `cachedWorkerIds: string[] = []`
+    - Add `cachedProtectorIds: string[] = []`
+    - _Requirements: 22.4_
+
+  - [ ] 59.2 Replace getEntitiesInRange() with getEntitiesInRangeTo()
+    - File: `client/src/game/ParasiteManager.ts`
+    - Change `parasiteIdsToUpdate = spatialIndex.getEntitiesInRange(...)` to use cached array
+    - Change worker/protector queries to use cached arrays
+    - _Requirements: 22.1, 22.6_
+
+  - [ ] 59.3 Replace .map()/.filter() chains with for-loops
+    - File: `client/src/game/ParasiteManager.ts`
+    - Replace `workerIds.map(...).filter(...)` with for-loop populating cached array
+    - Replace `protectorIds.map(...).filter(...)` with for-loop populating cached array
+    - _Requirements: 22.1, 22.2, 22.7_
+
+  - [ ] 59.4 Replace getPosition() with getPositionRef() for spatial updates
+    - File: `client/src/game/ParasiteManager.ts`
+    - Change `spatialIndex.updatePosition(id, parasite.getPosition())` to `spatialIndex.updatePosition(id, parasite.getPositionRef())`
+    - _Requirements: 22.3, 22.5_
+
+- [ ] 60. Checkpoint - ParasiteManager allocations fixed
+  - Verify FPS above 50 with 10+ parasites chasing spread-out units
+  - Verify no array allocations in updateParasites() loop
+  - Verify FPS scales efficiently regardless of spread distance
+  - _Requirements: 22.8, 22.9, 22.10_
+
+### Phase 2q: Tree Glow Animation GPU Optimization
+
+- [ ] 61. Create ShaderMaterial for glow animation
+  - [ ] 61.1 Create vertex shader with instance support
+    - File: `client/src/rendering/TreeRenderer.ts`
+    - Add vertex shader that reads instanceData attribute (x,y,z,phase)
+    - Calculate pulse based on time uniform and per-instance phase
+    - Apply pulse scaling to vertex position
+    - _Requirements: 23.4, 23.5, 23.6_
+
+  - [ ] 61.2 Create fragment shader with emissive glow
+    - File: `client/src/rendering/TreeRenderer.ts`
+    - Add fragment shader that uses glowColor uniform
+    - Apply pulsing intensity based on vertex pulse value
+    - _Requirements: 23.4_
+
+  - [ ] 61.3 Initialize ShaderMaterial in TreeRenderer
+    - File: `client/src/rendering/TreeRenderer.ts`
+    - Create ShaderMaterial with vertex/fragment sources
+    - Define attributes: position, normal, instanceData
+    - Define uniforms: viewProjection, time, glowColor
+    - _Requirements: 23.4, 23.5_
+
+- [ ] 62. Implement thin instances for glow spots
+  - [ ] 62.1 Create base mesh for instancing
+    - File: `client/src/rendering/TreeRenderer.ts`
+    - Create single low-poly sphere mesh
+    - Apply glow ShaderMaterial
+    - Set isVisible = false (instances render, not base)
+    - _Requirements: 23.3, 23.9_
+
+  - [ ] 62.2 Create instance buffer management
+    - File: `client/src/rendering/TreeRenderer.ts`
+    - Add Float32Array for instance data
+    - Track total glow spot count
+    - Method to rebuild buffer when trees added/removed
+    - _Requirements: 23.3, 23.9_
+
+  - [ ] 62.3 Update createTree() to register instances
+    - File: `client/src/rendering/TreeRenderer.ts`
+    - Instead of creating individual meshes, add to instance buffer
+    - Store world position + phase offset per spot
+    - _Requirements: 23.3_
+
+  - [ ] 62.4 Update removeTree() to handle instances
+    - File: `client/src/rendering/TreeRenderer.ts`
+    - Remove spots from instance buffer
+    - Rebuild thin instances when trees removed
+    - _Requirements: 23.3_
+
+- [ ] 63. Refactor updateAnimations() to O(1)
+  - [ ] 63.1 Replace mesh iteration with single uniform update
+    - File: `client/src/rendering/TreeRenderer.ts`
+    - Remove the for-loop over all trees/spots
+    - Single call: `this.glowShaderMaterial.setFloat('time', ...)`
+    - _Requirements: 23.1, 23.2, 23.7, 23.10_
+
+- [ ] 64. Update TerrainGenerator integration
+  - [ ] 64.1 Update tree creation flow
+    - File: `client/src/rendering/TerrainGenerator.ts`
+    - Ensure createTreesForChunk() works with new instancing system
+    - _Requirements: 23.3_
+
+  - [ ] 64.2 Update tree removal flow
+    - File: `client/src/rendering/TerrainGenerator.ts`
+    - Ensure chunk unload properly removes tree instances
+    - _Requirements: 23.3_
+
+- [ ] 65. Checkpoint - Tree GPU optimization complete
+  - Verify FPS above 55 at ground level with 400+ trees
+  - Verify single draw call for all glow spots
+  - Verify updateAnimations() only updates time uniform
+  - _Requirements: 23.7, 23.8, 23.9, 23.10_
+
 ### Phase 3: Validation
 
 - [ ] 12. Performance validation
@@ -697,14 +901,19 @@ Fix 11 performance issues: 3 memory leaks causing FPS decay over time, and 8 per
 | `client/src/game/TerritoryManager.ts` | Remove TerritoryPerformanceMonitor references |
 | `client/src/game/UnitManager.ts` | Sync update method, typed unit arrays for zero-allocation getUnitsByType() |
 | `client/src/game/GameState.ts` | Maintain mineralDepositsArray for zero-allocation getAllMineralDeposits() |
-| `client/src/game/ParasiteManager.ts` | Array caching, singleton caching |
+| `client/src/game/ParasiteManager.ts` | Array caching, singleton caching, Fix 22: zero-allocation updateParasites() |
+| `client/src/game/SpatialIndex.ts` | Fix 22: Add getEntitiesInRangeTo() method |
 | `client/src/game/CombatSystem.ts` | Pass shared UI to CombatEffects |
 | `client/src/ui/DebugUI.ts` | Remove PerformanceMonitor usage |
 | `client/src/game/SystemIntegration.ts` | Remove PerformanceMonitor usage |
-| `client/src/rendering/TreeRenderer.ts` | Eliminate Vector3 allocations in updateAnimations() |
-| `client/src/rendering/CameraController.ts` | Cache movement vectors for keyboard controls |
+| `client/src/rendering/TreeRenderer.ts` | Fix 23: ShaderMaterial + thin instances for GPU-based glow animation |
+| `client/src/rendering/CameraController.ts` | Cache movement vectors, Fix 20: cleanup registerBeforeRender + event listeners |
 | `client/src/rendering/UnitRenderer.ts` | Cache colors, use scaling.set(), use copyFrom() for positions |
 | `client/src/world/MineralDeposit.ts` | Use scaling.set(), add getPositionRef(), direct color assignment |
 | `client/src/game/entities/Unit.ts` | Add getPositionRef() for zero-allocation access |
 | `client/src/game/actions/MiningAction.ts` | Use copyFrom(), use getPositionRef() |
+| `client/src/game/entities/Parasite.ts` | Fix 21: Cache worldOffset, use set()/copyFrom()/addToRef(); Fix 22: add getPositionRef() |
 | `client/src/ui/MiningAnalysisTooltip.ts` | Fix 19: Fix wrong enum (4→POINTERDOWN), right-click only, hide on left-click |
+| `client/src/ui/MiningUI.ts` | Fix 20: Store and clear setInterval on dispose |
+| `client/src/ui/ProtectorCreationUI.ts` | Fix 20: Store and clear setInterval on dispose |
+| `client/src/ui/DifficultyDisplayUI.ts` | Fix 20: Store and clear compact display interval on destroy |

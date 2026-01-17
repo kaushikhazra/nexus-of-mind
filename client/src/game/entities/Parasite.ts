@@ -94,6 +94,9 @@ export abstract class Parasite implements CombatTarget {
     // Lifecycle
     protected spawnTime: number;
 
+    // Cached vector for zero-allocation segment animation (Fix 21)
+    protected cachedWorldOffset: Vector3 = new Vector3();
+
     constructor(config: ParasiteConfig) {
         this.id = `parasite_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         this.position = config.position.clone();
@@ -340,6 +343,7 @@ export abstract class Parasite implements CombatTarget {
      * Update segment positions with wave/contraction animation
      * This creates the worm-like movement effect shared by all parasites
      * Note: parentNode rotation handles facing direction, segments only need local positioning
+     * Fix 21: Zero-allocation version - uses set()/copyFrom()/addToRef() instead of creating new Vector3
      */
     protected updateSegmentAnimation(): void {
         if (!this.segments || this.segments.length === 0 || !this.parentNode) return;
@@ -351,11 +355,13 @@ export abstract class Parasite implements CombatTarget {
         for (let i = 0; i < this.segments.length; i++) {
             if (i === 0) {
                 // Head segment at origin (relative to parent)
-                this.segments[i].position = Vector3.Zero();
+                // Fix 21: Use set() instead of Vector3.Zero() to avoid allocation
+                this.segments[i].position.set(0, 0, 0);
                 // Only set X rotation for torus orientation - Y rotation inherited from parent
                 this.segments[i].rotation.x = Math.PI / 2;
                 this.segments[i].rotation.y = 0;
-                this.segmentPositions[i] = this.position.clone();
+                // Fix 21: Use copyFrom() instead of clone() to avoid allocation
+                this.segmentPositions[i].copyFrom(this.position);
             } else {
                 // Body segments trail behind along local -Z axis (parent handles world rotation)
 
@@ -376,19 +382,21 @@ export abstract class Parasite implements CombatTarget {
                 const trailingDistance = baseSpacing * inertiaMultiplier * squeezeMultiplier;
 
                 // Trail along local -Z axis (parentNode rotation handles world facing)
-                // Each segment is positioned behind the previous one in local space
-                this.segments[i].position = new Vector3(0, 0, -i * trailingDistance);
+                // Fix 21: Use set() instead of new Vector3() to avoid allocation
+                this.segments[i].position.set(0, 0, -i * trailingDistance);
                 this.segments[i].rotation.x = Math.PI / 2;
                 this.segments[i].rotation.y = 0;
 
                 // Track world position for other systems
+                // Fix 21: Use cached worldOffset and set() instead of new Vector3()
                 const worldRotation = this.parentNode.rotation.y;
-                const worldOffset = new Vector3(
+                this.cachedWorldOffset.set(
                     -Math.sin(worldRotation) * i * trailingDistance,
                     0,
                     -Math.cos(worldRotation) * i * trailingDistance
                 );
-                this.segmentPositions[i] = this.position.add(worldOffset);
+                // Fix 21: Use addToRef() instead of add() to avoid allocation
+                this.position.addToRef(this.cachedWorldOffset, this.segmentPositions[i]);
             }
         }
     }
@@ -622,6 +630,8 @@ export abstract class Parasite implements CombatTarget {
 
     public getId(): string { return this.id; }
     public getPosition(): Vector3 { return this.position.clone(); }
+    /** Returns position reference without cloning (Fix 22 - zero allocation) */
+    public getPositionRef(): Vector3 { return this.position; }
     public getState(): ParasiteState { return this.state; }
     public getHealth(): number { return this.health; }
     public getMaxHealth(): number { return this.maxHealth; }

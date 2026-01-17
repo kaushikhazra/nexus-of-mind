@@ -15,6 +15,7 @@ export class MineralReserveUI {
     private container: HTMLElement | null = null;
     private reservePanel: HTMLElement | null = null;
     private energyManager: EnergyManager;
+    private updateIntervalId: number | null = null; // Fix: Track interval for cleanup
 
     constructor(config: MineralReserveUIConfig) {
         this.config = config;
@@ -109,8 +110,8 @@ export class MineralReserveUI {
      * Setup update timer for mineral display
      */
     private setupUpdateTimer(): void {
-        // Update every 500ms for responsive feel
-        setInterval(() => {
+        // Fix: Store interval ID for cleanup
+        this.updateIntervalId = window.setInterval(() => {
             this.updateMineralDisplay();
         }, 500);
 
@@ -143,6 +144,12 @@ export class MineralReserveUI {
      * Dispose mineral reserve UI and cleanup resources
      */
     public dispose(): void {
+        // Fix: Clear interval to prevent memory leak
+        if (this.updateIntervalId !== null) {
+            clearInterval(this.updateIntervalId);
+            this.updateIntervalId = null;
+        }
+
         if (this.container) {
             this.container.remove();
             this.container = null;

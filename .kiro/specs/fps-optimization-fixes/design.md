@@ -1518,6 +1518,610 @@ this.pointerObserver = this.scene.onPointerObservable.add((pointerInfo) => {
 
 **Impact:** Eliminates scene.pick() on mouse movement from MiningAnalysisTooltip. Combined with GameEngine fix, completely removes scene.pick() from mouse move events.
 
+---
+
+### Fix 20: Memory Leak Prevention - Interval and Callback Cleanup
+
+**Problem:** During extended gameplay sessions with increasing difficulty (longer games), FPS degrades from 45 to 35 over time. Investigation revealed multiple memory leaks:
+
+1. **setInterval without clearInterval** - Intervals created but never cleaned up on dispose
+2. **registerBeforeRender without unregister** - Render callbacks accumulate
+3. **addEventListener without removeEventListener** - Event handlers accumulate
+
+```typescript
+// BEFORE - MiningUI.ts (LEAK!)
+private setupUpdateTimer(): void {
+    setInterval(() => {  // No ID stored!
+        this.updateMineralDisplay();
+    }, 500);
+}
+public dispose(): void {
+    // Interval keeps running forever!
+}
+
+// BEFORE - CameraController.ts (LEAK!)
+private setupCustomKeyboardControls(): void {
+    window.addEventListener('keydown', (event) => { ... });  // Anonymous, can't remove!
+    this.scene.registerBeforeRender(() => { ... });  // Never unregistered!
+}
+public dispose(): void {
+    // Callbacks keep firing forever!
+}
+```
+
+**Solution:** Store all interval IDs and callback references, clean them up on dispose.
+
+```typescript
+// AFTER - MiningUI.ts
+private updateIntervalId: number | null = null;
+
+private setupUpdateTimer(): void {
+    this.updateIntervalId = window.setInterval(() => {
+        this.updateMineralDisplay();
+    }, 500);
+}
+
+public dispose(): void {
+    if (this.updateIntervalId !== null) {
+        clearInterval(this.updateIntervalId);
+        this.updateIntervalId = null;
+    }
+}
+
+// AFTER - CameraController.ts
+private renderObserver: (() => void) | null = null;
+private keydownHandler: ((event: KeyboardEvent) => void) | null = null;
+private keyupHandler: ((event: KeyboardEvent) => void) | null = null;
+
+private setupCustomKeyboardControls(): void {
+    this.keydownHandler = (event) => { ... };
+    this.keyupHandler = (event) => { ... };
+    window.addEventListener('keydown', this.keydownHandler);
+    window.addEventListener('keyup', this.keyupHandler);
+
+    this.renderObserver = () => { ... };
+    this.scene.registerBeforeRender(this.renderObserver);
+}
+
+public dispose(): void {
+    if (this.renderObserver) {
+        this.scene.unregisterBeforeRender(this.renderObserver);
+        this.renderObserver = null;
+    }
+    if (this.keydownHandler) {
+        window.removeEventListener('keydown', this.keydownHandler);
+        this.keydownHandler = null;
+    }
+    if (this.keyupHandler) {
+        window.removeEventListener('keyup', this.keyupHandler);
+        this.keyupHandler = null;
+    }
+}
+```
+
+**Files Fixed:**
+- `MiningUI.ts` - setInterval cleanup
+- `ProtectorCreationUI.ts` - setInterval cleanup
+- `DifficultyDisplayUI.ts` - setInterval cleanup (compact display)
+- `CameraController.ts` - registerBeforeRender + addEventListener cleanup
+
+**Impact:** Prevents FPS degradation during extended gameplay sessions. Intervals and callbacks are properly cleaned up when components are disposed/recreated.
+
+---
+
+### Fix 21: Parasite Segment Animation Per-Frame Allocation Elimination
+
+**Problem:** During parasite-unit interactions (chasing, feeding), FPS drops significantly at ground-level camera angles. Investigation revealed that `Parasite.updateSegmentAnimation()` creates ~18 Vector3 objects per parasite per frame.
+
+**Observation:** User reported FPS drops when:
+1. Parasites are actively chasing workers (not during idle patrol)
+2. Camera is at ground-level angle (not top-down)
+3. FPS recovers when camera returns to top-down view
+
+**Root Cause Analysis:**
+
+The `updateSegmentAnimation()` method (lines 344-394) creates new Vector3 objects every frame:
+
+```typescript
+// BEFORE - Parasite.ts updateSegmentAnimation() - CURRENT CODE WITH ALLOCATIONS
+protected updateSegmentAnimation(): void {
+    for (let i = 0; i < this.segments.length; i++) {
+        if (i === 0) {
+            this.segments[i].position = Vector3.Zero();           // NEW Vector3 every frame!
+            this.segmentPositions[i] = this.position.clone();     // NEW Vector3 every frame!
+        } else {
+            this.segments[i].position = new Vector3(0, 0, -i * trailingDistance);  // NEW Vector3!
+
+            const worldOffset = new Vector3(                      // NEW Vector3 per segment!
+                -Math.sin(worldRotation) * i * trailingDistance,
+                0,
+                -Math.cos(worldRotation) * i * trailingDistance
+            );
+            this.segmentPositions[i] = this.position.add(worldOffset);  // add() creates NEW Vector3!
+        }
+    }
+}
+```
+
+**Allocation Count Per Parasite Per Frame:**
+| Source | Allocations |
+|--------|-------------|
+| `Vector3.Zero()` | 1 |
+| `position.clone()` | 1 |
+| `new Vector3()` for segment positions | segments-1 (~5) |
+| `new Vector3()` for worldOffset | segments-1 (~5) |
+| `position.add()` returns new Vector3 | segments-1 (~5) |
+| **Total per 6-segment parasite** | **~17-18** |
+
+**Impact at Scale:**
+- 5 parasites × 18 allocations × 60 FPS = **5,400 Vector3 allocations/second**
+- Combined with ground-level rendering (more meshes in frustum) = compounding FPS drop
+
+**Solution:** Cache a reusable Vector3 and use mutation methods.
+
+```typescript
+// AFTER - Parasite.ts - Zero allocation segment animation
+
+// Add cached vector as class member
+protected cachedWorldOffset: Vector3 = new Vector3();
+
+protected updateSegmentAnimation(): void {
+    if (!this.segments || this.segments.length === 0 || !this.parentNode) return;
+
+    const time = Date.now() * 0.002;
+    const waveSpeed = this.getWaveSpeed();
+    const baseSpacing = this.getSegmentSpacing();
+
+    for (let i = 0; i < this.segments.length; i++) {
+        if (i === 0) {
+            // Head segment - mutate existing position, don't create new
+            this.segments[i].position.set(0, 0, 0);               // Mutate, no allocation
+            this.segments[i].rotation.x = Math.PI / 2;
+            this.segments[i].rotation.y = 0;
+            this.segmentPositions[i].copyFrom(this.position);     // Mutate, no allocation
+        } else {
+            // Body segments - calculate trailing distance
+            const maxSpeed = 3.0;
+            const speedRatio = Math.min(this.speed / maxSpeed, 1.0);
+            const inertiaMultiplier = 1.0 + (speedRatio * 0.5);
+
+            const segmentCount = this.getSegmentCount();
+            const wiggleScale = Math.min(2.0, 12 / segmentCount);
+            const baseWiggle = 0.0375;
+            const segmentPhase = i * 0.8;
+            const squeezeWave = Math.sin(time * waveSpeed + segmentPhase) * baseWiggle * wiggleScale;
+            const squeezeMultiplier = 1.0 + squeezeWave;
+
+            const trailingDistance = baseSpacing * inertiaMultiplier * squeezeMultiplier;
+
+            // Mutate existing position vector instead of creating new
+            this.segments[i].position.set(0, 0, -i * trailingDistance);  // No allocation
+            this.segments[i].rotation.x = Math.PI / 2;
+            this.segments[i].rotation.y = 0;
+
+            // Reuse cached worldOffset vector
+            const worldRotation = this.parentNode.rotation.y;
+            this.cachedWorldOffset.set(                           // Mutate cached, no allocation
+                -Math.sin(worldRotation) * i * trailingDistance,
+                0,
+                -Math.cos(worldRotation) * i * trailingDistance
+            );
+
+            // Use addToRef() instead of add() - writes result to existing vector
+            this.position.addToRef(this.cachedWorldOffset, this.segmentPositions[i]);  // No allocation
+        }
+    }
+}
+```
+
+**Key Changes:**
+| Before | After | Savings |
+|--------|-------|---------|
+| `Vector3.Zero()` | `position.set(0, 0, 0)` | 1 allocation |
+| `position.clone()` | `copyFrom(this.position)` | 1 allocation |
+| `new Vector3(...)` | `position.set(...)` | 5 allocations |
+| `new Vector3()` for offset | `cachedWorldOffset.set(...)` | 5 allocations |
+| `position.add()` | `addToRef()` | 5 allocations |
+
+**Impact:**
+- Before: ~18 Vector3 allocations per parasite per frame
+- After: 0 Vector3 allocations per parasite per frame
+- Expected FPS improvement: +15-25 FPS during parasite combat at ground-level view
+
+---
+
+### Fix 22: ParasiteManager updateParasites Per-Frame Allocation Elimination
+
+**Problem:** FPS drops significantly when units spread out across the map and parasites are actively chasing them. The drop scales with spread distance - more spread = worse FPS. Camera angle also affects it (ground-level worse than top-down).
+
+**Observation:** User reported:
+1. Idle game (no units) = FPS fine
+2. Units dropped, parasites chasing = FPS drops
+3. Units spread out (fleeing, expanding territory) = FPS drops more
+4. Interaction stops = FPS recovers
+5. Camera fixed, still drops during interaction
+
+**Root Cause Analysis:**
+
+The `updateParasites()` method (lines 301-394) creates massive allocations inside the per-parasite loop:
+
+```typescript
+// BEFORE - ParasiteManager.ts updateParasites() - CURRENT CODE WITH ALLOCATIONS
+private updateParasites(deltaTime: number, workers: Worker[], protectors: Protector[]): void {
+    // This creates a new array every frame
+    let parasiteIdsToUpdate: string[] = [];
+    parasiteIdsToUpdate = spatialIndex.getEntitiesInRange(...);  // NEW array!
+
+    for (const parasiteId of parasiteIdsToUpdate) {
+        // For EACH parasite, EVERY FRAME - 6+ array allocations:
+
+        const workerIds = spatialIndex.getEntitiesInRange(...);     // NEW array
+        nearbyWorkers = workerIds
+            .map(id => this.cachedWorkerMap.get(id))                // NEW array
+            .filter((w): w is Worker => w !== undefined);           // NEW array
+
+        const protectorIds = spatialIndex.getEntitiesInRange(...);  // NEW array
+        nearbyProtectors = protectorIds
+            .map(id => this.cachedProtectorMap.get(id))             // NEW array
+            .filter((p): p is Protector => p !== undefined);        // NEW array
+
+        // Plus Vector3 allocation:
+        spatialIndex.updatePosition(parasite.getId(), parasite.getPosition());  // getPosition() = NEW Vector3!
+    }
+}
+```
+
+**Allocation Count Per Frame During Interaction:**
+| Source | Per Parasite | With 10 Parasites |
+|--------|--------------|-------------------|
+| `getEntitiesInRange` (workers) | 1 array | 10 arrays |
+| `.map()` workers | 1 array | 10 arrays |
+| `.filter()` workers | 1 array | 10 arrays |
+| `getEntitiesInRange` (protectors) | 1 array | 10 arrays |
+| `.map()` protectors | 1 array | 10 arrays |
+| `.filter()` protectors | 1 array | 10 arrays |
+| `getPosition()` for spatial update | 1 Vector3 | 10 Vector3 |
+| **Total** | **7 objects** | **70 objects/frame** |
+
+**Why Spread Makes It Worse:**
+- More spread → more parasites actively chasing across larger area
+- More parasites in camera's 192-unit update range → more loop iterations
+- More iterations → more allocations → GC pressure → FPS drop
+- Scales linearly with number of active parasites
+
+**Solution:** Cache and reuse arrays, eliminate .map()/.filter() chains, use getPositionRef().
+
+```typescript
+// AFTER - ParasiteManager.ts - Zero allocation updateParasites()
+
+// Add cached arrays as class members
+private cachedParasiteIds: string[] = [];
+private cachedNearbyWorkers: Worker[] = [];
+private cachedNearbyProtectors: Protector[] = [];
+private cachedWorkerIds: string[] = [];
+private cachedProtectorIds: string[] = [];
+
+private updateParasites(deltaTime: number, workers: Worker[], protectors: Protector[]): void {
+    if (this.parasites.size === 0) return;
+
+    const gameEngine = GameEngine.getInstance();
+    const spatialIndex = gameEngine?.getSpatialIndex();
+    const cameraController = gameEngine?.getCameraController();
+    const cameraTarget = cameraController?.getCamera()?.getTarget();
+    if (!cameraTarget) return;
+
+    // Build ID->Object maps (reuse cached Maps - already done in Fix 12)
+    this.cachedWorkerMap.clear();
+    for (const worker of workers) {
+        this.cachedWorkerMap.set(worker.getId(), worker);
+    }
+    this.cachedProtectorMap.clear();
+    for (const protector of protectors) {
+        this.cachedProtectorMap.set(protector.getId(), protector);
+    }
+
+    // Get parasites to update - reuse cached array
+    this.cachedParasiteIds.length = 0;
+    if (spatialIndex) {
+        // Use a method that writes to existing array instead of returning new one
+        spatialIndex.getEntitiesInRangeTo(cameraTarget, 192, ['parasite', 'combat_parasite'], this.cachedParasiteIds);
+    } else {
+        for (const key of this.parasites.keys()) {
+            this.cachedParasiteIds.push(key);
+        }
+    }
+
+    // Update only nearby parasites
+    for (const parasiteId of this.cachedParasiteIds) {
+        const parasite = this.parasites.get(parasiteId);
+        if (!parasite || !parasite.isAlive()) continue;
+
+        const parasitePosition = parasite.getTerritoryCenter();
+        const searchRadius = parasite.getTerritoryRadius() * 1.5;
+
+        // Clear and reuse cached arrays instead of creating new ones
+        this.cachedNearbyWorkers.length = 0;
+        this.cachedNearbyProtectors.length = 0;
+
+        if (spatialIndex) {
+            // Get worker IDs into cached array
+            this.cachedWorkerIds.length = 0;
+            spatialIndex.getEntitiesInRangeTo(parasitePosition, searchRadius, 'worker', this.cachedWorkerIds);
+
+            // Populate workers without .map()/.filter()
+            for (const id of this.cachedWorkerIds) {
+                const worker = this.cachedWorkerMap.get(id);
+                if (worker) {
+                    this.cachedNearbyWorkers.push(worker);
+                }
+            }
+
+            // Get protector IDs into cached array
+            this.cachedProtectorIds.length = 0;
+            spatialIndex.getEntitiesInRangeTo(parasitePosition, searchRadius, 'protector', this.cachedProtectorIds);
+
+            // Populate protectors without .map()/.filter()
+            for (const id of this.cachedProtectorIds) {
+                const protector = this.cachedProtectorMap.get(id);
+                if (protector) {
+                    this.cachedNearbyProtectors.push(protector);
+                }
+            }
+        } else {
+            // Fallback - still avoid allocations
+            for (const worker of workers) {
+                const distance = Vector3.Distance(worker.getPositionRef(), parasitePosition);
+                if (distance <= searchRadius) {
+                    this.cachedNearbyWorkers.push(worker);
+                }
+            }
+            for (const protector of protectors) {
+                const distance = Vector3.Distance(protector.getPositionRef(), parasitePosition);
+                if (distance <= searchRadius) {
+                    this.cachedNearbyProtectors.push(protector);
+                }
+            }
+        }
+
+        // Update parasite with cached arrays
+        if (parasite instanceof CombatParasite) {
+            parasite.update(deltaTime, this.cachedNearbyWorkers, this.cachedNearbyProtectors);
+        } else {
+            parasite.update(deltaTime, this.cachedNearbyWorkers);
+        }
+
+        // Update spatial index using getPositionRef() - no allocation
+        if (spatialIndex) {
+            spatialIndex.updatePosition(parasite.getId(), parasite.getPositionRef());
+        }
+    }
+}
+```
+
+**Additional Changes Required:**
+
+1. **SpatialIndex.getEntitiesInRangeTo()** - Add new method that writes to existing array:
+```typescript
+// SpatialIndex.ts - Add new method
+public getEntitiesInRangeTo(
+    position: Vector3,
+    radius: number,
+    entityTypes: string | string[],
+    outArray: string[]
+): void {
+    // Same logic as getEntitiesInRange but push to outArray instead of creating new
+}
+```
+
+2. **Parasite.getPositionRef()** - Add method to return position reference:
+```typescript
+// Parasite.ts - Add method
+public getPositionRef(): Vector3 {
+    return this.position;  // Return reference, not clone
+}
+```
+
+**Key Changes:**
+| Before | After | Savings per parasite |
+|--------|-------|---------------------|
+| `getEntitiesInRange()` returns new array | `getEntitiesInRangeTo()` writes to cached | 2 arrays |
+| `.map()` creates new array | for-loop with push | 2 arrays |
+| `.filter()` creates new array | if-check in loop | 2 arrays |
+| `getPosition()` clones | `getPositionRef()` returns ref | 1 Vector3 |
+
+**Impact:**
+- Before: ~7 object allocations per parasite per frame (70 with 10 parasites)
+- After: 0 allocations per frame regardless of parasite count
+- Expected FPS improvement: +20-30 FPS during spread-out combat scenarios
+- Scales efficiently: performance no longer degrades with spread distance
+
+---
+
+### Fix 23: Tree Glow Animation GPU Optimization
+
+**Problem:** FPS drops at ground-level camera with many trees visible. The `updateAnimations()` method iterates over ALL trees (~392) and ALL glow spots (~3,920 meshes) every frame in JavaScript, updating scaling properties.
+
+**Current Implementation (CPU-bound):**
+```typescript
+// TreeRenderer.ts - BEFORE: O(n×m) CPU work per frame
+public updateAnimations(): void {
+    const time = performance.now() / 1000;
+
+    for (const [treeId, treeVisual] of this.treeVisuals) {  // ~392 trees
+        for (let i = 0; i < treeVisual.glowSpots.length; i++) {  // 8-12 spots each
+            const spot = treeVisual.glowSpots[i];
+            const offset = i * 0.3;
+            const pulse = Math.sin(time * 1.5 + offset) * 0.15 + 0.85;
+            spot.scaling.set(pulse, pulse, pulse);  // ~3,920 property updates
+        }
+    }
+}
+```
+
+**Performance Impact:**
+| Metric | Value |
+|--------|-------|
+| Trees loaded | ~392 (49 chunks × 8 trees) |
+| Glow spots per tree | 8-12 |
+| Total mesh updates/frame | ~3,920 |
+| CPU cost | O(n×m) per frame |
+
+**Solution:** Move animation to GPU using ShaderMaterial + thin instances.
+
+**Architecture:**
+
+1. **Custom ShaderMaterial** - Handles pulsing animation in vertex/fragment shader
+2. **Thin Instances** - Render all glow spots with 1 draw call
+3. **Time Uniform** - Single update per frame instead of 3,920
+
+```typescript
+// TreeRenderer.ts - AFTER: O(1) CPU work per frame
+
+// Glow spot shader with animated emission
+private glowShaderMaterial: ShaderMaterial | null = null;
+private glowInstanceBuffer: Float32Array | null = null;
+private glowBaseMesh: Mesh | null = null;
+
+private initializeGlowShader(): void {
+    // Vertex shader - passes instance data to fragment
+    const vertexShader = `
+        precision highp float;
+
+        // Attributes
+        attribute vec3 position;
+        attribute vec3 normal;
+
+        // Instance attributes (per-instance data)
+        attribute vec4 instanceData;  // x,y,z = position offset, w = phase offset
+
+        // Uniforms
+        uniform mat4 viewProjection;
+        uniform float time;
+
+        // Varyings
+        varying float vPulse;
+
+        void main() {
+            // Calculate pulse based on time and per-instance phase
+            float phase = instanceData.w;
+            float pulse = sin(time * 1.5 + phase) * 0.15 + 0.85;
+            vPulse = pulse;
+
+            // Apply pulse to position (scale from center)
+            vec3 scaledPos = position * pulse;
+
+            // Add instance offset
+            vec3 worldPos = scaledPos + instanceData.xyz;
+
+            gl_Position = viewProjection * vec4(worldPos, 1.0);
+        }
+    `;
+
+    // Fragment shader - emissive glow with pulsing intensity
+    const fragmentShader = `
+        precision highp float;
+
+        uniform vec3 glowColor;
+        uniform float time;
+
+        varying float vPulse;
+
+        void main() {
+            // Pulsing emissive color
+            vec3 emission = glowColor * (0.8 + vPulse * 0.4);
+            gl_FragColor = vec4(emission, 1.0);
+        }
+    `;
+
+    this.glowShaderMaterial = new ShaderMaterial(
+        'glowShader',
+        this.scene,
+        { vertexSource: vertexShader, fragmentSource: fragmentShader },
+        {
+            attributes: ['position', 'normal', 'instanceData'],
+            uniforms: ['viewProjection', 'time', 'glowColor']
+        }
+    );
+
+    this.glowShaderMaterial.setColor3('glowColor', new Color3(0.3, 1.2, 1.0));
+}
+
+// Create base mesh for instancing
+private initializeGlowBaseMesh(): void {
+    this.glowBaseMesh = MeshBuilder.CreateSphere('glowBase', {
+        diameter: 0.1,
+        segments: 4
+    }, this.scene);
+    this.glowBaseMesh.material = this.glowShaderMaterial;
+    this.glowBaseMesh.isVisible = false;  // Base mesh hidden, instances render
+}
+
+// Register glow spot instance (called when creating tree)
+public addGlowSpotInstance(worldPosition: Vector3, phaseOffset: number): void {
+    // Add to instance buffer: [x, y, z, phase]
+    // Thin instances handle the rest
+}
+
+// Update animations - O(1) cost!
+public updateAnimations(): void {
+    if (this.glowShaderMaterial) {
+        // Single uniform update - GPU does the rest
+        this.glowShaderMaterial.setFloat('time', performance.now() / 1000);
+    }
+}
+```
+
+**Thin Instances Approach:**
+```typescript
+// Using Babylon.js thin instances for maximum efficiency
+private setupThinInstances(): void {
+    // Create instance buffer with position + phase for each glow spot
+    // Format: [x1, y1, z1, phase1, x2, y2, z2, phase2, ...]
+    const instanceCount = this.totalGlowSpots;
+    const floatsPerInstance = 4;  // x, y, z, phase
+
+    this.glowInstanceBuffer = new Float32Array(instanceCount * floatsPerInstance);
+
+    // Populate buffer with all glow spot positions and phases
+    let index = 0;
+    for (const [treeId, treeVisual] of this.treeVisuals) {
+        const treePos = treeVisual.rootNode.position;
+        for (let i = 0; i < treeVisual.glowSpots.length; i++) {
+            const spot = treeVisual.glowSpots[i];
+            const worldPos = treePos.add(spot.position);
+
+            this.glowInstanceBuffer[index++] = worldPos.x;
+            this.glowInstanceBuffer[index++] = worldPos.y;
+            this.glowInstanceBuffer[index++] = worldPos.z;
+            this.glowInstanceBuffer[index++] = i * 0.3;  // Phase offset
+        }
+    }
+
+    // Apply thin instances to base mesh
+    this.glowBaseMesh.thinInstanceSetBuffer('instanceData', this.glowInstanceBuffer, 4);
+}
+```
+
+**Key Changes:**
+| Before | After |
+|--------|-------|
+| 3,920 individual meshes | 1 instanced mesh |
+| 3,920 scaling.set() calls/frame | 1 setFloat() call/frame |
+| CPU calculates all pulses | GPU calculates all pulses |
+| O(n×m) per frame | O(1) per frame |
+| ~3,920 draw calls | 1 draw call |
+
+**Impact:**
+- Before: ~3,920 mesh property updates per frame (CPU-bound)
+- After: 1 uniform update per frame (GPU-bound animation)
+- Expected FPS improvement: +10-20 FPS at ground level with many trees
+- Draw calls reduced from ~3,920 to 1
+- Animation quality unchanged (same sine wave effect)
+
+**Files Changed:**
+- `TreeRenderer.ts` - Complete refactor to use ShaderMaterial + thin instances
+- `TerrainGenerator.ts` - Update tree creation to register instances
+
 ## File Locations
 
 | File | Action |
@@ -1529,19 +2133,23 @@ this.pointerObserver = this.scene.onPointerObservable.add((pointerInfo) => {
 | `client/src/game/TerritoryManager.ts` | Remove TerritoryPerformanceMonitor |
 | `client/src/game/UnitManager.ts` | Make update synchronous, typed arrays for zero-allocation getUnitsByType() |
 | `client/src/game/GameState.ts` | Maintain mineralDepositsArray for zero-allocation getAllMineralDeposits() |
-| `client/src/game/ParasiteManager.ts` | Cache arrays, singleton references |
+| `client/src/game/ParasiteManager.ts` | Cache arrays, singleton references, Fix 22: zero-allocation updateParasites() |
+| `client/src/game/SpatialIndex.ts` | Fix 22: Add getEntitiesInRangeTo() method |
+| `client/src/game/entities/Parasite.ts` | Fix 21: cache vectors, Fix 22: add getPositionRef() |
 | `client/src/game/CombatSystem.ts` | Pass shared UI to CombatEffects |
 | `client/src/ui/DebugUI.ts` | Remove PerformanceMonitor usage |
 | `client/src/game/SystemIntegration.ts` | Remove PerformanceMonitor usage |
-| `client/src/rendering/TreeRenderer.ts` | Eliminate Vector3 allocations in updateAnimations() |
-| `client/src/rendering/CameraController.ts` | Cache movement vectors for keyboard controls |
+| `client/src/rendering/TreeRenderer.ts` | Fix 23: ShaderMaterial + thin instances for GPU-based glow animation |
+| `client/src/rendering/CameraController.ts` | Cache movement vectors, Fix 20: cleanup registerBeforeRender + event listeners |
 | `client/src/rendering/UnitRenderer.ts` | Cache colors, use scaling.set(), use copyFrom() |
 | `client/src/world/MineralDeposit.ts` | Use scaling.set(), add getPositionRef(), direct color assignment |
 | `client/src/game/entities/Unit.ts` | Add getPositionRef() for zero-allocation access |
 | `client/src/game/actions/MiningAction.ts` | Use copyFrom(), use getPositionRef() |
-| `client/src/game/entities/Parasite.ts` | Cache segment position vectors, use set()/copyFrom()/addToRef() |
 | `client/src/rendering/BuildingRenderer.ts` | Use scaling.set(), direct color property assignment |
 | `client/src/ui/MiningAnalysisTooltip.ts` | Fix wrong enum (4→POINTERDOWN), right-click only, hide on left-click |
+| `client/src/ui/MiningUI.ts` | Fix 20: Store and clear setInterval on dispose |
+| `client/src/ui/ProtectorCreationUI.ts` | Fix 20: Store and clear setInterval on dispose |
+| `client/src/ui/DifficultyDisplayUI.ts` | Fix 20: Store and clear compact display interval on destroy |
 
 ## Testing Strategy
 

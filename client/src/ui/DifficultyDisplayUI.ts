@@ -8,6 +8,7 @@ export class DifficultyDisplayUI {
     private difficultyManager: DifficultyManager;
     private container: HTMLElement | null = null;
     private updateInterval: number | null = null;
+    private compactUpdateInterval: number | null = null; // Fix: Track compact display interval
     
     constructor(difficultyManager: DifficultyManager) {
         this.difficultyManager = difficultyManager;
@@ -223,7 +224,13 @@ export class DifficultyDisplayUI {
             clearInterval(this.updateInterval);
             this.updateInterval = null;
         }
-        
+
+        // Fix: Clear compact display interval
+        if (this.compactUpdateInterval) {
+            clearInterval(this.compactUpdateInterval);
+            this.compactUpdateInterval = null;
+        }
+
         if (this.container && this.container.parentNode) {
             this.container.parentNode.removeChild(this.container);
             this.container = null;
@@ -258,10 +265,14 @@ export class DifficultyDisplayUI {
         };
         
         updateCompact();
-        
-        // Update compact display every 5 seconds
-        setInterval(updateCompact, 5000);
-        
+
+        // Fix: Store interval ID for cleanup
+        // Clear any existing compact interval first
+        if (this.compactUpdateInterval !== null) {
+            clearInterval(this.compactUpdateInterval);
+        }
+        this.compactUpdateInterval = window.setInterval(updateCompact, 5000);
+
         return compact;
     }
     

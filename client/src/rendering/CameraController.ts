@@ -22,6 +22,11 @@ export class CameraController {
     private cachedNewTarget: Vector3 = new Vector3();
     private cachedDirection: Vector3 = new Vector3(); // Fix 18: for getDirectionToRef result
 
+    // Fix: Track callbacks for cleanup to prevent memory leaks
+    private renderObserver: (() => void) | null = null;
+    private keydownHandler: ((event: KeyboardEvent) => void) | null = null;
+    private keyupHandler: ((event: KeyboardEvent) => void) | null = null;
+
     // Camera configuration
     private readonly INITIAL_RADIUS = 75; // Increased 3x for better overview (was 25)
     private readonly INITIAL_ALPHA = -Math.PI / 4; // 45 degrees from side
@@ -135,23 +140,22 @@ export class CameraController {
         // Track pressed keys
         const pressedKeys = new Set<string>();
 
-        // Key down handler
-        window.addEventListener('keydown', (event) => {
+        // Fix: Store handlers for cleanup
+        this.keydownHandler = (event: KeyboardEvent) => {
             pressedKeys.add(event.code);
-        });
-
-        // Key up handler
-        window.addEventListener('keyup', (event) => {
+        };
+        this.keyupHandler = (event: KeyboardEvent) => {
             pressedKeys.delete(event.code);
-        });
+        };
 
-        // Update camera position based on pressed keys (called each frame)
-        // Fix 18: Uses static direction vectors and getDirectionToRef to eliminate per-frame allocations
-        this.scene.registerBeforeRender(() => {
+        window.addEventListener('keydown', this.keydownHandler);
+        window.addEventListener('keyup', this.keyupHandler);
+
+        // Fix: Store render callback for cleanup
+        this.renderObserver = () => {
             if (!this.camera) return;
 
             const target = this.camera.getTarget();
-            let moved = false;
 
             // W/Up Arrow: Move forward in the map
             // Fix 18: Use static FORWARD and getDirectionToRef instead of Vector3.Forward() and getDirection()
@@ -161,7 +165,6 @@ export class CameraController {
                 this.cachedMoveVector.set(this.cachedDirection.x, 0, this.cachedDirection.z);
                 target.addToRef(this.cachedMoveVector, this.cachedNewTarget);
                 this.camera.setTarget(this.cachedNewTarget);
-                moved = true;
             }
 
             // S/Down Arrow: Move backward in the map
@@ -172,20 +175,20 @@ export class CameraController {
                 this.cachedMoveVector.set(this.cachedDirection.x, 0, this.cachedDirection.z);
                 target.addToRef(this.cachedMoveVector, this.cachedNewTarget);
                 this.camera.setTarget(this.cachedNewTarget);
-                moved = true;
             }
 
             // A/Left Arrow: Rotate view to left
             if (pressedKeys.has('KeyA') || pressedKeys.has('ArrowLeft')) {
                 this.camera.alpha -= rotateSpeed;
-                moved = true;
             }
 
             // D/Right Arrow: Rotate view to right
             if (pressedKeys.has('KeyD') || pressedKeys.has('ArrowRight')) {
                 this.camera.alpha += rotateSpeed;
             }
-        });
+        };
+
+        this.scene.registerBeforeRender(this.renderObserver);
     }
 
     /**
@@ -275,6 +278,22 @@ export class CameraController {
      * Dispose camera resources
      */
     public dispose(): void {
+        // Fix: Unregister render callback to prevent memory leak
+        if (this.renderObserver) {
+            this.scene.unregisterBeforeRender(this.renderObserver);
+            this.renderObserver = null;
+        }
+
+        // Fix: Remove keyboard event listeners
+        if (this.keydownHandler) {
+            window.removeEventListener('keydown', this.keydownHandler);
+            this.keydownHandler = null;
+        }
+        if (this.keyupHandler) {
+            window.removeEventListener('keyup', this.keyupHandler);
+            this.keyupHandler = null;
+        }
+
         if (this.camera) {
             this.camera.dispose();
             this.camera = null;

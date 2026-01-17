@@ -189,6 +189,70 @@ export class SpatialIndex {
     }
 
     /**
+     * Get all entity IDs within a radius - zero allocation version (Fix 22)
+     * Writes results to provided array instead of creating new one
+     * @param center Center position to search from
+     * @param radius Search radius
+     * @param typeFilter Entity type(s) to include
+     * @param outArray Array to write results to (will be cleared first)
+     */
+    public getEntitiesInRangeTo(
+        center: Vector3,
+        radius: number,
+        typeFilter: EntityType | EntityType[] | undefined,
+        outArray: string[]
+    ): void {
+        // Clear output array (reuses existing allocation)
+        outArray.length = 0;
+
+        // Calculate chunk range to search
+        const minChunkX = Math.floor((center.x - radius) / SpatialIndex.CHUNK_SIZE);
+        const maxChunkX = Math.floor((center.x + radius) / SpatialIndex.CHUNK_SIZE);
+        const minChunkZ = Math.floor((center.z - radius) / SpatialIndex.CHUNK_SIZE);
+        const maxChunkZ = Math.floor((center.z + radius) / SpatialIndex.CHUNK_SIZE);
+
+        const radiusSquared = radius * radius;
+
+        // Build type set if filter provided (small allocation, but only once per call)
+        let typeSet: Set<EntityType> | null = null;
+        if (typeFilter) {
+            typeSet = new Set(Array.isArray(typeFilter) ? typeFilter : [typeFilter]);
+        }
+
+        // Check only relevant chunks
+        for (let cx = minChunkX; cx <= maxChunkX; cx++) {
+            for (let cz = minChunkZ; cz <= maxChunkZ; cz++) {
+                const chunkKey = `${cx},${cz}`;
+                const chunk = this.chunks.get(chunkKey);
+
+                if (chunk) {
+                    for (const entityId of chunk) {
+                        // Type filter
+                        if (typeSet) {
+                            const entityType = this.entityTypes.get(entityId);
+                            if (!entityType || !typeSet.has(entityType)) {
+                                continue;
+                            }
+                        }
+
+                        // Distance check (squared for performance)
+                        const pos = this.entityPositions.get(entityId);
+                        if (pos) {
+                            const dx = pos.x - center.x;
+                            const dz = pos.z - center.z;
+                            const distSquared = dx * dx + dz * dz;
+
+                            if (distSquared <= radiusSquared) {
+                                outArray.push(entityId);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Get all entities in a specific chunk
      */
     public getEntitiesInChunk(

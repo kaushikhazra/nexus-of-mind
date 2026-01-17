@@ -263,3 +263,70 @@ This specification addresses performance issues causing low baseline FPS (25-38)
 6. THE mouse movement FPS impact SHALL be eliminated (no scene.pick() on POINTERMOVE)
 7. WHEN moving mouse during combat, THE FPS SHALL remain stable (no dips from scene.pick())
 
+### Requirement 20: Memory Leak Prevention - Interval and Callback Cleanup
+
+**User Story:** As a player, I want stable FPS during extended gameplay sessions with increasing difficulty, so that longer games don't degrade in performance over time.
+
+#### Acceptance Criteria
+
+1. THE MiningUI SHALL store setInterval ID and clear it on dispose
+2. THE ProtectorCreationUI SHALL store setInterval ID and clear it on dispose
+3. THE DifficultyDisplayUI SHALL store compact display setInterval ID and clear it on destroy
+4. THE CameraController SHALL store registerBeforeRender callback and unregister it on dispose
+5. THE CameraController SHALL store keydown/keyup event handlers and remove them on dispose
+6. ALL intervals and callbacks SHALL be cleaned up when components are disposed
+7. WHEN playing extended sessions (30+ minutes), THE FPS SHALL NOT degrade due to accumulated intervals/callbacks
+8. THE System SHALL NOT accumulate duplicate intervals when UI components are recreated
+
+### Requirement 21: Parasite Segment Animation Per-Frame Allocation Elimination
+
+**User Story:** As a player, I want smooth FPS when parasites are chasing and attacking my units, especially at ground-level camera angles, so that combat encounters don't cause performance degradation.
+
+#### Acceptance Criteria
+
+1. THE Parasite.updateSegmentAnimation() SHALL NOT call Vector3.Zero() every frame
+2. THE Parasite.updateSegmentAnimation() SHALL NOT call position.clone() every frame
+3. THE Parasite.updateSegmentAnimation() SHALL NOT create new Vector3 for segment positions every frame
+4. THE Parasite.updateSegmentAnimation() SHALL NOT create new Vector3 for worldOffset every frame
+5. THE Parasite.updateSegmentAnimation() SHALL NOT call position.add() which creates new Vector3 every frame
+6. THE System SHALL use position.set() to mutate existing segment position vectors
+7. THE System SHALL use copyFrom() to update segmentPositions array
+8. THE System SHALL use addToRef() instead of add() for world position calculation
+9. THE System SHALL cache a reusable worldOffset Vector3 as a class member
+10. WHEN 5+ parasites are actively chasing units at ground-level camera, THE FPS SHALL remain above 50
+11. THE per-frame Vector3 allocations in parasite animation SHALL be reduced from ~18 per parasite to 0
+
+### Requirement 22: ParasiteManager updateParasites Per-Frame Allocation Elimination
+
+**User Story:** As a player, I want smooth FPS when my units spread out across the map and parasites are chasing them, so that territorial expansion doesn't cause performance degradation that scales with spread distance.
+
+#### Acceptance Criteria
+
+1. THE ParasiteManager.updateParasites() SHALL NOT create new arrays from .map() every frame
+2. THE ParasiteManager.updateParasites() SHALL NOT create new arrays from .filter() every frame
+3. THE ParasiteManager.updateParasites() SHALL NOT call getPosition() (which clones) for spatial index updates every frame
+4. THE System SHALL cache and reuse nearbyWorkers and nearbyProtectors arrays
+5. THE System SHALL use getPositionRef() instead of getPosition() for spatial index updates
+6. THE System SHALL clear and refill cached arrays instead of creating new ones
+7. THE per-parasite loop SHALL NOT create 6+ array allocations per iteration
+8. WHEN 10+ parasites are actively chasing spread-out units, THE FPS SHALL remain above 50
+9. THE per-frame array allocations in updateParasites() SHALL be reduced from ~7 per parasite to 0
+10. THE System SHALL scale efficiently regardless of unit/parasite spread distance
+
+### Requirement 23: Tree Glow Animation GPU Optimization
+
+**User Story:** As a player, I want smooth FPS at ground-level camera angles with many trees visible, so that exploring the terrain doesn't cause performance degradation.
+
+#### Acceptance Criteria
+
+1. THE TreeRenderer SHALL NOT iterate over all trees in JavaScript every frame
+2. THE tree glow pulsing animation SHALL be handled by GPU shaders instead of CPU
+3. THE glow spot meshes SHALL use Babylon.js thin instances for efficient rendering
+4. THE System SHALL use a single ShaderMaterial shared across all glow spot instances
+5. THE shader SHALL receive a time uniform updated once per frame
+6. THE shader SHALL calculate glow pulsing per-vertex using sine wave
+7. THE per-frame CPU cost of tree animations SHALL be reduced from O(n×m) to O(1) where n=trees, m=spots
+8. WHEN 400+ trees are loaded at ground-level camera, THE FPS SHALL remain above 55
+9. THE System SHALL use instanced rendering to minimize draw calls for glow spots
+10. THE updateAnimations() method SHALL only update the time uniform, not iterate meshes
+
