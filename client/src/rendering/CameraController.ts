@@ -13,6 +13,10 @@ export class CameraController {
     private canvas: HTMLCanvasElement;
     private camera: ArcRotateCamera | null = null;
 
+    // Cached vectors for keyboard movement (avoid per-frame allocations)
+    private cachedMoveVector: Vector3 = new Vector3();
+    private cachedNewTarget: Vector3 = new Vector3();
+
     // Camera configuration
     private readonly INITIAL_RADIUS = 75; // Increased 3x for better overview (was 25)
     private readonly INITIAL_ALPHA = -Math.PI / 4; // 45 degrees from side
@@ -145,17 +149,21 @@ export class CameraController {
 
             // W/Up Arrow: Move forward in the map
             if (pressedKeys.has('KeyW') || pressedKeys.has('ArrowUp')) {
-                const forward = this.camera.getDirection(Vector3.Forward()).scale(moveSpeed);
-                const newTarget = target.add(new Vector3(forward.x, 0, forward.z)); // Keep Y constant
-                this.camera.setTarget(newTarget);
+                const forward = this.camera.getDirection(Vector3.Forward());
+                forward.scaleInPlace(moveSpeed);
+                this.cachedMoveVector.set(forward.x, 0, forward.z);  // Keep Y constant, reuse vector
+                target.addToRef(this.cachedMoveVector, this.cachedNewTarget);  // No allocation
+                this.camera.setTarget(this.cachedNewTarget);
                 moved = true;
             }
 
             // S/Down Arrow: Move backward in the map
             if (pressedKeys.has('KeyS') || pressedKeys.has('ArrowDown')) {
-                const backward = this.camera.getDirection(Vector3.Backward()).scale(moveSpeed);
-                const newTarget = target.add(new Vector3(backward.x, 0, backward.z)); // Keep Y constant
-                this.camera.setTarget(newTarget);
+                const backward = this.camera.getDirection(Vector3.Backward());
+                backward.scaleInPlace(moveSpeed);
+                this.cachedMoveVector.set(backward.x, 0, backward.z);  // Keep Y constant, reuse vector
+                target.addToRef(this.cachedMoveVector, this.cachedNewTarget);  // No allocation
+                this.camera.setTarget(this.cachedNewTarget);
                 moved = true;
             }
 

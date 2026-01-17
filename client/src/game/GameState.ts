@@ -60,6 +60,7 @@ export class GameState {
     private units: Map<string, GameUnit> = new Map();
     private buildings: Map<string, GameBuilding> = new Map();
     private mineralDeposits: Map<string, MineralDeposit> = new Map();
+    private mineralDepositsArray: MineralDeposit[] = [];  // Maintained alongside Map for zero-allocation access
     
     // Game state
     private gameStartTime: number = 0;
@@ -258,7 +259,7 @@ export class GameState {
      */
     public addMineralDeposit(deposit: MineralDeposit): void {
         const depositId = deposit.getId();
-        
+
         const entity: GameEntity = {
             id: depositId,
             type: 'deposit',
@@ -273,6 +274,7 @@ export class GameState {
 
         this.entities.set(depositId, entity);
         this.mineralDeposits.set(depositId, deposit);
+        this.mineralDepositsArray.push(deposit);  // Keep array in sync
     }
 
     /**
@@ -351,10 +353,10 @@ export class GameState {
     }
 
     /**
-     * Get all mineral deposits
+     * Get all mineral deposits (zero allocation - returns existing array)
      */
     public getAllMineralDeposits(): MineralDeposit[] {
-        return Array.from(this.mineralDeposits.values());
+        return this.mineralDepositsArray;
     }
 
     /**
@@ -439,6 +441,7 @@ export class GameState {
         this.units.clear();
         this.buildings.clear();
         this.mineralDeposits.clear();
+        this.mineralDepositsArray.length = 0;  // Clear array without allocation
 
         // Reset counters
         this.entityIdCounter = 0;

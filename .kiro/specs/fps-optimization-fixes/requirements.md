@@ -111,3 +111,18 @@ This specification addresses performance issues causing low baseline FPS (25-38)
 4. THE tooltip responsiveness SHALL remain acceptable (< 100ms perceived delay)
 5. THE System SHALL track lastMouseMoveCheckTime to implement throttling
 
+### Requirement 9: Camera Traversal Per-Frame Allocation Elimination
+
+**User Story:** As a player, I want smooth FPS while traversing the map with keyboard controls and rotating the camera, so that exploration doesn't cause performance stutters.
+
+#### Acceptance Criteria
+
+1. THE TreeRenderer.updateAnimations() SHALL NOT create new Vector3 objects every frame
+2. THE System SHALL use Vector3.set() or copyFrom() to mutate existing scaling vectors
+3. THE CameraController keyboard movement SHALL cache reusable Vector3 objects
+4. THE GameEngine render loop SHALL cache arrays for workers, protectors, and mineral deposits
+5. THE GameState.getAllMineralDeposits() SHALL support cached array access pattern
+6. THE UnitManager.getUnitsByType() SHALL support cached array access pattern
+7. WHEN traversing with 'W' key and rapid rotation, THE FPS SHALL remain above 50
+8. THE per-frame object allocations SHALL be reduced by at least 90% (from ~4000 to <400)
+

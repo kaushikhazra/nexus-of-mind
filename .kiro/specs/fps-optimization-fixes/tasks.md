@@ -2,7 +2,7 @@
 
 ## Overview
 
-Fix 7 performance issues: 3 memory leaks causing FPS decay over time, and 4 per-frame bottlenecks causing low baseline FPS. Target is stable 60 FPS (+/- 5) throughout extended gameplay sessions.
+Fix 9 performance issues: 3 memory leaks causing FPS decay over time, and 6 per-frame/event bottlenecks causing low baseline FPS. Target is stable 60 FPS (+/- 5) throughout extended gameplay sessions.
 
 ## Tasks
 
@@ -228,6 +228,80 @@ Fix 7 performance issues: 3 memory leaks causing FPS decay over time, and 4 per-
   - Verify FPS stays above 55 during mouse movement ✓ (53 FPS minimum)
   - Verify tooltip still responds within 100ms ✓ (no perceived delay)
 
+### Phase 2c: Camera Traversal Allocation Fixes
+
+- [ ] 14. Fix TreeRenderer per-frame Vector3 allocations
+  - [ ] 14.1 Replace `new Vector3()` with `set()` in updateAnimations()
+    - File: `client/src/rendering/TreeRenderer.ts`
+    - Change `spot.scaling = new Vector3(pulse, pulse, pulse)` to `spot.scaling.set(pulse, pulse, pulse)`
+    - _Requirements: 9.1, 9.2_
+
+- [ ] 15. Fix CameraController per-frame Vector3 allocations
+  - [ ] 15.1 Add cached Vector3 class members
+    - File: `client/src/rendering/CameraController.ts`
+    - Add `private cachedForward: Vector3 = new Vector3()`
+    - Add `private cachedMoveVector: Vector3 = new Vector3()`
+    - Add `private cachedNewTarget: Vector3 = new Vector3()`
+    - _Requirements: 9.3_
+
+  - [ ] 15.2 Update keyboard movement to use cached vectors
+    - File: `client/src/rendering/CameraController.ts`
+    - Use `getDirection()` with output parameter
+    - Use `scaleInPlace()` instead of `scale()`
+    - Use `addToRef()` instead of `add()`
+    - _Requirements: 9.3_
+
+- [ ] 16. Make GameState.getAllMineralDeposits() zero-allocation
+  - [ ] 16.1 Add mineralDepositsArray property
+    - File: `client/src/game/GameState.ts`
+    - Add `private mineralDepositsArray: MineralDeposit[] = []`
+    - _Requirements: 9.5_
+
+  - [ ] 16.2 Update addMineralDeposit() to maintain array
+    - File: `client/src/game/GameState.ts`
+    - Push to mineralDepositsArray when adding to Map
+    - _Requirements: 9.5_
+
+  - [ ] 16.3 Update removeMineralDeposit() to maintain array
+    - File: `client/src/game/GameState.ts`
+    - Remove from mineralDepositsArray when removing from Map
+    - _Requirements: 9.5_
+
+  - [ ] 16.4 Update getAllMineralDeposits() to return existing array
+    - File: `client/src/game/GameState.ts`
+    - Return mineralDepositsArray directly (no Array.from())
+    - _Requirements: 9.5_
+
+- [ ] 17. Make UnitManager.getUnitsByType() zero-allocation
+  - [ ] 17.1 Add typed unit arrays
+    - File: `client/src/game/UnitManager.ts`
+    - Add `private workerUnits: Worker[] = []`
+    - Add `private protectorUnits: Protector[] = []`
+    - Add `private scoutUnits: Unit[] = []`
+    - _Requirements: 9.6_
+
+  - [ ] 17.2 Update unit creation to maintain typed arrays
+    - File: `client/src/game/UnitManager.ts`
+    - Push to appropriate typed array when adding unit
+    - _Requirements: 9.6_
+
+  - [ ] 17.3 Update unit removal to maintain typed arrays
+    - File: `client/src/game/UnitManager.ts`
+    - Remove from appropriate typed array when removing unit
+    - _Requirements: 9.6_
+
+  - [ ] 17.4 Update getUnitsByType() to return existing arrays
+    - File: `client/src/game/UnitManager.ts`
+    - Return typed arrays directly (no Array.from().filter())
+    - _Requirements: 9.6_
+
+- [ ] 18. Checkpoint - Camera traversal allocations fixed
+  - Verify FPS stays above 50 during W key + rapid rotation
+  - Verify no new Vector3 allocations in TreeRenderer per frame
+  - Verify no new Vector3 allocations in CameraController during movement
+  - Verify zero array allocations in getAllMineralDeposits() / getUnitsByType()
+  - _Requirements: 9.7, 9.8_
+
 ### Phase 3: Validation
 
 - [ ] 12. Performance validation
@@ -277,8 +351,11 @@ Fix 7 performance issues: 3 memory leaks causing FPS decay over time, and 4 per-
 | `client/src/game/TerritoryPerformanceMonitor.ts` | **DELETE** |
 | `client/src/game/GameEngine.ts` | Remove PerformanceMonitor, sync render loop, system throttling, mouse move throttling |
 | `client/src/game/TerritoryManager.ts` | Remove TerritoryPerformanceMonitor references |
-| `client/src/game/UnitManager.ts` | Sync update method |
+| `client/src/game/UnitManager.ts` | Sync update method, typed unit arrays for zero-allocation getUnitsByType() |
+| `client/src/game/GameState.ts` | Maintain mineralDepositsArray for zero-allocation getAllMineralDeposits() |
 | `client/src/game/ParasiteManager.ts` | Array caching, singleton caching |
 | `client/src/game/CombatSystem.ts` | Pass shared UI to CombatEffects |
 | `client/src/ui/DebugUI.ts` | Remove PerformanceMonitor usage |
 | `client/src/game/SystemIntegration.ts` | Remove PerformanceMonitor usage |
+| `client/src/rendering/TreeRenderer.ts` | Eliminate Vector3 allocations in updateAnimations() |
+| `client/src/rendering/CameraController.ts` | Cache movement vectors for keyboard controls |

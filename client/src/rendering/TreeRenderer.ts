@@ -295,7 +295,7 @@ export class TreeRenderer {
                 // Offset pulse for each spot
                 const offset = i * 0.3;
                 const pulse = Math.sin(time * 1.5 + offset) * 0.15 + 0.85;
-                spot.scaling = new Vector3(pulse, pulse, pulse);
+                spot.scaling.set(pulse, pulse, pulse);  // Mutate existing, no allocation
             }
         }
     }

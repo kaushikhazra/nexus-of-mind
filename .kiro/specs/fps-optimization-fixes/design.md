@@ -2,7 +2,7 @@
 
 ## Overview
 
-This design addresses 7 performance issues: 3 memory leaks causing FPS degradation over time, and 4 per-frame bottlenecks causing low baseline FPS. The target is stable 60 FPS (+/- 5) throughout extended gameplay sessions.
+This design addresses 9 performance issues: 3 memory leaks causing FPS degradation over time, and 6 per-frame/event bottlenecks causing low baseline FPS. The target is stable 60 FPS (+/- 5) throughout extended gameplay sessions.
 
 ## Problem Analysis
 
@@ -480,6 +480,185 @@ private handleMouseMove(): void {
 - Still responsive enough for smooth tooltip tracking
 - Matches the existing DETECTION_CHECK_INTERVAL pattern in the codebase
 
+### Fix 9: Camera Traversal Per-Frame Allocation Elimination
+
+**Problem:** During camera traversal (W/S keys + rotation), FPS drops from 60 to 43-39. Investigation revealed massive per-frame object allocations:
+
+| Source | Allocations/frame | Type |
+|--------|------------------|------|
+| TreeRenderer.updateAnimations() | ~3,920 | Vector3 |
+| CameraController (W key) | 3-4 | Vector3 |
+| GameEngine render loop | 3 | Arrays |
+| **Total** | **~3,927+** | Objects |
+
+At 60 FPS, this creates **~236,000 object allocations per second**, causing GC pressure and frame drops.
+
+#### Fix 9.1: TreeRenderer - Eliminate Vector3 Allocations
+
+```typescript
+// TreeRenderer.ts - BEFORE (creates ~3920 Vector3 per frame!)
+public updateAnimations(): void {
+    const time = performance.now() / 1000;
+
+    for (const [treeId, treeVisual] of this.treeVisuals) {
+        for (let i = 0; i < treeVisual.glowSpots.length; i++) {
+            const spot = treeVisual.glowSpots[i];
+            const offset = i * 0.3;
+            const pulse = Math.sin(time * 1.5 + offset) * 0.15 + 0.85;
+            spot.scaling = new Vector3(pulse, pulse, pulse);  // ALLOCATION!
+        }
+    }
+}
+
+// TreeRenderer.ts - AFTER (zero allocations)
+public updateAnimations(): void {
+    const time = performance.now() / 1000;
+
+    for (const [treeId, treeVisual] of this.treeVisuals) {
+        for (let i = 0; i < treeVisual.glowSpots.length; i++) {
+            const spot = treeVisual.glowSpots[i];
+            const offset = i * 0.3;
+            const pulse = Math.sin(time * 1.5 + offset) * 0.15 + 0.85;
+            spot.scaling.set(pulse, pulse, pulse);  // Mutate existing, no allocation
+        }
+    }
+}
+```
+
+**Impact:** Eliminates ~3,920 Vector3 allocations per frame (99% of total).
+
+#### Fix 9.2: CameraController - Cache Movement Vectors
+
+```typescript
+// CameraController.ts - BEFORE (creates 3-4 Vector3 per frame when moving)
+this.scene.registerBeforeRender(() => {
+    if (pressedKeys.has('KeyW')) {
+        const forward = this.camera.getDirection(Vector3.Forward()).scale(moveSpeed);
+        const newTarget = target.add(new Vector3(forward.x, 0, forward.z));  // 2 allocations
+        this.camera.setTarget(newTarget);
+    }
+});
+
+// CameraController.ts - AFTER (zero allocations)
+// Add cached vectors as class members
+private cachedForward: Vector3 = new Vector3();
+private cachedMoveVector: Vector3 = new Vector3();
+private cachedNewTarget: Vector3 = new Vector3();
+
+this.scene.registerBeforeRender(() => {
+    if (pressedKeys.has('KeyW')) {
+        // Reuse cached vectors
+        this.camera.getDirection(Vector3.Forward(), this.cachedForward);
+        this.cachedForward.scaleInPlace(moveSpeed);
+
+        this.cachedMoveVector.set(this.cachedForward.x, 0, this.cachedForward.z);
+        target.addToRef(this.cachedMoveVector, this.cachedNewTarget);
+        this.camera.setTarget(this.cachedNewTarget);
+    }
+});
+```
+
+**Impact:** Eliminates 3-4 Vector3 allocations per frame during movement.
+
+#### Fix 9.3: Make GameState/UnitManager Methods Zero-Allocation (Preferred)
+
+Instead of caching in GameEngine, maintain arrays alongside Maps at the source. This provides zero per-frame allocations and proper separation of concerns.
+
+```typescript
+// GameState.ts - BEFORE
+public getAllMineralDeposits(): MineralDeposit[] {
+    return Array.from(this.mineralDeposits.values());  // Creates new array every call
+}
+
+// GameState.ts - AFTER (maintain array alongside Map)
+private mineralDepositsArray: MineralDeposit[] = [];
+
+public addMineralDeposit(deposit: MineralDeposit): void {
+    this.mineralDeposits.set(deposit.getId(), deposit);
+    this.mineralDepositsArray.push(deposit);  // Keep in sync
+}
+
+public removeMineralDeposit(depositId: string): void {
+    this.mineralDeposits.delete(depositId);
+    const idx = this.mineralDepositsArray.findIndex(d => d.getId() === depositId);
+    if (idx !== -1) this.mineralDepositsArray.splice(idx, 1);
+}
+
+public getAllMineralDeposits(): MineralDeposit[] {
+    return this.mineralDepositsArray;  // Return existing array, zero allocation
+}
+```
+
+```typescript
+// UnitManager.ts - BEFORE
+public getUnitsByType(unitType: 'worker' | 'scout' | 'protector'): Unit[] {
+    return Array.from(this.units.values()).filter(unit => unit.getUnitType() === unitType);
+    // Creates new array AND filters - two allocations per call
+}
+
+// UnitManager.ts - AFTER (maintain typed arrays alongside main Map)
+private workerUnits: Worker[] = [];
+private protectorUnits: Protector[] = [];
+private scoutUnits: Unit[] = [];
+
+public addUnit(unit: Unit): void {
+    this.units.set(unit.getId(), unit);
+    // Keep typed arrays in sync
+    switch (unit.getUnitType()) {
+        case 'worker':
+            this.workerUnits.push(unit as Worker);
+            break;
+        case 'protector':
+            this.protectorUnits.push(unit as Protector);
+            break;
+        case 'scout':
+            this.scoutUnits.push(unit);
+            break;
+    }
+}
+
+public removeUnit(unitId: string): void {
+    const unit = this.units.get(unitId);
+    if (!unit) return;
+
+    this.units.delete(unitId);
+    // Remove from typed array
+    switch (unit.getUnitType()) {
+        case 'worker':
+            const wIdx = this.workerUnits.findIndex(u => u.getId() === unitId);
+            if (wIdx !== -1) this.workerUnits.splice(wIdx, 1);
+            break;
+        case 'protector':
+            const pIdx = this.protectorUnits.findIndex(u => u.getId() === unitId);
+            if (pIdx !== -1) this.protectorUnits.splice(pIdx, 1);
+            break;
+        case 'scout':
+            const sIdx = this.scoutUnits.findIndex(u => u.getId() === unitId);
+            if (sIdx !== -1) this.scoutUnits.splice(sIdx, 1);
+            break;
+    }
+}
+
+public getUnitsByType(unitType: 'worker' | 'scout' | 'protector'): Unit[] {
+    // Return existing arrays, zero allocation
+    switch (unitType) {
+        case 'worker': return this.workerUnits;
+        case 'protector': return this.protectorUnits;
+        case 'scout': return this.scoutUnits;
+        default: return [];
+    }
+}
+```
+
+**Benefits:**
+- Zero per-frame allocations (not even periodic refresh)
+- Single source of truth - arrays maintained where data lives
+- Proper separation of concerns
+- No cache invalidation timing concerns
+- GameEngine render loop unchanged - just calls methods directly
+
+**Trade-off:** Slightly more memory (arrays + Map) and add/remove operations do a bit more work, but these are infrequent compared to 60Hz reads.
+
 ## Expected Performance Impact
 
 ```
@@ -512,8 +691,9 @@ private handleMouseMove(): void {
 | 6. Allocation elimination | Per-frame | +3-5 FPS | Reduces GC pressure |
 | 7. Singleton caching | Per-frame | +1-2 FPS | Minor but measurable |
 | 8. Mouse move throttling | Event-driven | +15-20 FPS | During mouse movement |
+| 9. Camera traversal allocations | Per-frame | +15-20 FPS | During W/S + rotation |
 
-**Total Expected Gain: +20-35 FPS (idle), +35-55 FPS (during mouse movement)**
+**Total Expected Gain: +20-35 FPS (idle), +35-55 FPS (during interaction)**
 
 ## File Locations
 
@@ -522,13 +702,16 @@ private handleMouseMove(): void {
 | `client/src/utils/PerformanceMonitor.ts` | **DELETE** |
 | `client/src/game/TerritoryPerformanceMonitor.ts` | **DELETE** |
 | `client/src/rendering/CombatEffects.ts` | Material tracking, disposal, shared UI |
-| `client/src/game/GameEngine.ts` | Remove PerformanceMonitor, remove async, add throttling |
+| `client/src/game/GameEngine.ts` | Remove PerformanceMonitor, remove async, add throttling, mouse move throttling |
 | `client/src/game/TerritoryManager.ts` | Remove TerritoryPerformanceMonitor |
-| `client/src/game/UnitManager.ts` | Make update synchronous |
+| `client/src/game/UnitManager.ts` | Make update synchronous, typed arrays for zero-allocation getUnitsByType() |
+| `client/src/game/GameState.ts` | Maintain mineralDepositsArray for zero-allocation getAllMineralDeposits() |
 | `client/src/game/ParasiteManager.ts` | Cache arrays, singleton references |
 | `client/src/game/CombatSystem.ts` | Pass shared UI to CombatEffects |
 | `client/src/ui/DebugUI.ts` | Remove PerformanceMonitor usage |
 | `client/src/game/SystemIntegration.ts` | Remove PerformanceMonitor usage |
+| `client/src/rendering/TreeRenderer.ts` | Eliminate Vector3 allocations in updateAnimations() |
+| `client/src/rendering/CameraController.ts` | Cache movement vectors for keyboard controls |
 
 ## Testing Strategy
 

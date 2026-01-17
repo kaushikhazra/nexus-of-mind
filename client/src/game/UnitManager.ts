@@ -47,6 +47,11 @@ export class UnitManager {
     private units: Map<string, Unit> = new Map();
     private selectedUnits: Set<string> = new Set();
 
+    // Typed unit arrays for zero-allocation access (maintained alongside Map)
+    private workerUnits: Worker[] = [];
+    private protectorUnits: Protector[] = [];
+    private scoutUnits: Scout[] = [];
+
     // Command system
     private commandQueue: UnitCommand[] = [];
     private commandIdCounter: number = 0;
@@ -121,6 +126,19 @@ export class UnitManager {
 
             // Add to units map
             this.units.set(unit.getId(), unit);
+
+            // Add to typed array for zero-allocation access
+            switch (unitType) {
+                case 'worker':
+                    this.workerUnits.push(unit as Worker);
+                    break;
+                case 'protector':
+                    this.protectorUnits.push(unit as Protector);
+                    break;
+                case 'scout':
+                    this.scoutUnits.push(unit as Scout);
+                    break;
+            }
 
             // Set terrain generator for height detection
             if (this.terrainGenerator) {
@@ -214,6 +232,23 @@ export class UnitManager {
 
         // Remove visual
         this.unitRenderer.removeUnitVisual(unitId);
+
+        // Remove from typed arrays
+        const unitType = unit.getUnitType();
+        switch (unitType) {
+            case 'worker':
+                const wIdx = this.workerUnits.findIndex(u => u.getId() === unitId);
+                if (wIdx !== -1) this.workerUnits.splice(wIdx, 1);
+                break;
+            case 'protector':
+                const pIdx = this.protectorUnits.findIndex(u => u.getId() === unitId);
+                if (pIdx !== -1) this.protectorUnits.splice(pIdx, 1);
+                break;
+            case 'scout':
+                const sIdx = this.scoutUnits.findIndex(u => u.getId() === unitId);
+                if (sIdx !== -1) this.scoutUnits.splice(sIdx, 1);
+                break;
+        }
 
         // Remove from units map
         this.units.delete(unitId);
@@ -486,10 +521,15 @@ export class UnitManager {
     }
 
     /**
-     * Get units by type
+     * Get units by type (zero allocation - returns existing array)
      */
     public getUnitsByType(unitType: 'worker' | 'scout' | 'protector'): Unit[] {
-        return Array.from(this.units.values()).filter(unit => unit.getUnitType() === unitType);
+        switch (unitType) {
+            case 'worker': return this.workerUnits;
+            case 'protector': return this.protectorUnits;
+            case 'scout': return this.scoutUnits;
+            default: return [];
+        }
     }
 
     /**
@@ -552,5 +592,10 @@ export class UnitManager {
         this.units.clear();
         this.selectedUnits.clear();
         this.commandQueue = [];
+
+        // Clear typed arrays
+        this.workerUnits.length = 0;
+        this.protectorUnits.length = 0;
+        this.scoutUnits.length = 0;
     }
 }
