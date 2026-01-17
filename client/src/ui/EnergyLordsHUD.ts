@@ -39,9 +39,13 @@ export class EnergyLordsHUD {
     private updateInterval: number | null = null;
     private isVisible: boolean = true;
 
+    // Cached gradient strings (Fix 14)
+    private static readonly GRADIENT_NORMAL = 'linear-gradient(90deg, #6040ff 0%, #a080ff 50%, #ffd700 100%)';
+    private static readonly GRADIENT_NEAR_COMPLETE = 'linear-gradient(90deg, #ffd700 0%, #ffee88 50%, #ffffff 100%)';
+
     constructor(config: EnergyLordsHUDConfig) {
         this.config = {
-            updateInterval: 500, // Update every 500ms to match threshold check
+            updateInterval: 1000, // Update every 1000ms (slowed from 500ms for Fix 14)
             ...config
         };
 
@@ -410,7 +414,7 @@ export class EnergyLordsHUD {
     }
 
     /**
-     * Update tier progress display
+     * Update tier progress display using array.join() (Fix 14)
      */
     private updateTierProgress(targetLevel: number): void {
         if (!this.tierProgressElement) return;
@@ -423,19 +427,19 @@ export class EnergyLordsHUD {
             return;
         }
 
-        // Create tier progress dots
-        let dotsHtml = '';
+        // Create tier progress dots using array.join() to avoid string concatenation (Fix 14)
+        const dots: string[] = [];
         for (let i = 1; i <= 5; i++) {
             const isCompleted = i < rank;
             const isCurrent = i === rank;
             const bgColor = isCompleted ? '#ffd700' : (isCurrent ? 'rgba(255,215,0,0.6)' : 'rgba(255,215,0,0.2)');
             const border = isCurrent ? '1px solid #ffd700' : 'none';
-            dotsHtml += `<div style="width: 8px; height: 8px; background: ${bgColor}; border-radius: 2px; border: ${border};"></div>`;
+            dots.push(`<div style="width: 8px; height: 8px; background: ${bgColor}; border-radius: 2px; border: ${border};"></div>`);
         }
 
         this.tierProgressElement.innerHTML = `
             <span>Tier: ${tier.name}</span>
-            <div style="display: flex; gap: 2px;">${dotsHtml}</div>
+            <div style="display: flex; gap: 2px;">${dots.join('')}</div>
             <span style="color: #a0a0a0;">${rank}/5</span>
         `;
     }
@@ -474,16 +478,16 @@ export class EnergyLordsHUD {
             }
         }
 
-        // Update progress bar
+        // Update progress bar using cached gradients (Fix 14)
         if (this.progressBarFill) {
             this.progressBarFill.style.width = `${state.progressPercent}%`;
 
             // Gold color when near completion
             if (state.progressPercent > 90) {
-                this.progressBarFill.style.background = 'linear-gradient(90deg, #ffd700 0%, #ffee88 50%, #ffffff 100%)';
+                this.progressBarFill.style.background = EnergyLordsHUD.GRADIENT_NEAR_COMPLETE;
                 this.progressBarFill.style.animation = 'progress-glow 1s infinite';
             } else {
-                this.progressBarFill.style.background = 'linear-gradient(90deg, #6040ff 0%, #a080ff 50%, #ffd700 100%)';
+                this.progressBarFill.style.background = EnergyLordsHUD.GRADIENT_NORMAL;
                 this.progressBarFill.style.animation = 'none';
             }
         }

@@ -62,7 +62,7 @@ export class MiningAction extends EnergyConsumer {
         }
 
         // Check if target is within mining range
-        const distance = Vector3.Distance(this.minerPosition, target.getPosition());
+        const distance = Vector3.Distance(this.minerPosition, target.getPositionRef());
         if (distance > this.miningConfig.miningRange) {
             return this.createResult(false, 0, 0, `Target too far (${distance.toFixed(1)}m > ${this.miningConfig.miningRange}m)`);
         }
@@ -161,11 +161,11 @@ export class MiningAction extends EnergyConsumer {
      * Update miner position (for range checking)
      */
     public updatePosition(newPosition: Vector3): void {
-        this.minerPosition = newPosition.clone();
+        this.minerPosition.copyFrom(newPosition);  // Mutate existing, no allocation
 
         // Check if still in range of current target
         if (this.isMining && this.currentTarget) {
-            const distance = Vector3.Distance(this.minerPosition, this.currentTarget.getPosition());
+            const distance = Vector3.Distance(this.minerPosition, this.currentTarget.getPositionRef());
             if (distance > this.miningConfig.miningRange) {
                 this.stopMining();
             }

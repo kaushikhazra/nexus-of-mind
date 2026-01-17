@@ -52,7 +52,11 @@ export class BuildingPlacementUI {
     private miningRangeIndicators: Mesh[] = [];
     private miningRangeMaterial: StandardMaterial | null = null;
     private currentMiningAnalysis: MiningAnalysis | null = null;
-    
+
+    // Mouse move throttling (Fix 14)
+    private lastMouseMoveTime: number = 0;
+    private readonly MOUSE_MOVE_THROTTLE_INTERVAL: number = 100; // 10Hz throttle
+
     // Constants
     private readonly WORKER_MINING_RANGE = 5; // Units that workers can mine from
     private readonly WORKER_SPAWN_DISTANCE = 3; // Distance workers spawn from base
@@ -674,6 +678,13 @@ export class BuildingPlacementUI {
      */
     private handleMouseMove(pointerInfo: any): void {
         if (!this.previewMesh || !this.scene) return;
+
+        // Throttle mouse move handling to reduce scene.pick() calls (Fix 14)
+        const now = performance.now();
+        if (now - this.lastMouseMoveTime < this.MOUSE_MOVE_THROTTLE_INTERVAL) {
+            return;
+        }
+        this.lastMouseMoveTime = now;
 
         // Get world position from mouse
         const pickInfo = this.scene.pick(this.scene.pointerX, this.scene.pointerY);

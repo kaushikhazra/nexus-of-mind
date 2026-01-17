@@ -5,16 +5,17 @@
  * and efficient rendering for multiple units while maintaining 60fps performance.
  */
 
-import { 
-    Scene, 
-    Mesh, 
-    MeshBuilder, 
-    StandardMaterial, 
-    Color3, 
+import {
+    Scene,
+    Mesh,
+    MeshBuilder,
+    StandardMaterial,
+    Color3,
     Vector3,
     TransformNode,
     Animation,
-    IAnimationKey
+    IAnimationKey,
+    LinesMesh
 } from '@babylonjs/core';
 import { MaterialManager } from './MaterialManager';
 import { Unit } from '../game/entities/Unit';
@@ -34,6 +35,9 @@ export interface UnitVisual {
     lastPosition: Vector3; // Track last position for rotation
     energyCore: Mesh | null; // Inner glow sphere for energy visualization
     energyCoreMaterial: StandardMaterial | null; // Material for the energy core
+    // Cached mining line resources (Fix 13 - avoid per-frame allocations)
+    miningLinePoints?: Vector3[]; // Cached point array for mining line
+    miningLineMaterial?: StandardMaterial | null; // Cached material for mining line
 }
 
 export class UnitRenderer {
@@ -81,6 +85,11 @@ export class UnitRenderer {
     private protectorGunMaterial: StandardMaterial | null = null;
     private protectorGunGlowMaterial: StandardMaterial | null = null;
     private protectorVisorMaterial: StandardMaterial | null = null;
+
+    // Cached Color3 objects for zero-allocation color updates (Fix 11)
+    private cachedEnergyColor: Color3 = new Color3();
+    private cachedProtectorEnergyColor: Color3 = new Color3();
+    private cachedEmissiveColor: Color3 = new Color3();
 
     constructor(scene: Scene, materialManager: MaterialManager) {
         this.scene = scene;
@@ -160,6 +169,11 @@ export class UnitRenderer {
         this.protectorVisorMaterial.diffuseColor = new Color3(1.0, 0.2, 0.1); // Red
         this.protectorVisorMaterial.emissiveColor = new Color3(0.8, 0.1, 0.0); // Strong red glow
         this.protectorVisorMaterial.disableLighting = true;
+
+        // Pre-compute and cache base emissive colors (Fix 11 - zero allocation)
+        this.workerBaseEmissive = this.unitConfigs.worker.color.scale(0.1);
+        this.scoutBaseEmissive = this.unitConfigs.scout.color.scale(0.1);
+        this.protectorBaseEmissive = this.unitConfigs.protector.color.scale(0.1);
     }
 
     /**
@@ -690,8 +704,8 @@ export class UnitRenderer {
             unitVisual.mesh.rotation.y += normalizedDiff * turnSpeed;
         }
 
-        // Update last position
-        unitVisual.lastPosition = currentPosition.clone();
+        // Update last position (reuse existing Vector3, no allocation)
+        unitVisual.lastPosition.copyFrom(currentPosition);
     }
 
     /**
@@ -701,57 +715,59 @@ export class UnitRenderer {
         const energyStats = unitVisual.unit.getEnergyStorage().getStats();
         const energyPercentage = energyStats.percentage;
 
-        // Update inner energy core color - bright like a light
+        // Update inner energy core color - bright like a light (zero allocation)
         if (unitVisual.energyCoreMaterial) {
             const unitType = unitVisual.unit.getUnitType();
-            const coreColor = unitType === 'protector'
-                ? this.getProtectorEnergyColor(energyPercentage)
-                : this.getEnergyColor(energyPercentage);
-            unitVisual.energyCoreMaterial.diffuseColor = coreColor;
-            unitVisual.energyCoreMaterial.emissiveColor = coreColor.scale(1.5); // Extra bright glow
+            // Get color directly into cached object
+            if (unitType === 'protector') {
+                this.getProtectorEnergyColorInto(energyPercentage, this.cachedEnergyColor);
+            } else {
+                this.getEnergyColorInto(energyPercentage, this.cachedEnergyColor);
+            }
+            // Copy to material diffuseColor
+            unitVisual.energyCoreMaterial.diffuseColor.copyFrom(this.cachedEnergyColor);
+            // Set emissive directly (1.5x scale) without creating new Color3
+            unitVisual.energyCoreMaterial.emissiveColor.r = this.cachedEnergyColor.r * 1.5;
+            unitVisual.energyCoreMaterial.emissiveColor.g = this.cachedEnergyColor.g * 1.5;
+            unitVisual.energyCoreMaterial.emissiveColor.b = this.cachedEnergyColor.b * 1.5;
         }
 
         // Scale energy indicator based on energy level (hidden but kept for compatibility)
         const scale = 0.5 + (energyPercentage * 0.5);
-        unitVisual.energyIndicator.scaling = new Vector3(scale, scale, scale);
+        unitVisual.energyIndicator.scaling.set(scale, scale, scale);  // Mutate existing, no allocation
     }
 
     /**
      * Get energy color based on percentage (bright green -> yellow -> red)
+     * Zero-allocation version - writes result into target Color3
      */
-    private getEnergyColor(percentage: number): Color3 {
+    private getEnergyColorInto(percentage: number, target: Color3): void {
         if (percentage > 0.5) {
             // Bright Green to Yellow (100% -> 50%)
             const t = (percentage - 0.5) * 2; // 0 to 1 as percentage goes from 50% to 100%
-            return new Color3(
-                1.0 - (t * 0.5),       // 1.0 -> 0.5 (less red = more green)
-                1.0,                    // stays bright
-                0.3 * t                 // 0 -> 0.3 (slight cyan tint at full)
-            );
+            target.r = 1.0 - (t * 0.5);    // 1.0 -> 0.5 (less red = more green)
+            target.g = 1.0;                 // stays bright
+            target.b = 0.3 * t;             // 0 -> 0.3 (slight cyan tint at full)
         } else {
             // Yellow to Bright Red (50% -> 0%)
             const t = percentage * 2; // 0 to 1 as percentage goes from 0% to 50%
-            return new Color3(
-                1.0,                    // stays at 1.0 (full red)
-                t * 1.0,                // 0 -> 1.0 (green increases toward yellow)
-                0.0                     // no blue
-            );
+            target.r = 1.0;                 // stays at 1.0 (full red)
+            target.g = t * 1.0;             // 0 -> 1.0 (green increases toward yellow)
+            target.b = 0.0;                 // no blue
         }
     }
 
     /**
      * Get protector energy color based on percentage (bright purple -> grey)
+     * Zero-allocation version - writes result into target Color3
      */
-    private getProtectorEnergyColor(percentage: number): Color3 {
+    private getProtectorEnergyColorInto(percentage: number, target: Color3): void {
         // Purple color scheme: bright purple at full, grey at empty
         // Full energy: bright vibrant purple (0.8, 0.2, 1.0)
         // Empty energy: grey (0.3, 0.3, 0.3) - powered down look
-
-        return new Color3(
-            0.3 + (percentage * 0.5),  // 0.3 -> 0.8 (red component)
-            0.3 - (percentage * 0.1),  // 0.3 -> 0.2 (green: grey at 0, low at full)
-            0.3 + (percentage * 0.7)   // 0.3 -> 1.0 (blue: grey at 0, purple at full)
-        );
+        target.r = 0.3 + (percentage * 0.5);  // 0.3 -> 0.8 (red component)
+        target.g = 0.3 - (percentage * 0.1);  // 0.3 -> 0.2 (green: grey at 0, low at full)
+        target.b = 0.3 + (percentage * 0.7);  // 0.3 -> 1.0 (blue: grey at 0, purple at full)
     }
 
     /**
@@ -772,15 +788,18 @@ export class UnitRenderer {
      */
     private updateHealthVisualization(unitVisual: UnitVisual): void {
         const healthPercentage = unitVisual.unit.getHealth() / unitVisual.unit.getMaxHealth();
-        
+
         // Scale unit slightly based on health
         const healthScale = 0.8 + (healthPercentage * 0.2); // 0.8 to 1.0 scale
-        unitVisual.mesh.scaling = new Vector3(healthScale, healthScale, healthScale);
-        
-        // Adjust material emissive based on health
+        unitVisual.mesh.scaling.set(healthScale, healthScale, healthScale);  // Mutate existing, no allocation
+
+        // Adjust material emissive based on health (zero allocation)
         const baseEmissive = this.getBaseEmissiveColor(unitVisual.unit.getUnitType());
         if (baseEmissive && unitVisual.material) {
-            unitVisual.material.emissiveColor = baseEmissive.scale(healthPercentage);
+            // Scale directly instead of creating new Color3
+            unitVisual.material.emissiveColor.r = baseEmissive.r * healthPercentage;
+            unitVisual.material.emissiveColor.g = baseEmissive.g * healthPercentage;
+            unitVisual.material.emissiveColor.b = baseEmissive.b * healthPercentage;
         }
     }
 
@@ -800,12 +819,21 @@ export class UnitRenderer {
         }
     }
 
+    // Cached base emissive colors (computed once in initializeMaterials)
+    private workerBaseEmissive: Color3 | null = null;
+    private scoutBaseEmissive: Color3 | null = null;
+    private protectorBaseEmissive: Color3 | null = null;
+
     /**
-     * Get base emissive color for unit type
+     * Get base emissive color for unit type (zero allocation - returns cached)
      */
     private getBaseEmissiveColor(unitType: string): Color3 | null {
-        const config = this.unitConfigs[unitType as keyof typeof this.unitConfigs];
-        return config ? config.color.scale(0.1) : null;
+        switch (unitType) {
+            case 'worker': return this.workerBaseEmissive;
+            case 'scout': return this.scoutBaseEmissive;
+            case 'protector': return this.protectorBaseEmissive;
+            default: return null;
+        }
     }
 
     /**
@@ -901,44 +929,53 @@ export class UnitRenderer {
     }
 
     /**
-     * Create mining connection line with energy generation feedback
+     * Create mining connection line with energy generation feedback (Fix 13 - use updatable mesh)
      */
     private createMiningConnectionLine(unitVisual: UnitVisual, miningTarget: any): void {
         if (!miningTarget) return;
 
-        const unitPos = unitVisual.unit.getPosition();
-        const targetPos = miningTarget.getPosition();
-        
-        // Create a simple line mesh between unit and target
-        const points = [
-            unitPos.add(new Vector3(0, 0.5, 0)), // Start slightly above unit
-            targetPos.add(new Vector3(0, 0.5, 0))  // End slightly above target
-        ];
+        // Initialize cached points array if needed
+        if (!unitVisual.miningLinePoints) {
+            unitVisual.miningLinePoints = [new Vector3(), new Vector3()];
+        }
 
+        // Use getPositionRef() for zero allocation where available
+        const unitPos = unitVisual.unit.getPositionRef ? unitVisual.unit.getPositionRef() : unitVisual.unit.getPosition();
+        const targetPos = miningTarget.getPositionRef ? miningTarget.getPositionRef() : miningTarget.getPosition();
+
+        // Set cached points (no allocation)
+        unitVisual.miningLinePoints[0].set(unitPos.x, unitPos.y + 0.5, unitPos.z);
+        unitVisual.miningLinePoints[1].set(targetPos.x, targetPos.y + 0.5, targetPos.z);
+
+        // Create line mesh with updatable flag
         const connectionLine = MeshBuilder.CreateLines(`mining_line_${unitVisual.unit.getId()}`, {
-            points: points
+            points: unitVisual.miningLinePoints,
+            updatable: true  // KEY: Make updatable for Fix 13
         }, this.scene);
 
-        // Style the connection line
-        const lineMaterial = new StandardMaterial(`mining_line_mat_${unitVisual.unit.getId()}`, this.scene);
-        lineMaterial.emissiveColor = new Color3(0, 1, 0.5); // Green-cyan mining beam
-        lineMaterial.disableLighting = true;
-        connectionLine.material = lineMaterial;
+        // Create and cache material (only once)
+        if (!unitVisual.miningLineMaterial) {
+            unitVisual.miningLineMaterial = new StandardMaterial(`mining_line_mat_${unitVisual.unit.getId()}`, this.scene);
+            unitVisual.miningLineMaterial.emissiveColor = new Color3(0, 1, 0.5); // Green-cyan mining beam
+            unitVisual.miningLineMaterial.disableLighting = true;
+
+            // Add pulsing animation to the material (created once)
+            Animation.CreateAndStartAnimation(
+                'miningLinePulse',
+                unitVisual.miningLineMaterial,
+                'emissiveColor',
+                30,
+                60,
+                new Color3(0, 1, 0.5),
+                new Color3(0, 1.5, 1),
+                Animation.ANIMATIONLOOPMODE_CYCLE
+            );
+        }
+
+        connectionLine.material = unitVisual.miningLineMaterial;
         connectionLine.alpha = 0.6;
 
-        // Add pulsing animation to the line to show energy flow
-        Animation.CreateAndStartAnimation(
-            'miningLinePulse',
-            lineMaterial,
-            'emissiveColor',
-            30,
-            60,
-            new Color3(0, 1, 0.5),
-            new Color3(0, 1.5, 1),
-            Animation.ANIMATIONLOOPMODE_CYCLE
-        );
-
-        // Add alpha pulsing for energy flow effect
+        // Add alpha pulsing for energy flow effect (on mesh, created once)
         Animation.CreateAndStartAnimation(
             'miningLineFlow',
             connectionLine,
@@ -956,21 +993,35 @@ export class UnitRenderer {
     /**
      * Update mining connection line position
      */
+    /**
+     * Update mining connection line position (Fix 13 - use instance update, no disposal)
+     */
     private updateMiningConnectionLine(unitVisual: UnitVisual, miningTarget: any): void {
         if (!unitVisual.miningConnectionLine || !miningTarget) return;
 
-        const unitPos = unitVisual.unit.getPosition();
-        const targetPos = miningTarget.getPosition();
-        
-        // Update line points
-        const points = [
-            unitPos.add(new Vector3(0, 0.5, 0)),
-            targetPos.add(new Vector3(0, 0.5, 0))
-        ];
+        // Ensure cached points exist
+        if (!unitVisual.miningLinePoints) {
+            unitVisual.miningLinePoints = [new Vector3(), new Vector3()];
+        }
 
-        // Recreate the line with new points (Babylon.js lines need to be recreated to update)
-        unitVisual.miningConnectionLine.dispose();
-        this.createMiningConnectionLine(unitVisual, miningTarget);
+        // Use getPositionRef() for zero allocation where available
+        const unitPos = unitVisual.unit.getPositionRef ? unitVisual.unit.getPositionRef() : unitVisual.unit.getPosition();
+        const targetPos = miningTarget.getPositionRef ? miningTarget.getPositionRef() : miningTarget.getPosition();
+
+        // Update cached points (no allocation)
+        unitVisual.miningLinePoints[0].set(unitPos.x, unitPos.y + 0.5, unitPos.z);
+        unitVisual.miningLinePoints[1].set(targetPos.x, targetPos.y + 0.5, targetPos.z);
+
+        // Update existing mesh instance (no disposal/recreation)
+        MeshBuilder.CreateLines(
+            `mining_line_${unitVisual.unit.getId()}`,
+            {
+                points: unitVisual.miningLinePoints,
+                instance: unitVisual.miningConnectionLine as LinesMesh  // KEY: Update in place
+            },
+            this.scene
+        );
+        // Note: instance update modifies the existing mesh, no need to reassign
     }
 
     /**
@@ -1005,6 +1056,10 @@ export class UnitRenderer {
         unitVisual.selectionIndicator.dispose();
         if (unitVisual.miningConnectionLine) {
             unitVisual.miningConnectionLine.dispose();
+        }
+        // Dispose cached mining line material (Fix 13)
+        if (unitVisual.miningLineMaterial) {
+            unitVisual.miningLineMaterial.dispose();
         }
         unitVisual.rootNode.dispose();
 

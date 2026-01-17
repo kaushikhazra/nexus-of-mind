@@ -569,6 +569,8 @@ export abstract class Unit {
     public getId(): string { return this.id; }
     public getUnitType(): string { return this.unitType; }
     public getPosition(): Vector3 { return this.position.clone(); }
+    /** Get position reference (zero allocation - DO NOT MODIFY). Use in hot paths. */
+    public getPositionRef(): Vector3 { return this.position; }
     public getHealth(): number { return this.health; }
     public getMaxHealth(): number { return this.maxHealth; }
     public getEnergyStorage(): EnergyStorage { return this.energyStorage; }

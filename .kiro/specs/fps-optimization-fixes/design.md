@@ -2,7 +2,7 @@
 
 ## Overview
 
-This design addresses 9 performance issues: 3 memory leaks causing FPS degradation over time, and 6 per-frame/event bottlenecks causing low baseline FPS. The target is stable 60 FPS (+/- 5) throughout extended gameplay sessions.
+This design addresses 11 performance issues: 3 memory leaks causing FPS degradation over time, and 8 per-frame/event bottlenecks causing low baseline FPS. The target is stable 60 FPS (+/- 5) throughout extended gameplay sessions.
 
 ## Problem Analysis
 
@@ -659,6 +659,595 @@ public getUnitsByType(unitType: 'worker' | 'scout' | 'protector'): Unit[] {
 
 **Trade-off:** Slightly more memory (arrays + Map) and add/remove operations do a bit more work, but these are infrequent compared to 60Hz reads.
 
+### Fix 10: Mining Operation Per-Frame Allocation Elimination
+
+**Problem:** Mining with even one worker causes FPS to drop from 60 to 43. Investigation revealed per-frame allocations in the mining code path.
+
+**Call chain during mining (every frame):**
+```
+MiningAction.executeAction()
+├── currentTarget.mine(deltaTime)
+│   └── updateVisual()
+│       └── new Vector3(scale, scale, scale)  ← ALLOCATION
+├── currentTarget.getPosition()
+│   └── this.position.clone()  ← ALLOCATION
+└── Vector3.Distance(minerPosition, target.getPosition())
+    └── target.getPosition() clone  ← ALLOCATION
+```
+
+**Estimated allocations:** ~10-20 Vector3 objects per frame per mining worker
+
+#### Fix 10.1: MineralDeposit.updateVisual() - Eliminate Scaling Allocation
+
+```typescript
+// MineralDeposit.ts - BEFORE (Line 173)
+private updateVisual(): void {
+    const percentage = this.remaining / this.capacity;
+    const scale = Math.max(0.2, percentage);
+    this.mesh.scaling = new Vector3(scale, scale, scale);  // ALLOCATION every frame!
+}
+
+// MineralDeposit.ts - AFTER
+private updateVisual(): void {
+    const percentage = this.remaining / this.capacity;
+    const scale = Math.max(0.2, percentage);
+    this.mesh.scaling.set(scale, scale, scale);  // Mutate existing, no allocation
+}
+```
+
+#### Fix 10.2: MineralDeposit.getPosition() - Return Reference
+
+```typescript
+// MineralDeposit.ts - BEFORE (Line 281)
+public getPosition(): Vector3 {
+    return this.position.clone();  // Creates new Vector3 every call
+}
+
+// MineralDeposit.ts - AFTER (two methods for different use cases)
+/**
+ * Get position reference (for internal use, DO NOT MODIFY)
+ */
+public getPositionRef(): Vector3 {
+    return this.position;  // Zero allocation
+}
+
+/**
+ * Get position copy (for external use where modification is needed)
+ */
+public getPosition(): Vector3 {
+    return this.position.clone();  // Safe copy for external use
+}
+```
+
+#### Fix 10.3: Unit.getPosition() - Add Reference Method
+
+```typescript
+// Unit.ts - BEFORE (Line 571)
+public getPosition(): Vector3 { return this.position.clone(); }
+
+// Unit.ts - AFTER (add reference method for internal hot paths)
+/**
+ * Get position reference (for internal use, DO NOT MODIFY)
+ */
+public getPositionRef(): Vector3 { return this.position; }
+
+/**
+ * Get position copy (for external use)
+ */
+public getPosition(): Vector3 { return this.position.clone(); }
+```
+
+#### Fix 10.4: MiningAction - Use copyFrom() Instead of clone()
+
+```typescript
+// MiningAction.ts - BEFORE (Line 164)
+public updatePosition(newPosition: Vector3): void {
+    this.minerPosition = newPosition.clone();  // Creates new Vector3
+}
+
+// MiningAction.ts - AFTER
+public updatePosition(newPosition: Vector3): void {
+    this.minerPosition.copyFrom(newPosition);  // Mutate existing, no allocation
+}
+
+// Also update range checks to use getPositionRef()
+// BEFORE (Line 65, 168)
+const distance = Vector3.Distance(this.minerPosition, target.getPosition());
+
+// AFTER
+const distance = Vector3.Distance(this.minerPosition, target.getPositionRef());
+```
+
+**Note on getPosition() vs getPositionRef():**
+- `getPosition()` returns a clone - safe for external code that might modify the position
+- `getPositionRef()` returns the actual reference - zero allocation but caller must NOT modify
+- Use `getPositionRef()` in hot paths (per-frame code) where position is only read
+- Use `getPosition()` when passing position to code that might store or modify it
+
+### Fix 11: Unit Rendering Per-Frame Allocation Elimination
+
+**Problem:** UnitRenderer calls several methods every frame for every unit, each creating new Vector3 or Color3 objects. With 3 workers, this creates ~1,140 allocations/sec.
+
+**Hot paths in UnitRenderer (called every frame per unit):**
+```
+updateAllVisuals()
+├── updateUnitPosition()
+│   └── lastPosition = currentPosition.clone()  ← Vector3
+├── updateEnergyVisualization()
+│   ├── getEnergyColor() → new Color3(...)  ← Color3
+│   ├── coreColor.scale(1.5) → new Color3  ← Color3
+│   └── energyIndicator.scaling = new Vector3(...)  ← Vector3
+├── updateHealthVisualization()
+│   ├── mesh.scaling = new Vector3(...)  ← Vector3
+│   └── baseEmissive.scale(healthPercentage) → new Color3  ← Color3
+└── updateActionVisualization()
+```
+
+**Also in MineralDeposit.updateVisual() (every frame during mining):**
+```
+updateVisual()
+└── this.material.emissiveColor = new Color3(...)  ← Color3
+```
+
+#### Fix 11.1: UnitRenderer - Cache Position Updates
+
+```typescript
+// UnitRenderer.ts - BEFORE (Line 694)
+unitVisual.lastPosition = currentPosition.clone();
+
+// UnitRenderer.ts - AFTER
+unitVisual.lastPosition.copyFrom(currentPosition);  // Mutate existing
+```
+
+#### Fix 11.2: UnitRenderer - Cache Scaling Vectors
+
+```typescript
+// UnitRenderer.ts - BEFORE (Line 716)
+unitVisual.energyIndicator.scaling = new Vector3(scale, scale, scale);
+
+// UnitRenderer.ts - AFTER
+unitVisual.energyIndicator.scaling.set(scale, scale, scale);
+
+// UnitRenderer.ts - BEFORE (Line 778)
+unitVisual.mesh.scaling = new Vector3(healthScale, healthScale, healthScale);
+
+// UnitRenderer.ts - AFTER
+unitVisual.mesh.scaling.set(healthScale, healthScale, healthScale);
+```
+
+#### Fix 11.3: UnitRenderer - Cache Energy Colors
+
+```typescript
+// UnitRenderer.ts - BEFORE (Lines 726, 734, 750)
+private getEnergyColor(percentage: number): Color3 {
+    if (percentage > 0.5) {
+        return new Color3(...);  // Creates new Color3 every call
+    } else {
+        return new Color3(...);
+    }
+}
+
+// UnitRenderer.ts - AFTER (cache Color3 objects)
+// Add cached colors as class members
+private cachedEnergyColor: Color3 = new Color3();
+private cachedProtectorColor: Color3 = new Color3();
+private cachedEmissiveColor: Color3 = new Color3();
+
+private getEnergyColor(percentage: number): Color3 {
+    if (percentage > 0.5) {
+        const t = (percentage - 0.5) * 2;
+        this.cachedEnergyColor.r = 1.0 - (t * 0.5);
+        this.cachedEnergyColor.g = 1.0;
+        this.cachedEnergyColor.b = 0.3 * t;
+    } else {
+        const t = percentage * 2;
+        this.cachedEnergyColor.r = 1.0;
+        this.cachedEnergyColor.g = t * 1.0;
+        this.cachedEnergyColor.b = 0.0;
+    }
+    return this.cachedEnergyColor;  // Return cached, no allocation
+}
+
+// Same pattern for getProtectorEnergyColor()
+```
+
+#### Fix 11.4: UnitRenderer - Avoid scale() Method Allocations
+
+```typescript
+// UnitRenderer.ts - BEFORE (Line 711)
+unitVisual.energyCoreMaterial.emissiveColor = coreColor.scale(1.5);
+
+// UnitRenderer.ts - AFTER (use scaleToRef or direct assignment)
+coreColor.scaleToRef(1.5, this.cachedEmissiveColor);
+unitVisual.energyCoreMaterial.emissiveColor = this.cachedEmissiveColor;
+
+// Or even simpler - set properties directly:
+unitVisual.energyCoreMaterial.emissiveColor.r = coreColor.r * 1.5;
+unitVisual.energyCoreMaterial.emissiveColor.g = coreColor.g * 1.5;
+unitVisual.energyCoreMaterial.emissiveColor.b = coreColor.b * 1.5;
+```
+
+#### Fix 11.5: MineralDeposit - Cache Emissive Colors
+
+```typescript
+// MineralDeposit.ts - BEFORE (Lines 178, 181, 184)
+private updateVisual(): void {
+    if (percentage < 0.2) {
+        this.material.emissiveColor = new Color3(0.1, 0.3, 0.5);
+    } else if (percentage < 0.5) {
+        this.material.emissiveColor = new Color3(0.2, 0.5, 0.8);
+    } else {
+        this.material.emissiveColor = new Color3(0.3, 0.7, 1.0);
+    }
+}
+
+// MineralDeposit.ts - AFTER (set properties directly)
+private updateVisual(): void {
+    if (percentage < 0.2) {
+        this.material.emissiveColor.r = 0.1;
+        this.material.emissiveColor.g = 0.3;
+        this.material.emissiveColor.b = 0.5;
+    } else if (percentage < 0.5) {
+        this.material.emissiveColor.r = 0.2;
+        this.material.emissiveColor.g = 0.5;
+        this.material.emissiveColor.b = 0.8;
+    } else {
+        this.material.emissiveColor.r = 0.3;
+        this.material.emissiveColor.g = 0.7;
+        this.material.emissiveColor.b = 1.0;
+    }
+}
+```
+
+**Allocation reduction:**
+- Before: ~1,140 allocations/sec (3 units active)
+- After: ~0 allocations/sec in hot paths
+- Scales with unit count (more units = bigger savings)
+
+### Fix 12: Parasite-Unit Interaction Map Allocation Elimination
+
+**Problem:** During parasite-unit interactions (combat, fleeing, targeting), FPS drops to 29-35. Investigation revealed that `updateParasites()` creates two new Map objects every frame for O(1) unit lookups.
+
+**Code path (every frame when parasites active):**
+```
+ParasiteManager.update()
+└── updateParasites()
+    ├── new Map<string, Worker>()      ← ALLOCATION every frame!
+    ├── for worker of workers → workerMap.set(...)
+    ├── new Map<string, Protector>()   ← ALLOCATION every frame!
+    └── for protector of protectors → protectorMap.set(...)
+```
+
+**Estimated allocations:** 2 Maps per frame × 60 FPS = 120 Map allocations/second + all the internal allocations for Map entries.
+
+#### Fix 12.1: Cache Unit Lookup Maps as Class Members
+
+```typescript
+// ParasiteManager.ts - BEFORE (Lines 314-321)
+private updateParasites(deltaTime: number, workers: Worker[], protectors: Protector[]): void {
+    // Build ID->Object maps for O(1) lookups (done once per frame)
+    const workerMap = new Map<string, Worker>();     // ALLOCATION!
+    for (const worker of workers) {
+        workerMap.set(worker.getId(), worker);
+    }
+    const protectorMap = new Map<string, Protector>(); // ALLOCATION!
+    for (const protector of protectors) {
+        protectorMap.set(protector.getId(), protector);
+    }
+    // ... use maps for spatial lookups
+}
+
+// ParasiteManager.ts - AFTER (cache as class members)
+// Add class members
+private cachedWorkerMap: Map<string, Worker> = new Map();
+private cachedProtectorMap: Map<string, Protector> = new Map();
+
+private updateParasites(deltaTime: number, workers: Worker[], protectors: Protector[]): void {
+    // Clear and reuse existing Maps (no allocation)
+    this.cachedWorkerMap.clear();
+    for (const worker of workers) {
+        this.cachedWorkerMap.set(worker.getId(), worker);
+    }
+
+    this.cachedProtectorMap.clear();
+    for (const protector of protectors) {
+        this.cachedProtectorMap.set(protector.getId(), protector);
+    }
+
+    // ... use cached maps for spatial lookups
+}
+```
+
+**Impact:**
+- Eliminates 2 Map allocations per frame (120/second)
+- Eliminates internal Map entry object allocations
+- Map.clear() is O(n) but reuses the underlying data structure
+- Significantly reduces GC pressure during parasite interactions
+
+### Fix 13: Visual Effect Beam/Ray Per-Frame Allocation Elimination
+
+**Problem:** During combat and mining, visual effects (drain beams, mining rays) are **completely disposed and recreated every frame**. This creates massive allocation pressure.
+
+**Per-frame allocations (with 3 parasites feeding + 1 worker mining):**
+- 4x LinesMesh disposal + creation
+- 8x Vector3 (position clones)
+- 4x StandardMaterial (new)
+- 4x Color3 (new)
+- 2x Animation objects (mining line)
+
+**Total: ~18+ object allocations per frame per active effect**
+
+#### Fix 13.1: EnergyParasite Drain Beam - Update Instead of Recreate
+
+```typescript
+// EnergyParasite.ts - BEFORE (Lines 275-299)
+protected updateDrainBeam(targetPosition: Vector3): void {
+    // Remove existing beam - WASTEFUL!
+    if (this.drainBeam) {
+        this.drainBeam.dispose();
+        this.drainBeam = null;
+    }
+
+    // Create new beam - EVERY FRAME!
+    const points = [this.position.clone(), targetPosition.clone()];
+    this.drainBeam = MeshBuilder.CreateLines(...);
+
+    const beamMaterial = new StandardMaterial(...);  // NEW MATERIAL EVERY FRAME
+    beamMaterial.emissiveColor = new Color3(1, 0.2, 0.2);  // NEW COLOR3
+    this.drainBeam.material = beamMaterial;
+}
+
+// EnergyParasite.ts - AFTER (update geometry, cache material)
+// Add class members
+private drainBeamMaterial: StandardMaterial | null = null;
+private cachedDrainPoints: Vector3[] = [new Vector3(), new Vector3()];
+
+protected updateDrainBeam(targetPosition: Vector3): void {
+    if (!this.scene) return;
+
+    // Create beam and material ONCE (lazy initialization)
+    if (!this.drainBeam) {
+        this.cachedDrainPoints[0].copyFrom(this.position);
+        this.cachedDrainPoints[1].copyFrom(targetPosition);
+
+        this.drainBeam = MeshBuilder.CreateLines(`drain_beam_${this.id}`, {
+            points: this.cachedDrainPoints,
+            updatable: true  // KEY: Make updatable for vertex updates
+        }, this.scene);
+
+        // Create material ONCE
+        if (!this.drainBeamMaterial) {
+            this.drainBeamMaterial = new StandardMaterial(`drain_beam_mat_${this.id}`, this.scene);
+            this.drainBeamMaterial.emissiveColor = new Color3(1, 0.2, 0.2);
+            this.drainBeamMaterial.disableLighting = true;
+        }
+        this.drainBeam.material = this.drainBeamMaterial;
+        this.drainBeam.alpha = 0.8;
+    } else {
+        // UPDATE existing beam geometry (no allocation)
+        this.cachedDrainPoints[0].copyFrom(this.position);
+        this.cachedDrainPoints[1].copyFrom(targetPosition);
+
+        this.drainBeam = MeshBuilder.CreateLines(`drain_beam_${this.id}`, {
+            points: this.cachedDrainPoints,
+            instance: this.drainBeam  // KEY: Update existing instance
+        }, this.scene);
+    }
+}
+```
+
+#### Fix 13.2: CombatParasite Drain Beam - Same Pattern
+
+```typescript
+// CombatParasite.ts - Same fix as EnergyParasite
+// Add class members for cached material and points
+private drainBeamMaterial: StandardMaterial | null = null;
+private cachedDrainPoints: Vector3[] = [new Vector3(), new Vector3()];
+
+// Use same update pattern with updatable mesh and instance update
+```
+
+#### Fix 13.3: UnitRenderer Mining Connection Line - Update Instead of Recreate
+
+```typescript
+// UnitRenderer.ts - BEFORE (Lines 983-998)
+private updateMiningConnectionLine(unitVisual: UnitVisual, miningTarget: any): void {
+    const points = [
+        unitPos.add(new Vector3(0, 0.5, 0)),  // NEW VECTOR3
+        targetPos.add(new Vector3(0, 0.5, 0)) // NEW VECTOR3
+    ];
+
+    // Recreate the line - WASTEFUL!
+    unitVisual.miningConnectionLine.dispose();
+    this.createMiningConnectionLine(unitVisual, miningTarget);  // Creates mesh + material + animations
+}
+
+// UnitRenderer.ts - AFTER (update existing line)
+// Add to UnitVisual interface
+interface UnitVisual {
+    // ... existing fields
+    miningLinePoints: Vector3[];  // Cached point array
+    miningLineMaterial: StandardMaterial | null;  // Cached material
+}
+
+private updateMiningConnectionLine(unitVisual: UnitVisual, miningTarget: any): void {
+    if (!unitVisual.miningConnectionLine || !miningTarget) return;
+
+    // Ensure cached points exist
+    if (!unitVisual.miningLinePoints) {
+        unitVisual.miningLinePoints = [new Vector3(), new Vector3()];
+    }
+
+    // Update cached points (no allocation)
+    const unitPos = unitVisual.unit.getPositionRef();
+    const targetPos = miningTarget.getPositionRef();
+
+    unitVisual.miningLinePoints[0].set(unitPos.x, unitPos.y + 0.5, unitPos.z);
+    unitVisual.miningLinePoints[1].set(targetPos.x, targetPos.y + 0.5, targetPos.z);
+
+    // Update existing mesh instance (no disposal/recreation)
+    unitVisual.miningConnectionLine = MeshBuilder.CreateLines(
+        `mining_line_${unitVisual.unit.getId()}`,
+        {
+            points: unitVisual.miningLinePoints,
+            instance: unitVisual.miningConnectionLine  // Update in place
+        },
+        this.scene
+    );
+}
+
+private createMiningConnectionLine(unitVisual: UnitVisual, miningTarget: any): void {
+    // Initialize cached points
+    unitVisual.miningLinePoints = [new Vector3(), new Vector3()];
+
+    const unitPos = unitVisual.unit.getPositionRef();
+    const targetPos = miningTarget.getPositionRef();
+
+    unitVisual.miningLinePoints[0].set(unitPos.x, unitPos.y + 0.5, unitPos.z);
+    unitVisual.miningLinePoints[1].set(targetPos.x, targetPos.y + 0.5, targetPos.z);
+
+    const connectionLine = MeshBuilder.CreateLines(`mining_line_${unitVisual.unit.getId()}`, {
+        points: unitVisual.miningLinePoints,
+        updatable: true  // KEY: Make updatable
+    }, this.scene);
+
+    // Cache material (create once)
+    if (!unitVisual.miningLineMaterial) {
+        unitVisual.miningLineMaterial = new StandardMaterial(`mining_line_mat_${unitVisual.unit.getId()}`, this.scene);
+        unitVisual.miningLineMaterial.emissiveColor = new Color3(0, 1, 0.5);
+        unitVisual.miningLineMaterial.disableLighting = true;
+    }
+    connectionLine.material = unitVisual.miningLineMaterial;
+    connectionLine.alpha = 0.6;
+
+    // Animations only created ONCE (not every frame)
+    Animation.CreateAndStartAnimation(...);
+
+    unitVisual.miningConnectionLine = connectionLine;
+}
+```
+
+**Key Babylon.js Pattern:**
+```typescript
+// Create updatable mesh ONCE:
+MeshBuilder.CreateLines(name, { points: [...], updatable: true }, scene);
+
+// Update geometry without recreation:
+MeshBuilder.CreateLines(name, { points: newPoints, instance: existingMesh }, scene);
+```
+
+**Impact:**
+- Eliminates ~12+ mesh disposal/creation per frame
+- Eliminates ~12+ material allocations per frame
+- Eliminates ~24+ Vector3 allocations per frame
+- Expected FPS gain: +15-25 FPS during combat/mining
+
+### Fix 14: Mouse Hover and UI Update Allocation Elimination
+
+**Problem:** During mouse movement, FPS drops from 50 to 35. Investigation revealed multiple string allocation issues in hover/tooltip code.
+
+**Critical Issues Found:**
+
+| Location | Issue | Frequency |
+|----------|-------|-----------|
+| BuildingPlacementUI.handleMouseMove() | Unthrottled string allocations | Every mouse move (60+ fps) |
+| ProtectorSelectionUI.updateContent() | Full innerHTML rebuild | Every 100ms |
+| EnergyLordsHUD.updateTierProgress() | String concat in loop | Every 500ms |
+| EnergyLordsHUD.updateDisplayWithState() | Gradient strings recreated | Every 500ms |
+
+#### Fix 14.1: Throttle BuildingPlacementUI Mouse Handler
+
+```typescript
+// BuildingPlacementUI.ts - BEFORE (Lines 675-724)
+private handleMouseMove(evt: PointerInfo): void {
+    // Called on EVERY mouse move - no throttling!
+    const workerText = `${this.currentMiningAnalysis.workerCount} workers can mine`;
+    const efficiencyText = this.currentMiningAnalysis.efficiency.toUpperCase();
+    this.updateStatus(`${workerText} - ${efficiencyText} efficiency...`);
+}
+
+// BuildingPlacementUI.ts - AFTER (add throttling)
+private lastMouseMoveTime: number = 0;
+private readonly MOUSE_MOVE_INTERVAL = 100; // 10Hz throttle
+
+private handleMouseMove(evt: PointerInfo): void {
+    const now = performance.now();
+    if (now - this.lastMouseMoveTime < this.MOUSE_MOVE_INTERVAL) return;
+    this.lastMouseMoveTime = now;
+
+    // ... existing logic (now runs at 10Hz instead of 60Hz)
+}
+```
+
+#### Fix 14.2: Optimize ProtectorSelectionUI Updates
+
+```typescript
+// ProtectorSelectionUI.ts - BEFORE (Line 228)
+// Full innerHTML rebuild every 100ms
+this.tooltipElement.innerHTML = `<div style="...">...</div>`;
+
+// ProtectorSelectionUI.ts - AFTER (targeted updates)
+// Cache element references
+private nameElement: HTMLElement | null = null;
+private healthElement: HTMLElement | null = null;
+// ... etc
+
+// Update only changed values
+if (this.nameElement) this.nameElement.textContent = name;
+if (this.healthElement) this.healthElement.textContent = `${health}/${maxHealth}`;
+```
+
+#### Fix 14.3: Slow Down and Optimize EnergyLordsHUD Updates
+
+```typescript
+// EnergyLordsHUD.ts - BEFORE (Line 390)
+this.updateInterval = setInterval(() => this.updateDisplay(), 500);  // 500ms = too fast
+
+// EnergyLordsHUD.ts - AFTER
+this.updateInterval = setInterval(() => this.updateDisplay(), 1000);  // 1000ms = reasonable
+
+// Cache gradient strings (create once)
+private readonly GRADIENT_GOLD = 'linear-gradient(90deg, #ffd700 0%, #ffee88 50%, #ffffff 100%)';
+private readonly GRADIENT_PURPLE = 'linear-gradient(90deg, #6040ff 0%, #a080ff 50%, #ffd700 100%)';
+
+// Use array join instead of += concatenation
+private updateTierProgress(): void {
+    const dots: string[] = [];
+    for (let i = 1; i <= 5; i++) {
+        dots.push(`<div style="..."></div>`);
+    }
+    container.innerHTML = dots.join('');  // Single allocation instead of 5
+}
+```
+
+**Impact:**
+- BuildingPlacementUI: 60+ allocations/sec → ~10 allocations/sec
+- ProtectorSelectionUI: Full DOM rebuild → Targeted textContent updates
+- EnergyLordsHUD: 2 updates/sec → 1 update/sec, cached strings
+- Expected FPS gain: +10-15 FPS during mouse movement
+
+### Fix 15: Energy Display Consolidation
+
+**Problem:** Energy info is displayed in two places - EnergyLordsHUD shows it, and EnergyDisplay (top right) also shows total energy. User requested consolidation.
+
+**Changes:**
+1. Keep total energy display in EnergyLordsHUD (already there)
+2. Remove total energy from EnergyDisplay (top right bar)
+3. Keep in EnergyDisplay: generation rate, consumption rate, efficiency %, net rate
+
+```typescript
+// EnergyDisplay.ts - BEFORE
+// Shows: Total Energy | Generation | Consumption | Efficiency | Net Rate
+
+// EnergyDisplay.ts - AFTER
+// Shows: Generation | Consumption | Efficiency | Net Rate
+// (Total energy now only in Energy Lords window)
+```
+
+**UI Layout After:**
+- Top right bar: Delta stats only (generation, consumption, efficiency, net rate)
+- Energy Lords window: Total energy + tier progress + detailed stats
+
 ## Expected Performance Impact
 
 ```
@@ -692,8 +1281,14 @@ public getUnitsByType(unitType: 'worker' | 'scout' | 'protector'): Unit[] {
 | 7. Singleton caching | Per-frame | +1-2 FPS | Minor but measurable |
 | 8. Mouse move throttling | Event-driven | +15-20 FPS | During mouse movement |
 | 9. Camera traversal allocations | Per-frame | +15-20 FPS | During W/S + rotation |
+| 10. Mining allocations | Per-frame | +5-8 FPS | During mining operations |
+| 11. Unit rendering allocations | Per-frame | +10-15 FPS | During unit activity |
+| 12. Parasite interaction Maps | Per-frame | +15-25 FPS | During parasite encounters |
+| 13. Beam/Ray mesh recreation | Per-frame | +15-25 FPS | During combat/mining effects |
+| 14. Mouse hover/UI string allocations | Per-event | +10-15 FPS | During mouse movement |
+| 15. Energy display consolidation | UI cleanup | N/A | Cleaner UI, less redundancy |
 
-**Total Expected Gain: +20-35 FPS (idle), +35-55 FPS (during interaction)**
+**Total Expected Gain: +20-35 FPS (idle), +70-90 FPS (during gameplay)**
 
 ## File Locations
 
@@ -712,6 +1307,10 @@ public getUnitsByType(unitType: 'worker' | 'scout' | 'protector'): Unit[] {
 | `client/src/game/SystemIntegration.ts` | Remove PerformanceMonitor usage |
 | `client/src/rendering/TreeRenderer.ts` | Eliminate Vector3 allocations in updateAnimations() |
 | `client/src/rendering/CameraController.ts` | Cache movement vectors for keyboard controls |
+| `client/src/rendering/UnitRenderer.ts` | Cache colors, use scaling.set(), use copyFrom() |
+| `client/src/world/MineralDeposit.ts` | Use scaling.set(), add getPositionRef(), direct color assignment |
+| `client/src/game/entities/Unit.ts` | Add getPositionRef() for zero-allocation access |
+| `client/src/game/actions/MiningAction.ts` | Use copyFrom(), use getPositionRef() |
 
 ## Testing Strategy
 

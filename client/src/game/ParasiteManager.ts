@@ -103,6 +103,10 @@ export class ParasiteManager {
     private lastDepositCacheTime: number = 0;
     private readonly DEPOSIT_CACHE_INTERVAL = 1000; // Refresh every 1 second
 
+    // Cached Maps for unit lookups (Fix 12 - reused to avoid per-frame allocations)
+    private cachedWorkerMap: Map<string, Worker> = new Map();
+    private cachedProtectorMap: Map<string, Protector> = new Map();
+
     constructor(config: ParasiteManagerConfig) {
         this.scene = config.scene;
         this.materialManager = config.materialManager;
@@ -310,14 +314,14 @@ export class ParasiteManager {
             return;
         }
 
-        // Build ID->Object maps for O(1) lookups (done once per frame)
-        const workerMap = new Map<string, Worker>();
+        // Build ID->Object maps for O(1) lookups (reuse cached Maps - Fix 12)
+        this.cachedWorkerMap.clear();
         for (const worker of workers) {
-            workerMap.set(worker.getId(), worker);
+            this.cachedWorkerMap.set(worker.getId(), worker);
         }
-        const protectorMap = new Map<string, Protector>();
+        this.cachedProtectorMap.clear();
         for (const protector of protectors) {
-            protectorMap.set(protector.getId(), protector);
+            this.cachedProtectorMap.set(protector.getId(), protector);
         }
 
         // Get parasites in nearby chunks using spatial index (3x3 chunk area = 192x192 units)
@@ -355,13 +359,13 @@ export class ParasiteManager {
                 // Get nearby worker IDs from spatial index
                 const workerIds = spatialIndex.getEntitiesInRange(parasitePosition, searchRadius, 'worker');
                 nearbyWorkers = workerIds
-                    .map(id => workerMap.get(id))
+                    .map(id => this.cachedWorkerMap.get(id))
                     .filter((w): w is Worker => w !== undefined);
 
                 // Get nearby protector IDs from spatial index
                 const protectorIds = spatialIndex.getEntitiesInRange(parasitePosition, searchRadius, 'protector');
                 nearbyProtectors = protectorIds
-                    .map(id => protectorMap.get(id))
+                    .map(id => this.cachedProtectorMap.get(id))
                     .filter((p): p is Protector => p !== undefined);
             } else {
                 // Fallback to O(n) filtering if spatial index not available

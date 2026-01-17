@@ -59,6 +59,9 @@ export class CombatParasite extends Parasite {
     protected feedingStartTime: number = 0;
     protected lastFeedTime: number = 0;
     protected drainBeam: any | null = null;
+    // Cached drain beam resources (Fix 13 - avoid per-frame allocations)
+    protected drainBeamMaterial: any | null = null;
+    protected cachedDrainPoints: Vector3[] = [new Vector3(), new Vector3()];
 
     // For compatibility with EnergyParasite patterns
     protected currentTarget: Worker | null = null;
@@ -520,25 +523,40 @@ export class CombatParasite extends Parasite {
 
     // ==================== Drain Beam ====================
 
+    /**
+     * Create or update visual drain beam (Fix 13 - reuse mesh and material)
+     */
     protected updateDrainBeam(targetPosition: Vector3): void {
         if (!this.scene) return;
 
-        if (this.drainBeam) {
-            this.drainBeam.dispose();
-            this.drainBeam = null;
-        }
-
         const { MeshBuilder, Color3: C3, StandardMaterial } = require('@babylonjs/core');
 
-        this.drainBeam = MeshBuilder.CreateLines(`drain_beam_${this.id}`, {
-            points: [this.position.clone(), targetPosition.clone()]
-        }, this.scene);
+        // Update cached points (no allocation)
+        this.cachedDrainPoints[0].copyFrom(this.position);
+        this.cachedDrainPoints[1].copyFrom(targetPosition);
 
-        const mat = new StandardMaterial(`drain_mat_${this.id}`, this.scene);
-        mat.emissiveColor = new C3(1, 0.2, 0.2);
-        mat.disableLighting = true;
-        this.drainBeam.material = mat;
-        this.drainBeam.alpha = 0.8;
+        if (!this.drainBeam) {
+            // Create beam ONCE with updatable flag
+            this.drainBeam = MeshBuilder.CreateLines(`drain_beam_${this.id}`, {
+                points: this.cachedDrainPoints,
+                updatable: true
+            }, this.scene);
+
+            // Create material ONCE
+            if (!this.drainBeamMaterial) {
+                this.drainBeamMaterial = new StandardMaterial(`drain_mat_${this.id}`, this.scene);
+                this.drainBeamMaterial.emissiveColor = new C3(1, 0.2, 0.2);
+                this.drainBeamMaterial.disableLighting = true;
+            }
+            this.drainBeam.material = this.drainBeamMaterial;
+            this.drainBeam.alpha = 0.8;
+        } else {
+            // Update existing beam geometry (no disposal/recreation)
+            this.drainBeam = MeshBuilder.CreateLines(`drain_beam_${this.id}`, {
+                points: this.cachedDrainPoints,
+                instance: this.drainBeam
+            }, this.scene);
+        }
     }
 
     protected removeDrainBeam(): void {
@@ -592,6 +610,11 @@ export class CombatParasite extends Parasite {
 
     public dispose(): void {
         this.removeDrainBeam();
+        // Dispose cached material (Fix 13)
+        if (this.drainBeamMaterial) {
+            this.drainBeamMaterial.dispose();
+            this.drainBeamMaterial = null;
+        }
         super.dispose();
     }
 

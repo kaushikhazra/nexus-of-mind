@@ -126,3 +126,87 @@ This specification addresses performance issues causing low baseline FPS (25-38)
 7. WHEN traversing with 'W' key and rapid rotation, THE FPS SHALL remain above 50
 8. THE per-frame object allocations SHALL be reduced by at least 90% (from ~4000 to <400)
 
+### Requirement 10: Mining Operation Per-Frame Allocation Elimination
+
+**User Story:** As a player, I want smooth FPS while workers are mining, so that resource gathering doesn't cause performance degradation.
+
+#### Acceptance Criteria
+
+1. THE MineralDeposit.updateVisual() SHALL NOT create new Vector3 objects every frame
+2. THE System SHALL use mesh.scaling.set() to mutate existing scaling vectors
+3. THE MineralDeposit.getPosition() SHALL return a reference or cached position, not a clone
+4. THE Unit.getPosition() SHALL provide a non-allocating access method for internal use
+5. THE MiningAction SHALL use copyFrom() instead of clone() for position updates
+6. WHEN one worker is mining, THE FPS SHALL remain above 55
+7. WHEN multiple workers are mining, THE FPS SHALL remain above 50
+8. THE per-frame allocations during mining SHALL be reduced by at least 90%
+
+### Requirement 11: Unit Rendering Per-Frame Allocation Elimination
+
+**User Story:** As a player, I want smooth FPS during all unit activities (mining, moving, fleeing, combat), so that gameplay remains fluid regardless of unit actions.
+
+#### Acceptance Criteria
+
+1. THE UnitRenderer.updateUnitPosition() SHALL NOT create new Vector3 via clone() every frame
+2. THE UnitRenderer.updateEnergyVisualization() SHALL NOT create new Vector3 for scaling every frame
+3. THE UnitRenderer.updateHealthVisualization() SHALL NOT create new Vector3 for scaling every frame
+4. THE UnitRenderer.getEnergyColor() SHALL NOT create new Color3 every frame
+5. THE UnitRenderer.getProtectorEnergyColor() SHALL NOT create new Color3 every frame
+6. THE MineralDeposit.updateVisual() SHALL NOT create new Color3 for emissiveColor every frame
+7. THE System SHALL cache Color3 objects and use copyFrom() or direct property assignment
+8. WHEN units are active (mining, moving, fleeing), THE FPS SHALL remain above 55
+9. THE per-frame allocations in unit rendering SHALL be reduced by at least 90%
+
+### Requirement 12: Parasite-Unit Interaction Map Allocation Elimination
+
+**User Story:** As a player, I want smooth FPS during parasite-unit interactions (combat, fleeing, targeting), so that the game remains fluid during swarm encounters.
+
+#### Acceptance Criteria
+
+1. THE ParasiteManager.updateParasites() SHALL NOT create new Map objects every frame
+2. THE System SHALL reuse cached Map<string, Worker> for worker lookups
+3. THE System SHALL reuse cached Map<string, Protector> for protector lookups
+4. THE cached Maps SHALL be cleared and repopulated rather than recreated
+5. WHEN multiple parasites interact with units, THE FPS SHALL remain above 50
+6. THE per-frame Map allocations SHALL be reduced from 2 per frame to 0
+
+### Requirement 13: Visual Effect Beam/Ray Per-Frame Allocation Elimination
+
+**User Story:** As a player, I want smooth FPS during combat and mining, so that visual effects (laser beams, drain rays, mining rays) don't cause performance degradation.
+
+#### Acceptance Criteria
+
+1. THE EnergyParasite.updateDrainBeam() SHALL NOT dispose and recreate the beam mesh every frame
+2. THE CombatParasite.updateDrainBeam() SHALL NOT dispose and recreate the beam mesh every frame
+3. THE UnitRenderer.updateMiningConnectionLine() SHALL NOT dispose and recreate the mining line every frame
+4. THE System SHALL update existing mesh vertex positions instead of creating new meshes
+5. THE System SHALL cache and reuse beam/ray materials instead of creating new ones each frame
+6. THE System SHALL cache Color3 objects for beam colors
+7. WHEN parasites are draining and workers are mining, THE FPS SHALL remain above 50
+8. THE per-frame mesh/material allocations for beams SHALL be reduced from ~12 to 0
+
+### Requirement 14: Mouse Hover and UI Update Allocation Elimination
+
+**User Story:** As a player, I want smooth FPS while hovering over game elements, so that tooltips and info panels don't cause frame drops.
+
+#### Acceptance Criteria
+
+1. THE BuildingPlacementUI.handleMouseMove() SHALL be throttled to reduce string allocations
+2. THE ProtectorSelectionUI.updateContent() SHALL use targeted DOM updates instead of full innerHTML replacement
+3. THE EnergyLordsHUD SHALL update at a slower rate (reduce from 500ms to 1000ms)
+4. THE EnergyLordsHUD SHALL cache gradient and color strings instead of recreating them
+5. THE System SHALL eliminate string concatenation in loops (use arrays and join())
+6. WHEN hovering over game elements, THE FPS SHALL remain above 50
+7. THE per-frame string allocations during hover SHALL be reduced by at least 80%
+
+### Requirement 15: Energy Display Consolidation
+
+**User Story:** As a player, I want a cleaner UI where energy information is consolidated in the Energy Lord window, reducing redundant displays.
+
+#### Acceptance Criteria
+
+1. THE EnergyLordsHUD SHALL display total energy prominently
+2. THE EnergyDisplay (top right bar) SHALL remove total energy display
+3. THE EnergyDisplay SHALL keep delta percentage tracking displays (generation, consumption, efficiency, net rate)
+4. THE consolidated display SHALL not increase update frequency or allocations
+
