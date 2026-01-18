@@ -1,14 +1,27 @@
 """
-Feature Extractor for Queen AI Continuous Learning
+Feature Extractor for Queen AI Neural Network
 
-Extracts 20 normalized features from observation data for neural network input.
-All features are normalized to [0, 1] range for stable training.
+Extracts 28 normalized features from chunk-based observation data.
+Processes raw observation data from frontend into NN-ready features.
+
+Feature Layout (28 total):
+- Top 5 Chunks (25): 5 chunks × 5 features each
+  - Normalized chunk ID (0-1)
+  - Mining worker density (0-1)
+  - Protector density (0-1)
+  - Energy parasite rate (-1 to +1, scaled to 0-1)
+  - Combat parasite rate (-1 to +1, scaled to 0-1)
+- Spawn Capacities (2):
+  - Energy spawn capacity (0-1)
+  - Combat spawn capacity (0-1)
+- Player Energy (1):
+  - Player energy rate (-1 to +1, scaled to 0-1)
 """
 
 import logging
-import math
 from typing import Dict, Any, List, Tuple, Optional
 from dataclasses import dataclass
+from collections import defaultdict
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -18,32 +31,27 @@ logger = logging.getLogger(__name__)
 class FeatureConfig:
     """Configuration for feature extraction."""
 
-    # Map dimensions for spatial normalization
-    map_width: float = 200.0
-    map_height: float = 200.0
+    # Chunk configuration
+    total_chunks: int = 256  # 16x16 grid
+    top_chunks: int = 5  # Top N chunks by mining activity
+    features_per_chunk: int = 5
 
-    # Maximum values for normalization
-    max_energy: float = 1000.0
-    max_mining_sites: int = 10
-    max_workers: int = 20
-    max_protectors: int = 10
-    max_parasites: int = 50
-    max_distance: float = 200.0
-    max_game_time: float = 1800.0  # 30 minutes in seconds
-
-    # Territory control estimation
-    territory_radius: float = 50.0  # Radius considered as territory
+    # Queen energy configuration
+    max_energy: float = 100.0
+    energy_parasite_cost: float = 15.0
+    combat_parasite_cost: float = 25.0
+    max_energy_parasites: int = 6  # floor(100/15)
+    max_combat_parasites: int = 4  # floor(100/25)
 
 
 class FeatureExtractor:
     """
-    Extracts and normalizes features from observation data for NN input.
+    Extracts 28 normalized features from observation data.
 
-    Features (20 total):
-    - Player State (7): energy, mining_sites, workers, protectors, base_health, avg_worker_dist, mining_efficiency
-    - Spatial (6): nearest_mine_dist, player_centroid_x/y, mining_centroid_x/y, territory_control
-    - Queen State (4): parasite_count, queen_health, time_since_spawn, hive_discovered
-    - Temporal (3): game_time, mining_interruption_rate, combat_win_rate
+    Processes chunk-based observations into features for the split-head NN:
+    - 25 features for top 5 mining chunks
+    - 2 features for spawn capacities
+    - 1 feature for player energy rate
     """
 
     def __init__(self, config: Optional[FeatureConfig] = None):
@@ -52,32 +60,28 @@ class FeatureExtractor:
 
     def _initialize_feature_names(self) -> List[str]:
         """Get ordered list of feature names."""
-        return [
-            # Player State (7)
-            'player_energy',
-            'mining_site_count',
-            'worker_count',
-            'protector_count',
-            'base_health',
-            'avg_worker_distance',
-            'mining_efficiency',
-            # Spatial (6)
-            'nearest_mine_distance',
-            'player_centroid_x',
-            'player_centroid_y',
-            'mining_centroid_x',
-            'mining_centroid_y',
-            'territory_control',
-            # Queen State (4)
-            'parasite_count',
-            'queen_health',
-            'time_since_spawn',
-            'hive_discovered',
-            # Temporal (3)
-            'game_time',
-            'mining_interruption_rate',
-            'combat_win_rate'
-        ]
+        names = []
+
+        # Top 5 chunks (25 features)
+        for i in range(self.config.top_chunks):
+            names.extend([
+                f'chunk_{i}_id',
+                f'chunk_{i}_worker_density',
+                f'chunk_{i}_protector_density',
+                f'chunk_{i}_energy_parasite_rate',
+                f'chunk_{i}_combat_parasite_rate'
+            ])
+
+        # Spawn capacities (2 features)
+        names.extend([
+            'spawn_capacity_energy',
+            'spawn_capacity_combat'
+        ])
+
+        # Player energy rate (1 feature)
+        names.append('player_energy_rate')
+
+        return names
 
     @property
     def feature_names(self) -> List[str]:
@@ -91,248 +95,196 @@ class FeatureExtractor:
 
     def extract(self, observation: Dict[str, Any]) -> np.ndarray:
         """
-        Extract features from observation data.
+        Extract 28 features from V2 observation data.
 
         Args:
-            observation: Observation data dictionary from frontend
+            observation: ObservationDataV2 from frontend
 
         Returns:
-            numpy array of 20 normalized features
+            numpy array of 28 normalized features
         """
-        features = np.zeros(20, dtype=np.float32)
+        features = np.zeros(28, dtype=np.float32)
 
         try:
-            # Extract player state features (indices 0-6)
-            self._extract_player_features(observation, features)
+            # Extract chunk-based features (indices 0-24)
+            self._extract_chunk_features(observation, features)
 
-            # Extract spatial features (indices 7-12)
-            self._extract_spatial_features(observation, features)
+            # Extract spawn capacity features (indices 25-26)
+            self._extract_spawn_capacity_features(observation, features)
 
-            # Extract queen state features (indices 13-16)
-            self._extract_queen_features(observation, features)
+            # Extract player energy rate (index 27)
+            self._extract_player_energy_feature(observation, features)
 
-            # Extract temporal features (indices 17-19)
-            self._extract_temporal_features(observation, features)
-
-            # Clip to [0, 1] to handle any edge cases
+            # Ensure all features are in valid range
             features = np.clip(features, 0.0, 1.0)
 
         except Exception as e:
-            logger.error(f"Error extracting features: {e}")
+            logger.error(f"Error extracting V2 features: {e}")
             # Return zero features on error (safe default)
 
         return features
 
-    def _extract_player_features(self, obs: Dict[str, Any], features: np.ndarray) -> None:
-        """Extract player state features (7 features, indices 0-6)."""
-        player = obs.get('player', {})
-
-        # 0: Player energy (normalized)
-        energy = player.get('energy', 0)
-        max_energy = player.get('maxEnergy', self.config.max_energy)
-        features[0] = self._normalize(energy, 0, max_energy)
-
-        # 1: Mining site count
-        mining_sites = player.get('miningSites', [])
-        features[1] = self._normalize(len(mining_sites), 0, self.config.max_mining_sites)
-
-        # 2: Worker count
-        workers = player.get('workers', [])
-        features[2] = self._normalize(len(workers), 0, self.config.max_workers)
-
-        # 3: Protector count
-        protectors = player.get('protectors', [])
-        features[3] = self._normalize(len(protectors), 0, self.config.max_protectors)
-
-        # 4: Base health
-        features[4] = player.get('baseHealth', 1.0)
-
-        # 5: Average worker distance from base
-        base_pos = player.get('basePosition', {'x': 0, 'y': 0})
-        avg_dist = self._calculate_avg_distance(workers, base_pos)
-        features[5] = self._normalize(avg_dist, 0, self.config.max_distance)
-
-        # 6: Mining efficiency
-        efficiency = player.get('miningEfficiency', 0)
-        max_efficiency = len(mining_sites) * 2.0 if mining_sites else 1.0  # Estimate max
-        features[6] = self._normalize(efficiency, 0, max_efficiency)
-
-    def _extract_spatial_features(self, obs: Dict[str, Any], features: np.ndarray) -> None:
-        """Extract spatial features (6 features, indices 7-12)."""
-        player = obs.get('player', {})
-        queen = obs.get('queen', {})
-
-        mining_sites = player.get('miningSites', [])
-        workers = player.get('workers', [])
-        hive_pos = queen.get('hivePosition', {'x': 0, 'y': 0})
-
-        # 7: Nearest mining site distance from hive
-        nearest_dist = self._find_nearest_distance(mining_sites, hive_pos)
-        features[7] = self._normalize(nearest_dist, 0, self.config.max_distance)
-
-        # 8-9: Player unit centroid (relative to map center, normalized)
-        all_player_units = workers + player.get('protectors', [])
-        player_centroid = self._calculate_centroid(all_player_units)
-        features[8] = self._normalize_position(player_centroid['x'], self.config.map_width)
-        features[9] = self._normalize_position(player_centroid['y'], self.config.map_height)
-
-        # 10-11: Mining site centroid (relative to map center, normalized)
-        mining_centroid = self._calculate_centroid(mining_sites)
-        features[10] = self._normalize_position(mining_centroid['x'], self.config.map_width)
-        features[11] = self._normalize_position(mining_centroid['y'], self.config.map_height)
-
-        # 12: Territory control (% of map controlled by queen)
-        parasites = queen.get('parasites', [])
-        features[12] = self._estimate_territory_control(parasites, hive_pos)
-
-    def _extract_queen_features(self, obs: Dict[str, Any], features: np.ndarray) -> None:
-        """Extract queen state features (4 features, indices 13-16)."""
-        queen = obs.get('queen', {})
-
-        # 13: Parasite count
-        parasite_count = queen.get('parasiteCount', 0)
-        features[13] = self._normalize(parasite_count, 0, self.config.max_parasites)
-
-        # 14: Queen health (already normalized in observation)
-        features[14] = queen.get('health', 1.0)
-
-        # 15: Time since last spawn (normalized, cap at 10 seconds)
-        time_since_spawn = queen.get('lastSpawnTime', 0)
-        features[15] = self._normalize(time_since_spawn, 0, 10000)  # 10 seconds in ms
-
-        # 16: Hive discovered (binary)
-        features[16] = 1.0 if queen.get('hiveDiscovered', False) else 0.0
-
-    def _extract_temporal_features(self, obs: Dict[str, Any], features: np.ndarray) -> None:
-        """Extract temporal features (3 features, indices 17-19)."""
-        events = obs.get('events', {})
-
-        # 17: Game time (normalized to max game time)
-        game_time = obs.get('gameTime', 0)
-        features[17] = self._normalize(game_time, 0, self.config.max_game_time)
-
-        # 18: Mining interruption rate (interruptions per window)
-        interruption_count = events.get('miningInterruptionCount', 0)
-        window_duration = obs.get('windowDuration', 15000) / 1000  # to seconds
-        interruption_rate = interruption_count / max(window_duration, 1)
-        features[18] = self._normalize(interruption_rate, 0, 1.0)  # Cap at 1 per second
-
-        # 19: Combat win rate
-        combat_encounters = events.get('combatEncounters', [])
-        if combat_encounters:
-            wins = sum(1 for e in combat_encounters if e.get('outcome') == 'queen_win')
-            features[19] = wins / len(combat_encounters)
-        else:
-            features[19] = 0.5  # Neutral default
-
-    def _normalize(self, value: float, min_val: float, max_val: float) -> float:
-        """Normalize value to [0, 1] range."""
-        if max_val <= min_val:
-            return 0.0
-        return max(0.0, min(1.0, (value - min_val) / (max_val - min_val)))
-
-    def _normalize_position(self, value: float, map_size: float) -> float:
-        """Normalize position to [0, 1] relative to map center."""
-        # Assume map center is at 0,0 and extends to ±map_size/2
-        half_size = map_size / 2
-        return self._normalize(value, -half_size, half_size)
-
-    def _calculate_avg_distance(self, positions: List[Dict], reference: Dict) -> float:
-        """Calculate average distance from reference point."""
-        if not positions:
-            return 0.0
-
-        total_dist = 0.0
-        for pos in positions:
-            dx = pos.get('x', 0) - reference.get('x', 0)
-            dy = pos.get('y', 0) - reference.get('y', 0)
-            total_dist += math.sqrt(dx * dx + dy * dy)
-
-        return total_dist / len(positions)
-
-    def _calculate_centroid(self, positions: List[Dict]) -> Dict[str, float]:
-        """Calculate centroid of positions."""
-        if not positions:
-            return {'x': 0.0, 'y': 0.0}
-
-        sum_x = sum(pos.get('x', 0) for pos in positions)
-        sum_y = sum(pos.get('y', 0) for pos in positions)
-
-        return {
-            'x': sum_x / len(positions),
-            'y': sum_y / len(positions)
-        }
-
-    def _find_nearest_distance(self, positions: List[Dict], reference: Dict) -> float:
-        """Find distance to nearest position from reference."""
-        if not positions:
-            return self.config.max_distance
-
-        min_dist = float('inf')
-        ref_x = reference.get('x', 0)
-        ref_y = reference.get('y', 0)
-
-        for pos in positions:
-            dx = pos.get('x', 0) - ref_x
-            dy = pos.get('y', 0) - ref_y
-            dist = math.sqrt(dx * dx + dy * dy)
-            min_dist = min(min_dist, dist)
-
-        return min_dist if min_dist != float('inf') else self.config.max_distance
-
-    def _estimate_territory_control(self, parasites: List[Dict], hive_pos: Dict) -> float:
+    def _extract_chunk_features(self, obs: Dict[str, Any], features: np.ndarray) -> None:
         """
-        Estimate territory control based on parasite positions.
-        Returns value in [0, 1] representing approximate % of map controlled.
+        Extract features for top 5 chunks by mining worker density.
+
+        For each of the top 5 chunks:
+        - Normalized chunk ID
+        - Mining worker density
+        - Protector density
+        - Energy parasite rate
+        - Combat parasite rate
         """
-        if not parasites:
+        mining_workers = obs.get('miningWorkers', [])
+        protectors = obs.get('protectors', [])
+        parasites_start = obs.get('parasitesStart', [])
+        parasites_end = obs.get('parasitesEnd', [])
+
+        # Count workers per chunk
+        workers_by_chunk = defaultdict(int)
+        for worker in mining_workers:
+            chunk_id = worker.get('chunkId', -1)
+            if chunk_id >= 0:
+                workers_by_chunk[chunk_id] += 1
+
+        # Get top 5 chunks by worker count
+        total_workers = len(mining_workers)
+        sorted_chunks = sorted(
+            workers_by_chunk.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )[:self.config.top_chunks]
+
+        # Count protectors per chunk
+        protectors_by_chunk = defaultdict(int)
+        for protector in protectors:
+            chunk_id = protector.get('chunkId', -1)
+            if chunk_id >= 0:
+                protectors_by_chunk[chunk_id] += 1
+        total_protectors = len(protectors)
+
+        # Count parasites at start and end per chunk
+        energy_start_by_chunk = defaultdict(int)
+        combat_start_by_chunk = defaultdict(int)
+        energy_end_by_chunk = defaultdict(int)
+        combat_end_by_chunk = defaultdict(int)
+
+        for p in parasites_start:
+            chunk_id = p.get('chunkId', -1)
+            if chunk_id >= 0:
+                if p.get('type') == 'combat':
+                    combat_start_by_chunk[chunk_id] += 1
+                else:
+                    energy_start_by_chunk[chunk_id] += 1
+
+        for p in parasites_end:
+            chunk_id = p.get('chunkId', -1)
+            if chunk_id >= 0:
+                if p.get('type') == 'combat':
+                    combat_end_by_chunk[chunk_id] += 1
+                else:
+                    energy_end_by_chunk[chunk_id] += 1
+
+        # Extract features for each of top 5 chunks
+        for i in range(self.config.top_chunks):
+            base_idx = i * self.config.features_per_chunk
+
+            if i < len(sorted_chunks):
+                chunk_id, worker_count = sorted_chunks[i]
+
+                # Normalized chunk ID (0-255 -> 0-1)
+                features[base_idx] = chunk_id / (self.config.total_chunks - 1)
+
+                # Worker density (workers in chunk / total workers)
+                if total_workers > 0:
+                    features[base_idx + 1] = worker_count / total_workers
+                else:
+                    features[base_idx + 1] = 0.0
+
+                # Protector density (protectors in chunk / total protectors)
+                if total_protectors > 0:
+                    features[base_idx + 2] = protectors_by_chunk[chunk_id] / total_protectors
+                else:
+                    features[base_idx + 2] = 0.0
+
+                # Energy parasite rate (scaled from -1,+1 to 0,1)
+                energy_rate = self._calculate_rate(
+                    energy_start_by_chunk[chunk_id],
+                    energy_end_by_chunk[chunk_id]
+                )
+                features[base_idx + 3] = (energy_rate + 1.0) / 2.0  # -1,+1 -> 0,1
+
+                # Combat parasite rate (scaled from -1,+1 to 0,1)
+                combat_rate = self._calculate_rate(
+                    combat_start_by_chunk[chunk_id],
+                    combat_end_by_chunk[chunk_id]
+                )
+                features[base_idx + 4] = (combat_rate + 1.0) / 2.0  # -1,+1 -> 0,1
+
+            else:
+                # Pad with zeros if fewer than 5 chunks have activity
+                features[base_idx:base_idx + 5] = 0.0
+
+    def _extract_spawn_capacity_features(self, obs: Dict[str, Any], features: np.ndarray) -> None:
+        """
+        Extract spawn capacity features.
+
+        Formula: floor(current_energy / cost) / max_affordable
+        - Energy capacity: floor(current/15) / 6
+        - Combat capacity: floor(current/25) / 4
+        """
+        queen_energy = obs.get('queenEnergy', {})
+        current_energy = queen_energy.get('current', 0)
+
+        # Energy spawn capacity
+        energy_affordable = int(current_energy // self.config.energy_parasite_cost)
+        features[25] = min(1.0, energy_affordable / self.config.max_energy_parasites)
+
+        # Combat spawn capacity
+        combat_affordable = int(current_energy // self.config.combat_parasite_cost)
+        features[26] = min(1.0, combat_affordable / self.config.max_combat_parasites)
+
+    def _extract_player_energy_feature(self, obs: Dict[str, Any], features: np.ndarray) -> None:
+        """
+        Extract player energy rate feature.
+
+        Formula: (end - start) / max(start, end)
+        - Negative rate = player losing energy (good for Queen)
+        - Positive rate = player gaining energy (bad for Queen)
+
+        Scaled from -1,+1 to 0,1 for NN input.
+        """
+        player_energy = obs.get('playerEnergy', {})
+        start = player_energy.get('start', 0)
+        end = player_energy.get('end', 0)
+
+        rate = self._calculate_rate(start, end)
+        features[27] = (rate + 1.0) / 2.0  # -1,+1 -> 0,1
+
+    def _calculate_rate(self, start: float, end: float) -> float:
+        """
+        Calculate rate of change using the formula: (end - start) / max(start, end)
+
+        Returns value in [-1, +1] range:
+        - -1: Complete decrease (end = 0, start > 0)
+        - 0: No change
+        - +1: Complete increase from zero (start = 0, end > 0)
+        """
+        if start == 0 and end == 0:
             return 0.0
 
-        # Calculate spread of parasites
-        positions = [(p.get('x', 0), p.get('y', 0)) for p in parasites]
+        max_val = max(start, end)
+        if max_val == 0:
+            return 0.0
 
-        if len(positions) < 2:
-            # Single parasite - minimal control
-            return 0.1
-
-        # Calculate convex hull area approximation using spread
-        xs = [p[0] for p in positions]
-        ys = [p[1] for p in positions]
-
-        spread_x = max(xs) - min(xs)
-        spread_y = max(ys) - min(ys)
-
-        # Approximate controlled area
-        controlled_area = spread_x * spread_y * 0.5  # Rough estimate
-
-        # Normalize by total map area
-        map_area = self.config.map_width * self.config.map_height
-        control = controlled_area / map_area
-
-        return min(1.0, control)
-
-    def get_feature_importance(self, weights: np.ndarray) -> Dict[str, float]:
-        """
-        Map feature importance weights to feature names.
-
-        Args:
-            weights: Array of importance weights (same length as features)
-
-        Returns:
-            Dictionary mapping feature names to importance values
-        """
-        if len(weights) != len(self._feature_names):
-            logger.warning(f"Weight length {len(weights)} doesn't match feature count {len(self._feature_names)}")
-            return {}
-
-        return dict(zip(self._feature_names, weights.tolist()))
+        return (end - start) / max_val
 
     def describe_features(self, features: np.ndarray) -> Dict[str, float]:
         """
         Create a descriptive dictionary of feature values.
 
         Args:
-            features: Feature array
+            features: Feature array (28 values)
 
         Returns:
             Dictionary mapping feature names to values
@@ -341,3 +293,51 @@ class FeatureExtractor:
             return {}
 
         return dict(zip(self._feature_names, features.tolist()))
+
+    def get_top_chunks_from_features(self, features: np.ndarray) -> List[Tuple[int, float]]:
+        """
+        Extract top chunk IDs and their worker densities from features.
+
+        Args:
+            features: Feature array
+
+        Returns:
+            List of (chunk_id, worker_density) tuples
+        """
+        chunks = []
+        for i in range(self.config.top_chunks):
+            base_idx = i * self.config.features_per_chunk
+            # Denormalize chunk ID
+            chunk_id = int(features[base_idx] * (self.config.total_chunks - 1))
+            worker_density = features[base_idx + 1]
+            if worker_density > 0:
+                chunks.append((chunk_id, worker_density))
+        return chunks
+
+    def get_spawn_capacities_from_features(self, features: np.ndarray) -> Dict[str, float]:
+        """
+        Extract spawn capacities from features.
+
+        Args:
+            features: Feature array
+
+        Returns:
+            Dictionary with 'energy' and 'combat' capacities
+        """
+        return {
+            'energy': features[25],
+            'combat': features[26]
+        }
+
+    def get_player_energy_rate_from_features(self, features: np.ndarray) -> float:
+        """
+        Extract player energy rate from features.
+
+        Args:
+            features: Feature array
+
+        Returns:
+            Rate in original -1 to +1 scale
+        """
+        # Convert back from 0,1 to -1,+1
+        return (features[27] * 2.0) - 1.0

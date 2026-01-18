@@ -1,8 +1,8 @@
 """
-Neural Network Model V2 for Queen AI - Split-Head Architecture
+Neural Network Model for Queen AI - Split-Head Architecture
 
 Architecture: 28 → 32 → 16 → split heads
-- Input: 28 normalized features from FeatureExtractorV2
+- Input: 28 normalized features from FeatureExtractor
 - Hidden 1: 32 neurons (ReLU)
 - Hidden 2: 16 neurons (ReLU)
 - Chunk Head: 16 → 32 → 256 (Softmax) - spawn location
@@ -31,7 +31,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-class NNModelV2:
+class NNModel:
     """
     Split-head neural network for Queen spawn decisions.
 
@@ -51,7 +51,7 @@ class NNModelV2:
         self.chunk_output_size = 256
         self.type_output_size = 1
 
-        self.model_path = model_path or "models/queen_nn_v2.keras"
+        self.model_path = model_path or "models/queen_nn.keras"
         self.model: Optional[Model] = None
 
         # Build the model
@@ -60,7 +60,7 @@ class NNModelV2:
         # Try to load existing weights
         self._load_model_if_exists()
 
-        logger.info(f"NNModelV2 initialized: {self._count_parameters()} parameters")
+        logger.info(f"NNModel initialized: {self._count_parameters()} parameters")
 
     def _build_model(self) -> None:
         """Build the split-head neural network architecture."""
@@ -109,7 +109,7 @@ class NNModelV2:
         self.model = Model(
             inputs=inputs,
             outputs=[chunk_output, type_output],
-            name='queen_nn_v2'
+            name='queen_nn'
         )
 
         # Compile model for training

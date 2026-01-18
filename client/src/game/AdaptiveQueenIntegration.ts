@@ -12,8 +12,8 @@ import { LearningProgressUI } from '../ui/LearningProgressUI';
 import { TerritoryManager } from './TerritoryManager';
 import { GameState } from './GameState';
 import { GameEngine } from './GameEngine';
-import { ObservationCollectorV2 } from './systems/ObservationCollectorV2';
-import { ObservationDataV2, SpawnDecision } from './types/ObservationTypesV2';
+import { ObservationCollector } from './systems/ObservationCollector';
+import { ObservationData, SpawnDecision } from './types/ObservationTypes';
 
 export interface AdaptiveQueenIntegrationConfig {
     gameEngine: GameEngine;
@@ -40,10 +40,10 @@ export class AdaptiveQueenIntegration {
     private isInitialized: boolean = false;
     private currentQueen?: AdaptiveQueen;
 
-    // NN v2: Observation collector for chunk-based data
-    private observationCollectorV2: ObservationCollectorV2;
+    // Observation collector for chunk-based data
+    private observationCollector: ObservationCollector;
     private currentTerritoryId: string = '';
-    private useV2Observations: boolean = true; // Feature flag for V2 system
+    private useChunkObservations: boolean = true; // Feature flag for chunk-based system
 
     // Default WebSocket URL for AI backend
     private readonly DEFAULT_WEBSOCKET_URL = 'ws://localhost:8000/ws';
@@ -72,8 +72,8 @@ export class AdaptiveQueenIntegration {
             visible: this.enableLearning
         });
 
-        // NN v2: Initialize observation collector
-        this.observationCollectorV2 = new ObservationCollectorV2();
+        // Initialize observation collector
+        this.observationCollector = new ObservationCollector();
         this.setupObservationCallbacks();
 
         // AdaptiveQueenIntegration created silently
@@ -159,32 +159,32 @@ export class AdaptiveQueenIntegration {
             console.error('🧠 AI backend error:', error);
         });
 
-        // NN v2: Handle spawn_decision messages from backend
+        // Handle spawn_decision messages from backend
         this.websocketClient.on('spawn_decision', (decision: SpawnDecision) => {
             this.handleSpawnDecision(decision);
         });
     }
 
     /**
-     * NN v2: Set up observation collector callbacks
+     * Set up observation collector callbacks
      */
     private setupObservationCallbacks(): void {
-        this.observationCollectorV2.onObservationReady((data: ObservationDataV2) => {
+        this.observationCollector.onObservationReady((data: ObservationData) => {
             this.sendObservationToBackend(data);
         });
     }
 
     /**
-     * NN v2: Send observation data to backend for processing
+     * Send observation data to backend for processing
      */
-    private async sendObservationToBackend(observation: ObservationDataV2): Promise<void> {
+    private async sendObservationToBackend(observation: ObservationData): Promise<void> {
         if (!this.enableLearning || !this.websocketClient.getStatus().connected) {
             return;
         }
 
         try {
             await this.websocketClient.send({
-                type: 'observation_data_v2',
+                type: 'observation_data',
                 data: observation
             });
         } catch (error) {
@@ -193,7 +193,7 @@ export class AdaptiveQueenIntegration {
     }
 
     /**
-     * NN v2: Handle spawn decision from backend
+     * Handle spawn decision from backend
      */
     private handleSpawnDecision(decision: SpawnDecision): void {
         if (!this.currentTerritoryId) {
@@ -255,43 +255,43 @@ export class AdaptiveQueenIntegration {
         // Update learning progress UI
         this.learningProgressUI.update(deltaTime);
 
-        // NN v2: Update observation collector
-        if (this.useV2Observations && this.currentTerritoryId) {
-            this.observationCollectorV2.update(deltaTime, this.currentTerritoryId);
+        // Update observation collector
+        if (this.useChunkObservations && this.currentTerritoryId) {
+            this.observationCollector.update(deltaTime, this.currentTerritoryId);
         }
     }
 
     /**
-     * NN v2: Start observation collection for a territory
+     * Start observation collection for a territory
      */
     public startObservationForTerritory(territoryId: string): void {
         this.currentTerritoryId = territoryId;
-        this.observationCollectorV2.startWindow(territoryId);
+        this.observationCollector.startWindow(territoryId);
     }
 
     /**
-     * NN v2: Stop observation collection
+     * Stop observation collection
      */
     public stopObservation(): void {
-        this.observationCollectorV2.stopWindow();
+        this.observationCollector.stopWindow();
         this.currentTerritoryId = '';
     }
 
     /**
-     * NN v2: Enable/disable V2 observation system
+     * Enable/disable chunk-based observation system
      */
-    public setV2ObservationsEnabled(enabled: boolean): void {
-        this.useV2Observations = enabled;
+    public setChunkObservationsEnabled(enabled: boolean): void {
+        this.useChunkObservations = enabled;
         if (!enabled) {
-            this.observationCollectorV2.stopWindow();
+            this.observationCollector.stopWindow();
         }
     }
 
     /**
-     * NN v2: Get observation collector for direct access
+     * Get observation collector for direct access
      */
-    public getObservationCollectorV2(): ObservationCollectorV2 {
-        return this.observationCollectorV2;
+    public getObservationCollector(): ObservationCollector {
+        return this.observationCollector;
     }
 
     /**
@@ -478,8 +478,8 @@ export class AdaptiveQueenIntegration {
         // Dispose UI
         this.learningProgressUI.dispose();
 
-        // NN v2: Dispose observation collector
-        this.observationCollectorV2.dispose();
+        // Dispose observation collector
+        this.observationCollector.dispose();
 
         // Clear references
         this.currentQueen = undefined;

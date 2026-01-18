@@ -16,9 +16,9 @@ from ai_engine.data_models import (
     LearningProgressMessage, serialize_message, deserialize_message
 )
 from ai_engine.continuous_trainer import ContinuousTrainer, AsyncContinuousTrainer
-from ai_engine.feature_extractor_v2 import FeatureExtractorV2
-from ai_engine.nn_model_v2 import NNModelV2
-from ai_engine.reward_calculator_v2 import RewardCalculatorV2
+from ai_engine.feature_extractor import FeatureExtractor
+from ai_engine.nn_model import NNModel
+from ai_engine.reward_calculator import RewardCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +37,7 @@ class MessageHandler:
             "game_outcome": self._handle_game_outcome,
             "difficulty_status_request": self._handle_difficulty_status_request,
             "learning_progress_request": self._handle_learning_progress_request,
-            "observation_data": self._handle_observation_data,
-            "observation_data_v2": self._handle_observation_data_v2,  # NN v2
+            "observation_data": self._handle_chunk_observation_data,
             "training_status_request": self._handle_training_status_request,
             "ping": self._handle_ping,
             "health_check": self._handle_health_check,
@@ -62,8 +61,8 @@ class MessageHandler:
         except Exception as e:
             logger.warning(f"Failed to initialize ContinuousTrainer: {e}. Continuous learning disabled.")
 
-        # NN v2: Initialize feature extractor and model
-        self._init_nn_v2()
+        # Initialize feature extractor and model
+        self._init_nn()
 
         # Message processing statistics
         self.message_stats = {
@@ -74,33 +73,33 @@ class MessageHandler:
             "processing_errors": 0
         }
 
-    def _init_nn_v2(self) -> None:
-        """Initialize NN v2 components for chunk-based spawning."""
-        self.feature_extractor_v2 = None
-        self.nn_model_v2 = None
+    def _init_nn(self) -> None:
+        """Initialize NN components for chunk-based spawning."""
+        self.feature_extractor = None
+        self.nn_model = None
 
         try:
-            self.feature_extractor_v2 = FeatureExtractorV2()
-            logger.info("FeatureExtractorV2 initialized")
+            self.feature_extractor = FeatureExtractor()
+            logger.info("FeatureExtractor initialized")
         except Exception as e:
-            logger.warning(f"Failed to initialize FeatureExtractorV2: {e}")
+            logger.warning(f"Failed to initialize FeatureExtractor: {e}")
 
         try:
-            self.nn_model_v2 = NNModelV2()
-            logger.info(f"NNModelV2 initialized with {self.nn_model_v2._count_parameters()} parameters")
+            self.nn_model = NNModel()
+            logger.info(f"NNModel initialized with {self.nn_model._count_parameters()} parameters")
         except Exception as e:
-            logger.warning(f"Failed to initialize NNModelV2: {e}")
+            logger.warning(f"Failed to initialize NNModel: {e}")
 
         try:
-            self.reward_calculator_v2 = RewardCalculatorV2()
-            logger.info("RewardCalculatorV2 initialized")
+            self.reward_calculator = RewardCalculator()
+            logger.info("RewardCalculator initialized")
         except Exception as e:
-            logger.warning(f"Failed to initialize RewardCalculatorV2: {e}")
-            self.reward_calculator_v2 = None
+            logger.warning(f"Failed to initialize RewardCalculator: {e}")
+            self.reward_calculator = None
 
         # Store previous observations for reward calculation (per territory)
-        self.prev_observations_v2: Dict[str, Dict[str, Any]] = {}
-        self.prev_decisions_v2: Dict[str, Dict[str, Any]] = {}
+        self.prev_observations: Dict[str, Dict[str, Any]] = {}
+        self.prev_decisions: Dict[str, Dict[str, Any]] = {}
     
     def _initialize_schemas(self) -> Dict[str, Dict]:
         """Initialize JSON schemas for message validation"""
@@ -237,28 +236,6 @@ class MessageHandler:
                     "timestamp": {"type": "number"}
                 }
             },
-            "observation_data": {
-                "type": "object",
-                "required": ["type", "data"],
-                "properties": {
-                    "type": {"type": "string", "enum": ["observation_data"]},
-                    "timestamp": {"type": "number"},
-                    "data": {
-                        "type": "object",
-                        "required": ["timestamp", "gameTime", "player", "queen", "events"],
-                        "properties": {
-                            "timestamp": {"type": "number"},
-                            "gameTime": {"type": "number"},
-                            "sequenceNumber": {"type": "integer"},
-                            "player": {"type": "object"},
-                            "queen": {"type": "object"},
-                            "events": {"type": "object"},
-                            "snapshotCount": {"type": "integer"},
-                            "windowDuration": {"type": "number"}
-                        }
-                    }
-                }
-            },
             "training_status_request": {
                 "type": "object",
                 "required": ["type"],
@@ -289,11 +266,11 @@ class MessageHandler:
                     }
                 }
             },
-            "observation_data_v2": {
+            "observation_data": {
                 "type": "object",
                 "required": ["type", "data"],
                 "properties": {
-                    "type": {"type": "string", "enum": ["observation_data_v2"]},
+                    "type": {"type": "string", "enum": ["observation_data"]},
                     "timestamp": {"type": "number"},
                     "data": {
                         "type": "object",
@@ -679,57 +656,6 @@ class MessageHandler:
                 error_code="RECONNECTION_ERROR"
             )
     
-    async def _handle_observation_data(self, message: Dict[str, Any], client_id: str) -> Dict[str, Any]:
-        """
-        Handle observation data for continuous learning.
-
-        Processes game state observations and returns strategy updates.
-        """
-        try:
-            observation = message.get("data")
-            if not observation:
-                logger.warning(f"[ObservationHandler] Missing observation data from client {client_id}")
-                return self._create_error_response("Missing observation data", error_code="MISSING_DATA")
-
-            if not self.continuous_trainer:
-                logger.warning(f"[ObservationHandler] Continuous trainer not available for client {client_id}")
-                return self._create_error_response(
-                    "Continuous learning not available",
-                    error_code="TRAINER_NOT_AVAILABLE"
-                )
-
-            sequence_number = observation.get("sequenceNumber", 0)
-            logger.info(f"[ObservationHandler] Processing observation #{sequence_number} from client {client_id}")
-
-            # Process observation and get strategy update
-            try:
-                strategy = await asyncio.wait_for(
-                    self.continuous_trainer.process_observation_async(observation),
-                    timeout=2.0  # 2 second timeout for real-time response
-                )
-
-                logger.info(f"[ObservationHandler] Sending strategy_update v{strategy.version} to client {client_id}")
-                return {
-                    "type": "strategy_update",
-                    "timestamp": asyncio.get_event_loop().time(),
-                    "inResponseTo": sequence_number,
-                    "payload": strategy.to_dict()
-                }
-
-            except asyncio.TimeoutError:
-                logger.warning(f"Observation processing timeout for client {client_id}")
-                return self._create_error_response(
-                    "Observation processing timeout",
-                    error_code="PROCESSING_TIMEOUT"
-                )
-
-        except Exception as e:
-            logger.error(f"Error processing observation data: {e}")
-            return self._create_error_response(
-                f"Failed to process observation: {str(e)}",
-                error_code="PROCESSING_ERROR"
-            )
-
     async def _handle_training_status_request(self, message: Dict[str, Any], client_id: str) -> Dict[str, Any]:
         """Handle request for continuous training status."""
         try:
@@ -882,11 +808,11 @@ class MessageHandler:
             "supported_message_types": list(self.message_handlers.keys())
         }
 
-    # ==================== NN V2 Handlers ====================
+    # ==================== Chunk-Based Observation Handler ====================
 
-    async def _handle_observation_data_v2(self, message: Dict[str, Any], client_id: str) -> Dict[str, Any]:
+    async def _handle_chunk_observation_data(self, message: Dict[str, Any], client_id: str) -> Dict[str, Any]:
         """
-        Handle V2 observation data for chunk-based NN spawning.
+        Handle chunk-based observation data for NN spawning.
 
         Processes observation → extracts 28 features → runs NN inference → returns spawn decision.
         Also calculates rewards and trains the model based on previous observations.
@@ -894,64 +820,64 @@ class MessageHandler:
         try:
             observation = message.get("data")
             if not observation:
-                logger.warning(f"[ObservationV2] Missing observation data from client {client_id}")
+                logger.warning(f"[Observation] Missing observation data from client {client_id}")
                 return self._create_error_response("Missing observation data", error_code="MISSING_DATA")
 
-            # Check V2 components are available
-            if not self.feature_extractor_v2 or not self.nn_model_v2:
-                logger.warning(f"[ObservationV2] NN V2 components not available for client {client_id}")
+            # Check components are available
+            if not self.feature_extractor or not self.nn_model:
+                logger.warning(f"[Observation] NN components not available for client {client_id}")
                 return self._create_error_response(
-                    "NN V2 not available",
-                    error_code="V2_NOT_AVAILABLE"
+                    "NN not available",
+                    error_code="NN_NOT_AVAILABLE"
                 )
 
             territory_id = observation.get("territoryId", "unknown")
-            logger.info(f"[ObservationV2] Processing observation for territory {territory_id} from client {client_id}")
+            logger.info(f"[Observation] Processing observation for territory {territory_id} from client {client_id}")
 
             try:
                 # Calculate reward and train if we have previous observation
                 reward_info = None
-                if territory_id in self.prev_observations_v2 and self.reward_calculator_v2:
-                    prev_obs = self.prev_observations_v2[territory_id]
-                    prev_decision = self.prev_decisions_v2.get(territory_id)
+                if territory_id in self.prev_observations and self.reward_calculator:
+                    prev_obs = self.prev_observations[territory_id]
+                    prev_decision = self.prev_decisions.get(territory_id)
 
                     # Calculate reward
-                    reward_info = self.reward_calculator_v2.calculate_reward(
+                    reward_info = self.reward_calculator.calculate_reward(
                         prev_obs, observation, prev_decision
                     )
 
                     # Train model with reward if we have a previous decision
                     if prev_decision and reward_info['reward'] != 0:
-                        prev_features = self.feature_extractor_v2.extract(prev_obs)
-                        train_result = self.nn_model_v2.train_with_reward(
+                        prev_features = self.feature_extractor.extract(prev_obs)
+                        train_result = self.nn_model.train_with_reward(
                             prev_features,
                             prev_decision['spawnChunk'],
                             prev_decision['spawnType'],
                             reward_info['reward']
                         )
-                        logger.info(f"[ObservationV2] Training: reward={reward_info['reward']:.3f}, "
+                        logger.info(f"[Observation] Training: reward={reward_info['reward']:.3f}, "
                                    f"loss={train_result.get('loss', 0):.4f}")
 
                 # Extract features (28 normalized values)
-                features = self.feature_extractor_v2.extract(observation)
-                logger.debug(f"[ObservationV2] Extracted {len(features)} features")
+                features = self.feature_extractor.extract(observation)
+                logger.debug(f"[Observation] Extracted {len(features)} features")
 
                 # Run NN inference with timeout
                 spawn_decision = await asyncio.wait_for(
                     asyncio.get_event_loop().run_in_executor(
                         None,
-                        self.nn_model_v2.get_spawn_decision,
+                        self.nn_model.get_spawn_decision,
                         features
                     ),
                     timeout=0.05  # 50ms timeout for real-time response
                 )
 
-                logger.info(f"[ObservationV2] Spawn decision: chunk={spawn_decision['spawnChunk']}, "
+                logger.info(f"[Observation] Spawn decision: chunk={spawn_decision['spawnChunk']}, "
                            f"type={spawn_decision['spawnType']}, confidence={spawn_decision['confidence']:.3f}")
 
                 # Store for next reward calculation
-                self.prev_observations_v2[territory_id] = observation
-                self.prev_decisions_v2[territory_id] = spawn_decision
+                self.prev_observations[territory_id] = observation
+                self.prev_decisions[territory_id] = spawn_decision
 
                 response_data = {
                     "spawnChunk": spawn_decision["spawnChunk"],
@@ -964,7 +890,7 @@ class MessageHandler:
                 # Include reward info if available
                 if reward_info:
                     response_data["lastReward"] = reward_info["reward"]
-                    response_data["rewardTrend"] = self.reward_calculator_v2.get_reward_trend()
+                    response_data["rewardTrend"] = self.reward_calculator.get_reward_trend()
 
                 return {
                     "type": "spawn_decision",
@@ -973,15 +899,15 @@ class MessageHandler:
                 }
 
             except asyncio.TimeoutError:
-                logger.warning(f"[ObservationV2] Inference timeout for client {client_id}")
+                logger.warning(f"[Observation] Inference timeout for client {client_id}")
                 return self._create_error_response(
                     "NN inference timeout",
                     error_code="INFERENCE_TIMEOUT"
                 )
 
         except Exception as e:
-            logger.error(f"[ObservationV2] Error processing observation: {e}")
+            logger.error(f"[Observation] Error processing observation: {e}")
             return self._create_error_response(
-                f"Failed to process V2 observation: {str(e)}",
+                f"Failed to process observation: {str(e)}",
                 error_code="PROCESSING_ERROR"
             )

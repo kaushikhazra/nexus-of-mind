@@ -1,4 +1,4 @@
-# Implementation Plan: Queen Neural Network v2.0
+# Implementation Plan: Queen Neural Network (Chunk-Based Architecture)
 
 ## Overview
 
@@ -66,10 +66,10 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
 
 ### Phase 3: Chunk-Based Observation Collector (Frontend) ✅ COMPLETE
 
-- [x] 3. Create ObservationCollector V2 ✓
-  - [x] 3.1 Create ObservationCollectorV2 class ✓
-    - File: `client/src/game/systems/ObservationCollectorV2.ts` (new)
-    - Method: collectRawData(): ObservationDataV2
+- [x] 3. Create ObservationCollector ✓
+  - [x] 3.1 Create ObservationCollector class ✓
+    - File: `client/src/game/systems/ObservationCollector.ts` (new)
+    - Method: collectRawData(): ObservationData
     - Collect mining workers with chunk IDs
     - Collect protectors with chunk IDs
     - Collect parasites (energy/combat) with chunk IDs
@@ -78,8 +78,8 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
     - _Requirements: 1.1-1.5, 7.1_
 
   - [x] 3.2 Create observation data types ✓
-    - File: `client/src/game/types/ObservationTypesV2.ts` (new)
-    - Interface: ObservationDataV2
+    - File: `client/src/game/types/ObservationTypes.ts` (new)
+    - Interface: ObservationData
     - Interface: WorkerData { x, y, chunkId }
     - Interface: ProtectorData { x, y, chunkId }
     - Interface: ParasiteData { chunkId, type }
@@ -88,7 +88,7 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
     - _Requirements: 7.1_
 
   - [x] 3.3 Implement 15-second observation window ✓
-    - File: `client/src/game/systems/ObservationCollectorV2.ts`
+    - File: `client/src/game/systems/ObservationCollector.ts`
     - Track window start time
     - Store player energy at window start
     - Store parasite counts (per chunk) at window start
@@ -103,14 +103,14 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
 
 ### Phase 4: Backend Preprocessing ✅ COMPLETE
 
-- [x] 4. Create Feature Extractor V2 (Backend) ✓
-  - [x] 4.1 Create FeatureExtractorV2 class ✓
-    - File: `server/ai_engine/feature_extractor_v2.py` (new)
+- [x] 4. Create Feature Extractor (Backend) ✓
+  - [x] 4.1 Create FeatureExtractor class ✓
+    - File: `server/ai_engine/feature_extractor.py` (new)
     - Method: extract_features(observation_data) → [28 floats]
     - _Requirements: 1.1-1.5, 2.1-2.5, 3.1-3.5_
 
   - [x] 4.2 Implement top 5 chunk selection ✓
-    - File: `server/ai_engine/feature_extractor_v2.py`
+    - File: `server/ai_engine/feature_extractor.py`
     - Group mining workers by chunk
     - Calculate mining worker density per chunk
     - Select top 5 chunks by density
@@ -118,7 +118,7 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
     - _Requirements: 1.1, 1.5_
 
   - [x] 4.3 Implement per-chunk feature calculation ✓
-    - File: `server/ai_engine/feature_extractor_v2.py`
+    - File: `server/ai_engine/feature_extractor.py`
     - For each of top 5 chunks:
       - chunk_id / 255 → normalized chunk ID
       - workers_in_chunk / total_mining_workers → worker density
@@ -127,22 +127,22 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
     - _Requirements: 1.2_
 
   - [x] 4.4 Implement spawn capacity calculation ✓
-    - File: `server/ai_engine/feature_extractor_v2.py`
+    - File: `server/ai_engine/feature_extractor.py`
     - energy_capacity = floor(current/15) / 6
     - combat_capacity = floor(current/25) / 4
     - _Requirements: 2.2_
 
   - [x] 4.5 Implement player energy rate calculation ✓
-    - File: `server/ai_engine/feature_extractor_v2.py`
+    - File: `server/ai_engine/feature_extractor.py`
     - rate = (end - start) / max(start, end)
     - Handle edge cases (zero values)
     - _Requirements: 3.2, 3.5_
 
-### Phase 5: Neural Network Model V2 (Backend) ✅ COMPLETE
+### Phase 5: Neural Network Model (Backend) ✅ COMPLETE
 
 - [x] 5. Create Split-Head NN Architecture ✓
-  - [x] 5.1 Create NNModelV2 class ✓
-    - File: `server/ai_engine/nn_model_v2.py` (new)
+  - [x] 5.1 Create NNModel class ✓
+    - File: `server/ai_engine/nn_model.py` (new)
     - Architecture: 28 → 32 → 16 → split heads
     - Input layer: 28 neurons
     - Hidden 1: 32 neurons (ReLU)
@@ -150,24 +150,24 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
     - _Requirements: 6.1-6.6_
 
   - [x] 5.2 Implement chunk head ✓
-    - File: `server/ai_engine/nn_model_v2.py`
+    - File: `server/ai_engine/nn_model.py`
     - Hidden 2 (16) → Expand (32) → Output (256)
     - Softmax activation
     - _Requirements: 4.1, 4.2_
 
   - [x] 5.3 Implement type head ✓
-    - File: `server/ai_engine/nn_model_v2.py`
+    - File: `server/ai_engine/nn_model.py`
     - Hidden 2 (16) → Output (1)
     - Sigmoid activation
     - _Requirements: 5.1, 5.2_
 
   - [x] 5.4 Implement inference method ✓
-    - File: `server/ai_engine/nn_model_v2.py`
+    - File: `server/ai_engine/nn_model.py`
     - Method: predict(features) → (chunk_probs, type_prob)
     - _Requirements: 6.1_
 
   - [x] 5.5 Implement post-processing ✓
-    - File: `server/ai_engine/nn_model_v2.py`
+    - File: `server/ai_engine/nn_model.py`
     - Method: get_spawn_decision(chunk_probs, type_prob)
     - chunk_id = argmax(chunk_probs)
     - type = "energy" if type_prob < 0.5 else "combat"
@@ -177,11 +177,11 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
 ### Phase 6: WebSocket Integration ✅ COMPLETE
 
 - [x] 6. Update WebSocket Protocol ✓
-  - [x] 6.1 Add observation_data_v2 handler (Backend) ✓
+  - [x] 6.1 Add observation_data handler (Backend) ✓
     - File: `server/websocket/message_handler.py`
-    - Parse ObservationDataV2 format
-    - Route to FeatureExtractorV2
-    - Route to NNModelV2
+    - Parse ObservationData format
+    - Route to FeatureExtractor
+    - Route to NNModel
     - _Requirements: 7.1-7.4_
 
   - [x] 6.2 Add spawn_decision response (Backend) ✓
@@ -225,13 +225,13 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
 ### Phase 8: Training Integration (Backend) ✅ COMPLETE
 
 - [x] 8. Implement Reward Calculation ✓
-  - [x] 8.1 Create RewardCalculatorV2 class ✓
-    - File: `server/ai_engine/reward_calculator_v2.py` (new)
+  - [x] 8.1 Create RewardCalculator class ✓
+    - File: `server/ai_engine/reward_calculator.py` (new)
     - Method: calculate_reward(prev_obs, curr_obs) → float
     - _Requirements: 11.1-11.4_
 
   - [x] 8.2 Implement reward signals ✓
-    - File: `server/ai_engine/reward_calculator_v2.py`
+    - File: `server/ai_engine/reward_calculator.py`
     - Positive: mining stopped, protectors reduced, player energy negative
     - Negative: mining active, protectors increased, player energy positive
     - Use rate formula: (end - start) / max(start, end)
@@ -239,8 +239,8 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
 
   - [x] 8.3 Integrate reward into training loop ✓
     - File: `server/websocket/message_handler.py`
-    - Use RewardCalculatorV2 for reward signals
-    - Train on observation/reward pairs via NNModelV2.train_with_reward()
+    - Use RewardCalculator for reward signals
+    - Train on observation/reward pairs via NNModel.train_with_reward()
     - _Requirements: 11.4_
 
 ### Phase 9: Testing & Validation
@@ -287,9 +287,9 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
 
 - [ ] Queen Energy System implemented and integrated
 - [ ] Event-driven worker tracking operational
-- [ ] ObservationCollectorV2 sending data every 15s
+- [ ] ObservationCollector sending data every 15s
 - [ ] Backend preprocessing 28 features correctly
-- [ ] NNModelV2 with split heads operational
+- [ ] NNModel with split heads operational
 - [ ] Spawn decisions executing correctly
 - [ ] Reward signals driving learning
 - [ ] Performance requirements met (60 FPS, < 50ms inference)
@@ -300,23 +300,19 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
 |------|--------|---------|
 | `client/src/game/systems/QueenEnergySystem.ts` | Create | Queen spawn energy management |
 | `client/src/game/types/QueenEnergyTypes.ts` | Create | Energy configuration types |
-| `client/src/game/systems/ObservationCollectorV2.ts` | Create | Chunk-based data collection |
-| `client/src/game/types/ObservationTypesV2.ts` | Create | V2 observation data types |
+| `client/src/game/systems/ObservationCollector.ts` | Create | Chunk-based data collection |
+| `client/src/game/types/ObservationTypes.ts` | Create | Observation data types |
 | `client/src/game/utils/ChunkUtils.ts` | Create | Chunk-to-position utilities |
 | `client/src/game/entities/Queen.ts` | Modify | Add energy system |
 | `client/src/game/entities/Worker.ts` | Modify | Mining events + chunk tracking |
 | `client/src/game/UnitManager.ts` | Modify | Mining worker set tracking |
 | `client/src/game/ParasiteManager.ts` | Modify | Energy check + chunk spawn |
-| `client/src/game/AdaptiveQueenIntegration.ts` | Modify | V2 WebSocket integration |
-| `server/ai_engine/feature_extractor_v2.py` | Create | 28-feature extraction |
-| `server/ai_engine/nn_model_v2.py` | Create | Split-head NN architecture |
-| `server/ai_engine/reward_calculator_v2.py` | Create | V2 reward signals |
-| `server/websocket/message_handler.py` | Modify | V2 message handling |
+| `client/src/game/AdaptiveQueenIntegration.ts` | Modify | WebSocket integration |
+| `server/ai_engine/feature_extractor.py` | Create | 28-feature extraction |
+| `server/ai_engine/nn_model.py` | Create | Split-head NN architecture |
+| `server/ai_engine/reward_calculator.py` | Create | Reward signals |
+| `server/websocket/message_handler.py` | Modify | Message handling |
 
 ## Notes
 
-- This is a parallel implementation (V2) - does not replace existing V1 system
-- Can be feature-flagged for A/B testing
-- Queen Energy System is shared between V1 and V2
-- Event-driven tracking benefits both versions
 - Research document: `.kiro/research/nn-co-research-sessions.md`

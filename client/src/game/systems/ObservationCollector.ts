@@ -1,5 +1,5 @@
 /**
- * ObservationCollectorV2 - Chunk-based observation collection for Queen NN v2.0
+ * ObservationCollector - Chunk-based observation collection for Queen NN
  *
  * Collects raw game state data every 15 seconds and formats it for backend
  * preprocessing. The backend converts this into 28 normalized features for the NN.
@@ -14,16 +14,16 @@
  */
 
 import {
-    ObservationDataV2,
+    ObservationData,
     WorkerObservation,
     ProtectorObservation,
     ParasiteObservation,
     QueenEnergyObservation,
     PlayerEnergyObservation,
     ParasiteSnapshot,
-    ObservationConfigV2,
-    DEFAULT_OBSERVATION_CONFIG_V2
-} from '../types/ObservationTypesV2';
+    ObservationConfig,
+    DEFAULT_OBSERVATION_CONFIG
+} from '../types/ObservationTypes';
 import { GameEngine } from '../GameEngine';
 import { Worker } from '../entities/Worker';
 import { Protector } from '../entities/Protector';
@@ -31,8 +31,8 @@ import { Queen } from '../entities/Queen';
 import { EnergyParasite } from '../entities/EnergyParasite';
 import { CombatParasite } from '../entities/CombatParasite';
 
-export class ObservationCollectorV2 {
-    private config: ObservationConfigV2;
+export class ObservationCollector {
+    private config: ObservationConfig;
 
     // Window tracking
     private windowStartTime: number = 0;
@@ -43,13 +43,13 @@ export class ObservationCollectorV2 {
     private playerEnergyStart: number = 0;
 
     // Callback for when observation is ready
-    private onObservationReadyCallbacks: ((data: ObservationDataV2) => void)[] = [];
+    private onObservationReadyCallbacks: ((data: ObservationData) => void)[] = [];
 
     // Cached references
     private gameEngine: GameEngine | null = null;
 
-    constructor(config: Partial<ObservationConfigV2> = {}) {
-        this.config = { ...DEFAULT_OBSERVATION_CONFIG_V2, ...config };
+    constructor(config: Partial<ObservationConfig> = {}) {
+        this.config = { ...DEFAULT_OBSERVATION_CONFIG, ...config };
     }
 
     /**
@@ -89,7 +89,7 @@ export class ObservationCollectorV2 {
     /**
      * Collect complete observation data
      */
-    public collectObservation(territoryId: string): ObservationDataV2 {
+    public collectObservation(territoryId: string): ObservationData {
         // Cache game engine reference
         if (!this.gameEngine) {
             this.gameEngine = GameEngine.getInstance();
@@ -295,7 +295,7 @@ export class ObservationCollectorV2 {
     /**
      * Emit observation to all registered callbacks
      */
-    private emitObservation(observation: ObservationDataV2): void {
+    private emitObservation(observation: ObservationData): void {
         for (const callback of this.onObservationReadyCallbacks) {
             callback(observation);
         }
@@ -304,14 +304,14 @@ export class ObservationCollectorV2 {
     /**
      * Register callback for when observation is ready
      */
-    public onObservationReady(callback: (data: ObservationDataV2) => void): void {
+    public onObservationReady(callback: (data: ObservationData) => void): void {
         this.onObservationReadyCallbacks.push(callback);
     }
 
     /**
      * Force collection and emission of observation (for testing)
      */
-    public forceCollect(territoryId: string): ObservationDataV2 {
+    public forceCollect(territoryId: string): ObservationData {
         const observation = this.collectObservation(territoryId);
         this.emitObservation(observation);
         return observation;

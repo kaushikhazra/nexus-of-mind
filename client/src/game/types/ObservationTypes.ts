@@ -1,5 +1,5 @@
 /**
- * ObservationTypesV2 - Type definitions for Queen NN v2.0 observation data
+ * ObservationTypes - Type definitions for Queen NN observation data
  *
  * The observation system collects raw data from the game state every 15 seconds
  * and sends it to the backend for preprocessing into 28 normalized features.
@@ -89,7 +89,7 @@ export interface ParasiteSnapshot {
  * - 2 values: Spawn capacities (energy, combat)
  * - 1 value: Player energy rate
  */
-export interface ObservationDataV2 {
+export interface ObservationData {
     /** Timestamp of observation */
     timestamp: number;
 
@@ -130,7 +130,7 @@ export interface SpawnDecision {
 /**
  * Configuration for observation collection
  */
-export interface ObservationConfigV2 {
+export interface ObservationConfig {
     /** Observation window duration in seconds (default: 15) */
     windowDuration: number;
     /** Chunk size in world units (default: 64) */
@@ -142,7 +142,7 @@ export interface ObservationConfigV2 {
 /**
  * Default observation configuration
  */
-export const DEFAULT_OBSERVATION_CONFIG_V2: ObservationConfigV2 = {
+export const DEFAULT_OBSERVATION_CONFIG: ObservationConfig = {
     windowDuration: 15,
     chunkSize: 64,
     chunksPerAxis: 16

@@ -1,304 +1,365 @@
 """
-Reward Calculator for Queen AI Continuous Learning
+Reward Calculator for Queen AI Neural Network
 
-Calculates reward signals from observation events to guide reinforcement learning.
-Rewards are normalized to [-1, 1] range for stable training.
+Calculates reward signals for reinforcement learning based on observation changes.
+The Queen is rewarded for actions that harm the player's economy.
+
+Reward Signals:
+- Positive: Mining activity decreased, protectors reduced, player energy declining
+- Negative: Mining activity increased, protectors increased, player energy growing
+
+All rates use unified normalization: (end - start) / max(start, end) → [-1, +1]
 """
 
 import logging
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
+from collections import defaultdict
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class RewardWeights:
-    """Configurable weights for different reward components."""
+class RewardConfig:
+    """Configuration for reward calculation."""
 
-    # Positive rewards (Queen success)
-    mining_interruption: float = 0.5       # Successfully interrupted mining
-    mining_site_abandoned: float = 1.0     # Site was completely abandoned
-    player_unit_killed: float = 0.3        # Killed a player unit
-    combat_victory: float = 0.4            # Won a combat encounter
-    mining_efficiency_decrease: float = 2.0 # Multiplier for efficiency drop
-    territory_maintained: float = 0.1      # Keeping territory control
+    # Reward weights for each signal
+    mining_disruption_weight: float = 0.4  # Weight for mining activity changes
+    protector_reduction_weight: float = 0.3  # Weight for protector count changes
+    player_energy_weight: float = 0.3  # Weight for player energy changes
 
-    # Negative rewards (Queen failure)
-    parasite_killed: float = -0.5          # Lost a parasite
-    failed_attack: float = -0.3            # Attack dealt no damage
-    queen_damage: float = -0.2             # Queen took damage
-    hive_discovered: float = -1.0          # Hive was discovered by player
-    combat_defeat: float = -0.4            # Lost a combat encounter
+    # Bonus rewards
+    mining_stopped_bonus: float = 0.2  # Bonus when mining completely stops in a chunk
+    protector_killed_bonus: float = 0.15  # Bonus per protector killed
 
-    # Normalization bounds
+    # Penalty for ineffective actions
+    no_impact_penalty: float = -0.1  # Penalty when action has no observable impact
+
+    # Clipping bounds
     min_reward: float = -1.0
     max_reward: float = 1.0
 
 
 class RewardCalculator:
     """
-    Calculates reward signals from observation data for RL training.
+    Calculates reward signals for Queen NN training.
 
-    The reward function encourages:
-    - Disrupting player mining operations
-    - Killing player units
-    - Surviving (preserving parasites)
-    - Keeping the hive hidden
-
-    And discourages:
-    - Losing parasites
-    - Failing attacks
-    - Having the hive discovered
+    Compares consecutive observations to determine the effectiveness
+    of the Queen's spawn decisions.
     """
 
-    def __init__(self, weights: Optional[RewardWeights] = None):
-        self.weights = weights or RewardWeights()
-        self._last_observation: Optional[Dict[str, Any]] = None
+    def __init__(self, config: Optional[RewardConfig] = None):
+        self.config = config or RewardConfig()
 
-    def calculate(
+        # Track history for multi-step rewards
+        self.observation_history: List[Dict[str, Any]] = []
+        self.reward_history: List[float] = []
+        self.max_history = 10
+
+    def calculate_reward(
         self,
-        current_obs: Dict[str, Any],
-        previous_obs: Optional[Dict[str, Any]] = None
-    ) -> float:
+        prev_observation: Dict[str, Any],
+        curr_observation: Dict[str, Any],
+        spawn_decision: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """
-        Calculate reward signal from observation data.
+        Calculate reward based on observation changes.
 
         Args:
-            current_obs: Current observation data
-            previous_obs: Previous observation data (for delta comparisons)
+            prev_observation: Previous observation data (window start)
+            curr_observation: Current observation data (window end)
+            spawn_decision: Optional spawn decision that was executed
 
         Returns:
-            Reward value in [-1, 1] range
+            Dictionary with:
+            - reward: Total reward value [-1, +1]
+            - components: Breakdown of reward components
+            - details: Detailed metrics
         """
-        # Use stored previous observation if not provided
-        if previous_obs is None:
-            previous_obs = self._last_observation
+        components = {}
+        details = {}
 
-        reward = 0.0
+        # 1. Mining disruption reward
+        mining_reward, mining_details = self._calculate_mining_reward(
+            prev_observation, curr_observation
+        )
+        components['mining_disruption'] = mining_reward
+        details['mining'] = mining_details
 
-        try:
-            # Calculate event-based rewards
-            reward += self._calculate_event_rewards(current_obs)
+        # 2. Protector reduction reward
+        protector_reward, protector_details = self._calculate_protector_reward(
+            prev_observation, curr_observation
+        )
+        components['protector_reduction'] = protector_reward
+        details['protector'] = protector_details
 
-            # Calculate state delta rewards (if we have previous state)
-            if previous_obs is not None:
-                reward += self._calculate_delta_rewards(current_obs, previous_obs)
+        # 3. Player energy drain reward
+        energy_reward, energy_details = self._calculate_energy_reward(
+            prev_observation, curr_observation
+        )
+        components['player_energy_drain'] = energy_reward
+        details['energy'] = energy_details
 
-            # Normalize to [-1, 1]
-            reward = self._normalize_reward(reward)
-
-        except Exception as e:
-            logger.error(f"Error calculating reward: {e}")
-            reward = 0.0
-
-        # Store for next calculation
-        self._last_observation = current_obs
-
-        return reward
-
-    def _calculate_event_rewards(self, obs: Dict[str, Any]) -> float:
-        """Calculate rewards from events in the observation window."""
-        events = obs.get('events', {})
-        reward = 0.0
-
-        # Mining interruptions (positive)
-        interruption_count = events.get('miningInterruptionCount', 0)
-        reward += interruption_count * self.weights.mining_interruption
-
-        # Player units killed (positive)
-        player_units_killed = events.get('playerUnitsKilled', 0)
-        reward += player_units_killed * self.weights.player_unit_killed
-
-        # Parasites killed (negative)
-        parasites_killed = events.get('parasitesKilled', 0)
-        reward += parasites_killed * self.weights.parasite_killed
-
-        # Failed attacks (negative)
-        failed_attacks = events.get('failedAttacks', 0)
-        reward += failed_attacks * self.weights.failed_attack
-
-        # Combat encounters
-        combat_encounters = events.get('combatEncounters', [])
-        for encounter in combat_encounters:
-            outcome = encounter.get('outcome', 'draw')
-            if outcome == 'queen_win':
-                reward += self.weights.combat_victory
-            elif outcome == 'player_win':
-                reward += self.weights.combat_defeat
-
-        return reward
-
-    def _calculate_delta_rewards(
-        self,
-        current_obs: Dict[str, Any],
-        previous_obs: Dict[str, Any]
-    ) -> float:
-        """Calculate rewards from state changes between observations."""
-        reward = 0.0
-
-        current_player = current_obs.get('player', {})
-        previous_player = previous_obs.get('player', {})
-        current_queen = current_obs.get('queen', {})
-        previous_queen = previous_obs.get('queen', {})
-
-        # Mining efficiency decrease (positive reward)
-        current_efficiency = current_player.get('miningEfficiency', 0)
-        previous_efficiency = previous_player.get('miningEfficiency', 0)
-
-        if previous_efficiency > 0 and current_efficiency < previous_efficiency:
-            efficiency_drop = (previous_efficiency - current_efficiency) / previous_efficiency
-            reward += efficiency_drop * self.weights.mining_efficiency_decrease
-
-        # Mining sites abandoned (check for complete loss)
-        current_sites = len(current_player.get('miningSites', []))
-        previous_sites = len(previous_player.get('miningSites', []))
-
-        if current_sites < previous_sites:
-            sites_lost = previous_sites - current_sites
-            reward += sites_lost * self.weights.mining_site_abandoned
-
-        # Hive discovery (major negative reward)
-        current_discovered = current_queen.get('hiveDiscovered', False)
-        previous_discovered = previous_queen.get('hiveDiscovered', False)
-
-        if current_discovered and not previous_discovered:
-            reward += self.weights.hive_discovered
-
-        # Queen health decrease
-        current_health = current_queen.get('health', 1.0)
-        previous_health = previous_queen.get('health', 1.0)
-
-        if current_health < previous_health:
-            health_lost = previous_health - current_health
-            reward += health_lost * self.weights.queen_damage
-
-        # Territory maintenance (small positive if maintaining parasites)
-        current_parasites = current_queen.get('parasiteCount', 0)
-        if current_parasites > 0:
-            reward += self.weights.territory_maintained
-
-        return reward
-
-    def _normalize_reward(self, reward: float) -> float:
-        """Normalize reward to [-1, 1] range."""
-        return max(
-            self.weights.min_reward,
-            min(self.weights.max_reward, reward)
+        # 4. Calculate weighted total
+        total_reward = (
+            mining_reward * self.config.mining_disruption_weight +
+            protector_reward * self.config.protector_reduction_weight +
+            energy_reward * self.config.player_energy_weight
         )
 
-    def get_reward_breakdown(self, obs: Dict[str, Any]) -> Dict[str, float]:
-        """
-        Get detailed breakdown of reward components for debugging.
+        # 5. Apply bonuses
+        bonuses = self._calculate_bonuses(prev_observation, curr_observation, details)
+        total_reward += bonuses['total']
+        components['bonuses'] = bonuses['total']
+        details['bonuses'] = bonuses
 
-        Args:
-            obs: Current observation data
+        # 6. Apply no-impact penalty if nothing changed
+        if self._is_no_impact(details):
+            total_reward += self.config.no_impact_penalty
+            components['no_impact_penalty'] = self.config.no_impact_penalty
 
-        Returns:
-            Dictionary with individual reward components
-        """
-        events = obs.get('events', {})
-        breakdown = {}
-
-        # Event rewards
-        breakdown['mining_interruptions'] = (
-            events.get('miningInterruptionCount', 0) *
-            self.weights.mining_interruption
-        )
-        breakdown['player_units_killed'] = (
-            events.get('playerUnitsKilled', 0) *
-            self.weights.player_unit_killed
-        )
-        breakdown['parasites_killed'] = (
-            events.get('parasitesKilled', 0) *
-            self.weights.parasite_killed
-        )
-        breakdown['failed_attacks'] = (
-            events.get('failedAttacks', 0) *
-            self.weights.failed_attack
+        # 7. Clip to bounds
+        total_reward = np.clip(
+            total_reward,
+            self.config.min_reward,
+            self.config.max_reward
         )
 
-        # Combat
-        combat_encounters = events.get('combatEncounters', [])
-        combat_reward = 0
-        for encounter in combat_encounters:
-            outcome = encounter.get('outcome', 'draw')
-            if outcome == 'queen_win':
-                combat_reward += self.weights.combat_victory
-            elif outcome == 'player_win':
-                combat_reward += self.weights.combat_defeat
-        breakdown['combat'] = combat_reward
+        # Store in history
+        self._update_history(curr_observation, total_reward)
 
-        # Total before normalization
-        breakdown['total_raw'] = sum(breakdown.values())
-        breakdown['total_normalized'] = self._normalize_reward(breakdown['total_raw'])
-
-        return breakdown
-
-    def reset(self) -> None:
-        """Reset the calculator state."""
-        self._last_observation = None
-
-    def update_weights(self, weights: RewardWeights) -> None:
-        """Update reward weights."""
-        self.weights = weights
-
-
-class AdaptiveRewardCalculator(RewardCalculator):
-    """
-    Reward calculator that adapts weights based on game phase.
-
-    Early game: Focus on mining disruption
-    Mid game: Balance between disruption and combat
-    Late game: Focus on survival and territory control
-    """
-
-    def __init__(self, weights: Optional[RewardWeights] = None):
-        super().__init__(weights)
-        self._phase_thresholds = {
-            'early': 300,   # First 5 minutes
-            'mid': 900,     # 5-15 minutes
-            'late': float('inf')  # After 15 minutes
+        return {
+            'reward': float(total_reward),
+            'components': components,
+            'details': details
         }
 
-    def calculate(
+    def _calculate_mining_reward(
         self,
-        current_obs: Dict[str, Any],
-        previous_obs: Optional[Dict[str, Any]] = None
-    ) -> float:
-        """Calculate reward with phase-adaptive weights."""
-        # Adjust weights based on game phase
-        game_time = current_obs.get('gameTime', 0)
-        self._adjust_weights_for_phase(game_time)
+        prev_obs: Dict[str, Any],
+        curr_obs: Dict[str, Any]
+    ) -> tuple:
+        """
+        Calculate reward for mining disruption.
 
-        return super().calculate(current_obs, previous_obs)
+        Positive reward when mining activity decreases.
+        """
+        prev_workers = prev_obs.get('miningWorkers', [])
+        curr_workers = curr_obs.get('miningWorkers', [])
 
-    def _adjust_weights_for_phase(self, game_time: float) -> None:
-        """Adjust weights based on current game phase."""
-        if game_time < self._phase_thresholds['early']:
-            # Early game: Focus on disruption
-            self.weights.mining_interruption = 0.7
-            self.weights.parasite_killed = -0.3
-            self.weights.hive_discovered = -0.5
+        prev_count = len(prev_workers)
+        curr_count = len(curr_workers)
 
-        elif game_time < self._phase_thresholds['mid']:
-            # Mid game: Balanced
-            self.weights.mining_interruption = 0.5
-            self.weights.parasite_killed = -0.5
-            self.weights.hive_discovered = -1.0
+        # Calculate rate of change
+        rate = self._calculate_rate(prev_count, curr_count)
 
+        # Invert: negative rate (fewer workers) = positive reward
+        reward = -rate
+
+        # Per-chunk analysis
+        prev_by_chunk = self._count_by_chunk(prev_workers)
+        curr_by_chunk = self._count_by_chunk(curr_workers)
+
+        chunks_cleared = sum(
+            1 for chunk_id in prev_by_chunk
+            if prev_by_chunk[chunk_id] > 0 and curr_by_chunk.get(chunk_id, 0) == 0
+        )
+
+        details = {
+            'prev_count': prev_count,
+            'curr_count': curr_count,
+            'rate': rate,
+            'chunks_cleared': chunks_cleared
+        }
+
+        return reward, details
+
+    def _calculate_protector_reward(
+        self,
+        prev_obs: Dict[str, Any],
+        curr_obs: Dict[str, Any]
+    ) -> tuple:
+        """
+        Calculate reward for protector reduction.
+
+        Positive reward when protector count decreases.
+        """
+        prev_protectors = prev_obs.get('protectors', [])
+        curr_protectors = curr_obs.get('protectors', [])
+
+        prev_count = len(prev_protectors)
+        curr_count = len(curr_protectors)
+
+        # Calculate rate of change
+        rate = self._calculate_rate(prev_count, curr_count)
+
+        # Invert: negative rate (fewer protectors) = positive reward
+        reward = -rate
+
+        # Count protectors killed
+        protectors_killed = max(0, prev_count - curr_count)
+
+        details = {
+            'prev_count': prev_count,
+            'curr_count': curr_count,
+            'rate': rate,
+            'protectors_killed': protectors_killed
+        }
+
+        return reward, details
+
+    def _calculate_energy_reward(
+        self,
+        prev_obs: Dict[str, Any],
+        curr_obs: Dict[str, Any]
+    ) -> tuple:
+        """
+        Calculate reward for player energy drain.
+
+        Positive reward when player energy decreases.
+        """
+        player_energy = curr_obs.get('playerEnergy', {})
+        start_energy = player_energy.get('start', 0)
+        end_energy = player_energy.get('end', 0)
+
+        # Calculate rate from the observation window
+        rate = self._calculate_rate(start_energy, end_energy)
+
+        # Invert: negative rate (energy declining) = positive reward
+        reward = -rate
+
+        details = {
+            'start_energy': start_energy,
+            'end_energy': end_energy,
+            'rate': rate,
+            'energy_drained': max(0, start_energy - end_energy)
+        }
+
+        return reward, details
+
+    def _calculate_bonuses(
+        self,
+        prev_obs: Dict[str, Any],
+        curr_obs: Dict[str, Any],
+        details: Dict[str, Any]
+    ) -> Dict[str, float]:
+        """Calculate bonus rewards for specific achievements."""
+        bonuses = {
+            'mining_stopped': 0.0,
+            'protectors_killed': 0.0,
+            'total': 0.0
+        }
+
+        # Bonus for completely clearing mining from chunks
+        chunks_cleared = details.get('mining', {}).get('chunks_cleared', 0)
+        if chunks_cleared > 0:
+            bonuses['mining_stopped'] = chunks_cleared * self.config.mining_stopped_bonus
+
+        # Bonus for killing protectors
+        protectors_killed = details.get('protector', {}).get('protectors_killed', 0)
+        if protectors_killed > 0:
+            bonuses['protectors_killed'] = protectors_killed * self.config.protector_killed_bonus
+
+        bonuses['total'] = bonuses['mining_stopped'] + bonuses['protectors_killed']
+
+        return bonuses
+
+    def _is_no_impact(self, details: Dict[str, Any]) -> bool:
+        """Check if the action had no observable impact."""
+        mining_rate = abs(details.get('mining', {}).get('rate', 0))
+        protector_rate = abs(details.get('protector', {}).get('rate', 0))
+        energy_rate = abs(details.get('energy', {}).get('rate', 0))
+
+        # No impact if all rates are near zero
+        threshold = 0.05
+        return (
+            mining_rate < threshold and
+            protector_rate < threshold and
+            energy_rate < threshold
+        )
+
+    def _calculate_rate(self, start: float, end: float) -> float:
+        """
+        Calculate normalized rate of change.
+
+        Formula: (end - start) / max(start, end)
+        Returns value in [-1, +1] range.
+        """
+        if start == 0 and end == 0:
+            return 0.0
+
+        max_val = max(start, end)
+        if max_val == 0:
+            return 0.0
+
+        return (end - start) / max_val
+
+    def _count_by_chunk(self, entities: List[Dict[str, Any]]) -> Dict[int, int]:
+        """Count entities per chunk."""
+        counts = defaultdict(int)
+        for entity in entities:
+            chunk_id = entity.get('chunkId', -1)
+            if chunk_id >= 0:
+                counts[chunk_id] += 1
+        return dict(counts)
+
+    def _update_history(self, observation: Dict[str, Any], reward: float) -> None:
+        """Update observation and reward history."""
+        self.observation_history.append(observation)
+        self.reward_history.append(reward)
+
+        # Trim to max history
+        if len(self.observation_history) > self.max_history:
+            self.observation_history.pop(0)
+            self.reward_history.pop(0)
+
+    def get_average_reward(self, window: int = 5) -> float:
+        """Get average reward over recent history."""
+        if not self.reward_history:
+            return 0.0
+
+        recent = self.reward_history[-window:]
+        return sum(recent) / len(recent)
+
+    def get_reward_trend(self) -> str:
+        """Get reward trend (improving, declining, stable)."""
+        if len(self.reward_history) < 3:
+            return 'insufficient_data'
+
+        recent = self.reward_history[-5:]
+        older = self.reward_history[-10:-5] if len(self.reward_history) >= 10 else self.reward_history[:-5]
+
+        if not older:
+            return 'insufficient_data'
+
+        recent_avg = sum(recent) / len(recent)
+        older_avg = sum(older) / len(older)
+
+        diff = recent_avg - older_avg
+
+        if diff > 0.1:
+            return 'improving'
+        elif diff < -0.1:
+            return 'declining'
         else:
-            # Late game: Focus on survival
-            self.weights.mining_interruption = 0.3
-            self.weights.parasite_killed = -0.7
-            self.weights.hive_discovered = -1.5
-            self.weights.territory_maintained = 0.2
+            return 'stable'
 
-    def get_current_phase(self, game_time: float) -> str:
-        """Get current game phase name."""
-        if game_time < self._phase_thresholds['early']:
-            return 'early'
-        elif game_time < self._phase_thresholds['mid']:
-            return 'mid'
-        else:
-            return 'late'
+    def get_stats(self) -> Dict[str, Any]:
+        """Get reward calculator statistics."""
+        return {
+            'history_length': len(self.reward_history),
+            'average_reward': self.get_average_reward(),
+            'trend': self.get_reward_trend(),
+            'recent_rewards': self.reward_history[-5:] if self.reward_history else [],
+            'config': {
+                'mining_weight': self.config.mining_disruption_weight,
+                'protector_weight': self.config.protector_reduction_weight,
+                'energy_weight': self.config.player_energy_weight
+            }
+        }
+
+    def reset(self) -> None:
+        """Reset history."""
+        self.observation_history.clear()
+        self.reward_history.clear()
