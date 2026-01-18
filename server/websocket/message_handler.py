@@ -18,6 +18,7 @@ from ai_engine.data_models import (
 from ai_engine.continuous_trainer import ContinuousTrainer, AsyncContinuousTrainer
 from ai_engine.feature_extractor_v2 import FeatureExtractorV2
 from ai_engine.nn_model_v2 import NNModelV2
+from ai_engine.reward_calculator_v2 import RewardCalculatorV2
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +90,17 @@ class MessageHandler:
             logger.info(f"NNModelV2 initialized with {self.nn_model_v2._count_parameters()} parameters")
         except Exception as e:
             logger.warning(f"Failed to initialize NNModelV2: {e}")
+
+        try:
+            self.reward_calculator_v2 = RewardCalculatorV2()
+            logger.info("RewardCalculatorV2 initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize RewardCalculatorV2: {e}")
+            self.reward_calculator_v2 = None
+
+        # Store previous observations for reward calculation (per territory)
+        self.prev_observations_v2: Dict[str, Dict[str, Any]] = {}
+        self.prev_decisions_v2: Dict[str, Dict[str, Any]] = {}
     
     def _initialize_schemas(self) -> Dict[str, Dict]:
         """Initialize JSON schemas for message validation"""
@@ -877,6 +889,7 @@ class MessageHandler:
         Handle V2 observation data for chunk-based NN spawning.
 
         Processes observation → extracts 28 features → runs NN inference → returns spawn decision.
+        Also calculates rewards and trains the model based on previous observations.
         """
         try:
             observation = message.get("data")
@@ -896,6 +909,29 @@ class MessageHandler:
             logger.info(f"[ObservationV2] Processing observation for territory {territory_id} from client {client_id}")
 
             try:
+                # Calculate reward and train if we have previous observation
+                reward_info = None
+                if territory_id in self.prev_observations_v2 and self.reward_calculator_v2:
+                    prev_obs = self.prev_observations_v2[territory_id]
+                    prev_decision = self.prev_decisions_v2.get(territory_id)
+
+                    # Calculate reward
+                    reward_info = self.reward_calculator_v2.calculate_reward(
+                        prev_obs, observation, prev_decision
+                    )
+
+                    # Train model with reward if we have a previous decision
+                    if prev_decision and reward_info['reward'] != 0:
+                        prev_features = self.feature_extractor_v2.extract(prev_obs)
+                        train_result = self.nn_model_v2.train_with_reward(
+                            prev_features,
+                            prev_decision['spawnChunk'],
+                            prev_decision['spawnType'],
+                            reward_info['reward']
+                        )
+                        logger.info(f"[ObservationV2] Training: reward={reward_info['reward']:.3f}, "
+                                   f"loss={train_result.get('loss', 0):.4f}")
+
                 # Extract features (28 normalized values)
                 features = self.feature_extractor_v2.extract(observation)
                 logger.debug(f"[ObservationV2] Extracted {len(features)} features")
@@ -913,16 +949,27 @@ class MessageHandler:
                 logger.info(f"[ObservationV2] Spawn decision: chunk={spawn_decision['spawnChunk']}, "
                            f"type={spawn_decision['spawnType']}, confidence={spawn_decision['confidence']:.3f}")
 
+                # Store for next reward calculation
+                self.prev_observations_v2[territory_id] = observation
+                self.prev_decisions_v2[territory_id] = spawn_decision
+
+                response_data = {
+                    "spawnChunk": spawn_decision["spawnChunk"],
+                    "spawnType": spawn_decision["spawnType"],
+                    "confidence": spawn_decision["confidence"],
+                    "typeConfidence": spawn_decision["typeConfidence"],
+                    "territoryId": territory_id
+                }
+
+                # Include reward info if available
+                if reward_info:
+                    response_data["lastReward"] = reward_info["reward"]
+                    response_data["rewardTrend"] = self.reward_calculator_v2.get_reward_trend()
+
                 return {
                     "type": "spawn_decision",
                     "timestamp": asyncio.get_event_loop().time(),
-                    "data": {
-                        "spawnChunk": spawn_decision["spawnChunk"],
-                        "spawnType": spawn_decision["spawnType"],
-                        "confidence": spawn_decision["confidence"],
-                        "typeConfidence": spawn_decision["typeConfidence"],
-                        "territoryId": territory_id
-                    }
+                    "data": response_data
                 }
 
             except asyncio.TimeoutError:

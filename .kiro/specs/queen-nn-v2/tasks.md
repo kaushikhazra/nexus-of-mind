@@ -222,25 +222,25 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
     - Log rejection reasons
     - _Requirements: 5.5_
 
-### Phase 8: Training Integration (Backend)
+### Phase 8: Training Integration (Backend) ✅ COMPLETE
 
-- [ ] 8. Implement Reward Calculation
-  - [ ] 8.1 Create RewardCalculatorV2 class
+- [x] 8. Implement Reward Calculation ✓
+  - [x] 8.1 Create RewardCalculatorV2 class ✓
     - File: `server/ai_engine/reward_calculator_v2.py` (new)
     - Method: calculate_reward(prev_obs, curr_obs) → float
     - _Requirements: 11.1-11.4_
 
-  - [ ] 8.2 Implement reward signals
+  - [x] 8.2 Implement reward signals ✓
     - File: `server/ai_engine/reward_calculator_v2.py`
     - Positive: mining stopped, protectors reduced, player energy negative
     - Negative: mining active, protectors increased, player energy positive
     - Use rate formula: (end - start) / max(start, end)
     - _Requirements: 11.1, 11.2, 11.3_
 
-  - [ ] 8.3 Integrate reward into training loop
-    - File: `server/ai_engine/continuous_trainer.py`
+  - [x] 8.3 Integrate reward into training loop ✓
+    - File: `server/websocket/message_handler.py`
     - Use RewardCalculatorV2 for reward signals
-    - Train on observation/reward pairs
+    - Train on observation/reward pairs via NNModelV2.train_with_reward()
     - _Requirements: 11.4_
 
 ### Phase 9: Testing & Validation
