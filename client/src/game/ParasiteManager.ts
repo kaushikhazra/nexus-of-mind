@@ -23,6 +23,7 @@ import { TerritoryManager, Territory } from './TerritoryManager';
 import { Queen } from './entities/Queen';
 import { SpatialIndex } from './SpatialIndex';
 import { GameEngine } from './GameEngine';
+import { chunkIdToRandomPosition, positionToChunkId } from './utils/ChunkUtils';
 
 export interface TerritorialParasiteConfig {
     territory: Territory;
@@ -708,6 +709,123 @@ export class ParasiteManager {
             this.parasitesByDeposit.set(depositId, new Set());
         }
         this.parasitesByDeposit.get(depositId)!.add(parasite.getId());
+    }
+
+    // ==================== NN v2: Chunk-Based Spawning ====================
+
+    /**
+     * NN v2: Spawn a parasite at a specific chunk location
+     * Called by AdaptiveQueenIntegration when backend sends spawn_decision
+     *
+     * @param chunkId Target chunk ID (0-255)
+     * @param spawnType Parasite type ('energy' or 'combat')
+     * @param queen The Queen controlling this spawn
+     * @returns true if spawn was successful
+     */
+    public spawnAtChunk(chunkId: number, spawnType: 'energy' | 'combat', queen: Queen): boolean {
+        // Validate chunk ID
+        if (chunkId < 0 || chunkId >= 256) {
+            return false;
+        }
+
+        // Check Queen is active
+        if (!queen || !queen.isActiveQueen()) {
+            return false;
+        }
+
+        // Check Queen energy (should already be checked, but double-check)
+        const energySystem = queen.getEnergySystem();
+        if (!energySystem.canAffordSpawn(spawnType)) {
+            return false;
+        }
+
+        // Convert chunk to random position within chunk
+        const spawnPosition = chunkIdToRandomPosition(chunkId, 5);
+        if (!spawnPosition) {
+            return false;
+        }
+
+        // Get terrain height at spawn position
+        if (this.terrainGenerator && this.terrainGenerator.getHeightAtPosition) {
+            spawnPosition.y = this.terrainGenerator.getHeightAtPosition(spawnPosition.x, spawnPosition.z) + 0.5;
+        } else {
+            spawnPosition.y = 0.5;
+        }
+
+        // Validate spawn is within Queen's territory
+        const territory = queen.getTerritory();
+        if (this.territoryManager && !this.territoryManager.isPositionInTerritory(spawnPosition, territory.id)) {
+            return false;
+        }
+
+        // Consume energy
+        if (!energySystem.consumeForSpawn(spawnType)) {
+            return false;
+        }
+
+        // Determine parasite type
+        const parasiteType = spawnType === 'combat' ? ParasiteType.COMBAT : ParasiteType.ENERGY;
+
+        // Create parasite
+        const parasite = this.createParasite(parasiteType, {
+            position: spawnPosition,
+            scene: this.scene,
+            materialManager: this.materialManager,
+            homeDeposit: this.findNearestDeposit(spawnPosition) // Find closest deposit as "home"
+        });
+
+        // Set terrain generator
+        if (this.terrainGenerator) {
+            parasite.setTerrainGenerator(this.terrainGenerator);
+        }
+
+        // Register parasite
+        this.parasites.set(parasite.getId(), parasite);
+
+        // Add to spatial index
+        const gameEngine = GameEngine.getInstance();
+        const spatialIndex = gameEngine?.getSpatialIndex();
+        if (spatialIndex) {
+            const entityType = parasiteType === ParasiteType.COMBAT ? 'combat_parasite' : 'parasite';
+            spatialIndex.add(parasite.getId(), spawnPosition, entityType);
+        }
+
+        // Add to Queen control
+        queen.addControlledParasite(parasite.getId());
+
+        // Update type tracking
+        const currentTypeCount = this.parasiteCountByType.get(parasiteType) || 0;
+        this.parasiteCountByType.set(parasiteType, currentTypeCount + 1);
+
+        return true;
+    }
+
+    /**
+     * Find nearest mineral deposit to a position (for parasite home assignment)
+     */
+    private findNearestDeposit(position: Vector3): MineralDeposit | null {
+        const gameEngine = GameEngine.getInstance();
+        const terrainGenerator = gameEngine?.getTerrainGenerator();
+
+        if (!terrainGenerator || !terrainGenerator.getMineralDeposits) {
+            return null;
+        }
+
+        const deposits = terrainGenerator.getMineralDeposits();
+        let nearestDeposit: MineralDeposit | null = null;
+        let nearestDistance = Infinity;
+
+        for (const deposit of deposits) {
+            if (!deposit.isDepleted()) {
+                const distance = Vector3.Distance(position, deposit.getPosition());
+                if (distance < nearestDistance) {
+                    nearestDistance = distance;
+                    nearestDeposit = deposit;
+                }
+            }
+        }
+
+        return nearestDeposit;
     }
 
     /**
