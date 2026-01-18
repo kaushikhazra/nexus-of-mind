@@ -8,7 +8,8 @@ from .neural_network import QueenBehaviorNetwork
 # Continuous learning modules
 from .nn_config import NNConfig, NNConfigPresets, load_nn_config
 from .feature_extractor import FeatureExtractor, FeatureConfig
-from .reward_calculator import RewardCalculator, RewardWeights, AdaptiveRewardCalculator
+from .reward_calculator import RewardCalculator, RewardConfig
+from .nn_model import NNModel
 from .continuous_trainer import ContinuousTrainer, AsyncContinuousTrainer, StrategyUpdate
 
 __all__ = [
@@ -21,8 +22,8 @@ __all__ = [
     "FeatureExtractor",
     "FeatureConfig",
     "RewardCalculator",
-    "RewardWeights",
-    "AdaptiveRewardCalculator",
+    "RewardConfig",
+    "NNModel",
     "ContinuousTrainer",
     "AsyncContinuousTrainer",
     "StrategyUpdate"

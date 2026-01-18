@@ -273,7 +273,7 @@ export class ObservationCollector {
             return 0;
         }
 
-        return gameState.getEnergy();
+        return gameState.getEnergyLevel();
     }
 
     /**

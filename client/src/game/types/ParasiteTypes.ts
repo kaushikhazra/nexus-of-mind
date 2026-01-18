@@ -121,7 +121,7 @@ export interface ParasiteConfig {
     position: Vector3;
     scene: any; // Babylon.js Scene
     materialManager: any; // MaterialManager instance
-    homeDeposit: any; // MineralDeposit instance
+    homeDeposit?: any; // MineralDeposit instance (optional - parasite hunts freely if not set)
     parasiteType: ParasiteType;
     stats: ParasiteStats;
     targetingBehavior: TargetingBehavior;

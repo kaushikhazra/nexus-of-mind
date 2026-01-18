@@ -20,7 +20,7 @@ import { ParasiteType, PARASITE_STATS, TARGETING_BEHAVIORS } from '../types/Para
 
 export interface CombatParasiteConfig extends ParasiteConfig {
     materialManager: MaterialManager;
-    homeDeposit: MineralDeposit;
+    homeDeposit?: MineralDeposit; // Optional - parasite will hunt freely if not set
 }
 
 export class CombatParasite extends Parasite {
@@ -29,8 +29,8 @@ export class CombatParasite extends Parasite {
     protected stats = PARASITE_STATS[ParasiteType.COMBAT];
     protected targetingBehavior = TARGETING_BEHAVIORS[ParasiteType.COMBAT];
 
-    // Home deposit reference
-    protected homeDeposit: MineralDeposit;
+    // Home deposit reference (optional - parasite hunts freely if null)
+    protected homeDeposit: MineralDeposit | null;
 
     // Enhanced combat properties
     protected attackDamage: number;
@@ -69,7 +69,7 @@ export class CombatParasite extends Parasite {
     constructor(config: CombatParasiteConfig) {
         super(config);
 
-        this.homeDeposit = config.homeDeposit;
+        this.homeDeposit = config.homeDeposit || null;
         this.materialManager = config.materialManager;
 
         // Apply Combat Parasite stats
@@ -587,7 +587,7 @@ export class CombatParasite extends Parasite {
         return this.energyReward;
     }
 
-    public getHomeDeposit(): MineralDeposit {
+    public getHomeDeposit(): MineralDeposit | null {
         return this.homeDeposit;
     }
 

@@ -21,12 +21,12 @@ export { ParasiteState } from './Parasite';
 
 export interface EnergyParasiteConfig extends ParasiteConfig {
     materialManager: MaterialManager;
-    homeDeposit: MineralDeposit;
+    homeDeposit?: MineralDeposit; // Optional - parasite will hunt freely if not set
 }
 
 export class EnergyParasite extends Parasite {
-    // Home deposit reference
-    protected homeDeposit: MineralDeposit;
+    // Home deposit reference (optional - parasite hunts freely if null)
+    protected homeDeposit: MineralDeposit | null;
 
     // Worker targeting
     protected currentTarget: Worker | null = null;
@@ -48,7 +48,7 @@ export class EnergyParasite extends Parasite {
     constructor(config: EnergyParasiteConfig) {
         super(config);
 
-        this.homeDeposit = config.homeDeposit;
+        this.homeDeposit = config.homeDeposit || null;
         this.materialManager = config.materialManager;
 
         // Energy Parasite stats (native toughness)
@@ -322,7 +322,7 @@ export class EnergyParasite extends Parasite {
 
     // ==================== Getters ====================
 
-    public getHomeDeposit(): MineralDeposit { return this.homeDeposit; }
+    public getHomeDeposit(): MineralDeposit | null { return this.homeDeposit; }
 
     /**
      * Get energy reward for killing this Energy Parasite

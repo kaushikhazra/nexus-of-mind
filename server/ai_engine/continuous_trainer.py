@@ -25,7 +25,7 @@ except ImportError:
 
 from .nn_config import NNConfig, load_nn_config, DEFAULT_CONFIG_PATH
 from .feature_extractor import FeatureExtractor, FeatureConfig
-from .reward_calculator import RewardCalculator, RewardWeights
+from .reward_calculator import RewardCalculator, RewardConfig
 
 logger = logging.getLogger(__name__)
 

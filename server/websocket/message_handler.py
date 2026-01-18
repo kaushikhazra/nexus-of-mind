@@ -862,14 +862,14 @@ class MessageHandler:
                 features = self.feature_extractor.extract(observation)
                 logger.debug(f"[Observation] Extracted {len(features)} features")
 
-                # Run NN inference with timeout
+                # Run NN inference with timeout (2s for first inference, then fast)
                 spawn_decision = await asyncio.wait_for(
                     asyncio.get_event_loop().run_in_executor(
                         None,
                         self.nn_model.get_spawn_decision,
                         features
                     ),
-                    timeout=0.05  # 50ms timeout for real-time response
+                    timeout=2.0  # 2s timeout to allow TensorFlow warm-up
                 )
 
                 logger.info(f"[Observation] Spawn decision: chunk={spawn_decision['spawnChunk']}, "

@@ -37,6 +37,7 @@ import { EnergyLordsManager, EnergyLordsEvent } from './systems/EnergyLordsManag
 import { EnergyLordsHUD } from '../ui/EnergyLordsHUD';
 import { VictoryScreen } from '../ui/VictoryScreen';
 import { FPSCounter } from '../ui/FPSCounter';
+import { CoordinateDisplay } from '../ui/CoordinateDisplay';
 
 /**
  * Interface for throttled system updates (round-robin scheduling)
@@ -109,6 +110,9 @@ export class GameEngine {
     // FPS Counter (toggle with 'f' key)
     private fpsCounter: FPSCounter | null = null;
 
+    // Coordinate Display (toggle with 'c' key)
+    private coordinateDisplay: CoordinateDisplay | null = null;
+
     // Throttling for spatial index checks
     private lastDetectionCheckTime: number = 0;
     private readonly DETECTION_CHECK_INTERVAL: number = 200; // Check every 200ms
@@ -176,6 +180,10 @@ export class GameEngine {
 
             // Initialize FPS counter (toggle with 'f' key)
             this.fpsCounter = new FPSCounter(this.engine);
+
+            // Initialize coordinate display (toggle with 'c' key)
+            this.coordinateDisplay = new CoordinateDisplay();
+            this.coordinateDisplay.setCameraGetter(() => this.cameraController?.getCamera() || null);
 
             // Initialize spatial index for O(1) entity lookups
             this.spatialIndex = new SpatialIndex();
@@ -291,6 +299,11 @@ export class GameEngine {
             // Initialize Queen & Territory UI components
             this.initializeQueenGrowthUI();
             this.initializeTerritoryVisualUI();
+
+            // Connect territory manager to Queen growth UI
+            if (this.queenGrowthUI && this.territoryManager) {
+                this.queenGrowthUI.setTerritoryManager(this.territoryManager);
+            }
 
             // Initialize GUI texture for advanced UI components
             this.guiTexture = AdvancedDynamicTexture.CreateFullscreenUI("MainUI", true, this.scene);
@@ -604,9 +617,8 @@ export class GameEngine {
         }
 
         try {
-            // AI learning disabled by default (KISS principle)
-            // To enable: set enableLearning to true and ensure AI backend is running
-            const enableLearning = false;
+            // AI learning enabled - ensure backend is running: python -m server.main
+            const enableLearning = true;
 
             this.adaptiveQueenIntegration = await createAdaptiveQueenIntegration({
                 gameEngine: this,
@@ -1227,6 +1239,7 @@ export class GameEngine {
         this.protectorSelectionUI?.dispose();
         this.energyManager?.dispose();
         this.fpsCounter?.dispose();
+        this.coordinateDisplay?.dispose();
         this.materialManager?.dispose();
         this.lightingSetup?.dispose();
         this.cameraController?.dispose();

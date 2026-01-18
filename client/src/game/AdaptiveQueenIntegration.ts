@@ -8,7 +8,6 @@
 import { AdvancedDynamicTexture } from '@babylonjs/gui';
 import { AdaptiveQueen } from './entities/AdaptiveQueen';
 import { WebSocketClient } from '../networking/WebSocketClient';
-import { LearningProgressUI } from '../ui/LearningProgressUI';
 import { TerritoryManager } from './TerritoryManager';
 import { GameState } from './GameState';
 import { GameEngine } from './GameEngine';
@@ -34,7 +33,6 @@ export class AdaptiveQueenIntegration {
     private guiTexture: AdvancedDynamicTexture;
     
     private websocketClient: WebSocketClient;
-    private learningProgressUI: LearningProgressUI;
 
     private enableLearning: boolean;
     private isInitialized: boolean = false;
@@ -66,12 +64,6 @@ export class AdaptiveQueenIntegration {
             messageTimeout: 30000
         });
         
-        // Initialize learning progress UI
-        this.learningProgressUI = new LearningProgressUI({
-            parentTexture: this.guiTexture,
-            visible: this.enableLearning
-        });
-
         // Initialize observation collector
         this.observationCollector = new ObservationCollector();
         this.setupObservationCallbacks();
@@ -110,8 +102,7 @@ export class AdaptiveQueenIntegration {
             // Fallback to non-learning mode
             this.enableLearning = false;
             this.territoryManager.setAILearningEnabled(false);
-            this.learningProgressUI.hide();
-            
+
             console.log('🧠 Falling back to standard Queen behavior');
         }
     }
@@ -170,6 +161,11 @@ export class AdaptiveQueenIntegration {
      */
     private setupObservationCallbacks(): void {
         this.observationCollector.onObservationReady((data: ObservationData) => {
+            console.log('🧠 Observation ready, sending to backend...', {
+                workers: data.miningWorkers?.length || 0,
+                protectors: data.protectors?.length || 0,
+                parasitesEnd: data.parasitesEnd?.length || 0
+            });
             this.sendObservationToBackend(data);
         });
     }
@@ -195,8 +191,21 @@ export class AdaptiveQueenIntegration {
     /**
      * Handle spawn decision from backend
      */
-    private handleSpawnDecision(decision: SpawnDecision): void {
+    private handleSpawnDecision(decision: any): void {
+        // Extract data from nested structure
+        const data = decision.data || decision;
+        const spawnChunk = data.spawnChunk;
+        const spawnType = data.spawnType;
+
+        console.log('🧠 Spawn decision received:', { spawnChunk, spawnType, confidence: data.confidence });
+
         if (!this.currentTerritoryId) {
+            console.log('🧠 No current territory, ignoring spawn decision');
+            return;
+        }
+
+        if (spawnChunk === undefined || !spawnType) {
+            console.log('🧠 Invalid spawn decision data');
             return;
         }
 
@@ -204,19 +213,22 @@ export class AdaptiveQueenIntegration {
         const queen = territory?.queen;
 
         if (!queen || !queen.isActiveQueen()) {
+            console.log('🧠 No active Queen, ignoring spawn decision');
             return;
         }
 
         // Check if Queen can afford the spawn
         const energySystem = queen.getEnergySystem();
-        if (!energySystem.canAffordSpawn(decision.spawnType)) {
+        if (!energySystem.canAffordSpawn(spawnType)) {
+            console.log('🧠 Queen cannot afford spawn:', spawnType);
             return;
         }
 
         // Execute spawn via ParasiteManager
         const parasiteManager = this.gameEngine.getParasiteManager();
         if (parasiteManager && typeof (parasiteManager as any).spawnAtChunk === 'function') {
-            (parasiteManager as any).spawnAtChunk(decision.spawnChunk, decision.spawnType, queen);
+            console.log('🧠 Executing spawn at chunk', spawnChunk, 'type:', spawnType);
+            (parasiteManager as any).spawnAtChunk(spawnChunk, spawnType, queen);
         }
     }
 
@@ -225,15 +237,6 @@ export class AdaptiveQueenIntegration {
      */
     private monitorAdaptiveQueen(queen: AdaptiveQueen): void {
         this.currentQueen = queen;
-        
-        // Connect UI to Queen
-        this.learningProgressUI.setQueen(queen);
-        
-        // Show learning UI if hidden
-        if (this.enableLearning) {
-            this.learningProgressUI.show();
-        }
-        
         console.log(`🧠 Now monitoring AdaptiveQueen ${queen.id} (Gen ${queen.getGeneration()})`);
     }
 
@@ -252,12 +255,32 @@ export class AdaptiveQueenIntegration {
             return;
         }
 
-        // Update learning progress UI
-        this.learningProgressUI.update(deltaTime);
+        // Auto-start observation for active Queens
+        if (this.useChunkObservations && !this.currentTerritoryId) {
+            this.autoStartObservationForActiveQueen();
+        }
 
         // Update observation collector
         if (this.useChunkObservations && this.currentTerritoryId) {
             this.observationCollector.update(deltaTime, this.currentTerritoryId);
+        }
+    }
+
+    /**
+     * Auto-detect and start observation for an active Queen
+     */
+    private autoStartObservationForActiveQueen(): void {
+        const queens = this.territoryManager.getAllQueens();
+        for (const queen of queens) {
+            if (queen.isActiveQueen()) {
+                const territory = queen.getTerritory();
+                if (territory) {
+                    console.log(`🧠 Auto-starting observation for territory ${territory.id}`);
+                    this.startObservationForTerritory(territory.id);
+                    this.currentQueen = queen as any;
+                    break;
+                }
+            }
         }
     }
 
@@ -302,12 +325,6 @@ export class AdaptiveQueenIntegration {
         
         if (this.isInitialized) {
             this.territoryManager.setAILearningEnabled(enabled);
-            
-            if (enabled) {
-                this.learningProgressUI.show();
-            } else {
-                this.learningProgressUI.hide();
-            }
         }
         
         console.log(`🧠 AI learning ${enabled ? 'enabled' : 'disabled'}`);
@@ -335,24 +352,10 @@ export class AdaptiveQueenIntegration {
     }
 
     /**
-     * Get learning progress UI
-     */
-    public getLearningProgressUI(): LearningProgressUI {
-        return this.learningProgressUI;
-    }
-
-    /**
      * Get WebSocket client for advanced usage
      */
     public getWebSocketClient(): WebSocketClient {
         return this.websocketClient;
-    }
-
-    /**
-     * Toggle learning progress UI visibility
-     */
-    public toggleLearningUI(): void {
-        this.learningProgressUI.toggleVisibility();
     }
 
     /**
@@ -381,14 +384,12 @@ export class AdaptiveQueenIntegration {
         currentGeneration: number;
         learningEnabled: boolean;
         queuedMessages: number;
-        generationHistory: Map<number, any>;
     } {
         return {
             isConnected: this.websocketClient.getStatus().connected,
             currentGeneration: this.currentQueen?.getGeneration() || 0,
             learningEnabled: this.enableLearning,
-            queuedMessages: this.websocketClient.getQueuedMessageCount(),
-            generationHistory: this.learningProgressUI.getGenerationHistory()
+            queuedMessages: this.websocketClient.getQueuedMessageCount()
         };
     }
 
@@ -474,9 +475,6 @@ export class AdaptiveQueenIntegration {
     public dispose(): void {
         // Disconnect WebSocket
         this.websocketClient.disconnect();
-
-        // Dispose UI
-        this.learningProgressUI.dispose();
 
         // Dispose observation collector
         this.observationCollector.dispose();

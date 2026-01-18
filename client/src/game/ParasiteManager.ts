@@ -263,24 +263,27 @@ export class ParasiteManager {
             const parasite = this.parasites.get(pending.parasiteId);
             if (parasite) {
                 parasite.respawn(pending.respawnPosition);
-                
+
                 // Update tracking when parasite respawns
                 const parasiteType = parasite instanceof CombatParasite ? ParasiteType.COMBAT : ParasiteType.ENERGY;
-                const depositId = parasite.getHomeDeposit().getId();
-                
-                // Update deposit tracking
-                const currentCount = this.depositParasiteCount.get(depositId) || 0;
-                this.depositParasiteCount.set(depositId, currentCount + 1);
-                
+                const homeDeposit = parasite.getHomeDeposit();
+
+                // Update deposit tracking (only if parasite has a home deposit)
+                if (homeDeposit) {
+                    const depositId = homeDeposit.getId();
+                    const currentCount = this.depositParasiteCount.get(depositId) || 0;
+                    this.depositParasiteCount.set(depositId, currentCount + 1);
+
+                    // Update deposit-specific tracking
+                    if (!this.parasitesByDeposit.has(depositId)) {
+                        this.parasitesByDeposit.set(depositId, new Set());
+                    }
+                    this.parasitesByDeposit.get(depositId)!.add(parasite.getId());
+                }
+
                 // Update type tracking
                 const currentTypeCount = this.parasiteCountByType.get(parasiteType) || 0;
                 this.parasiteCountByType.set(parasiteType, currentTypeCount + 1);
-                
-                // Update deposit-specific tracking
-                if (!this.parasitesByDeposit.has(depositId)) {
-                    this.parasitesByDeposit.set(depositId, new Set());
-                }
-                this.parasitesByDeposit.get(depositId)!.add(parasite.getId());
                 
                 // Re-add to spatial index after respawn
                 const gameEngine = GameEngine.getInstance();
@@ -429,289 +432,14 @@ export class ParasiteManager {
     }
 
     /**
-     * Override spawning to respect territorial control
+     * Spawning is now NN-controlled only via spawnAtChunk
+     * This method is kept for interface compatibility but does nothing
      */
     protected updateSpawning(deposit: MineralDeposit, workers: Worker[], currentTime: number): void {
-        // Check if this deposit is in a territory
-        const territory = this.territoryManager?.getTerritoryAt(deposit.getPosition().x, deposit.getPosition().z);
-        
-        if (territory) {
-            // Use territorial spawning logic
-            this.updateTerritorialSpawning(deposit, workers, currentTime, territory);
-        } else {
-            // Use original spawning logic for non-territorial areas
-            this.updateOriginalSpawning(deposit, workers, currentTime);
-        }
+        // No automatic spawning - all spawning is NN controlled via spawnAtChunk
     }
 
-    /**
-     * Original spawning logic (renamed from updateSpawning)
-     */
-    private updateOriginalSpawning(deposit: MineralDeposit, workers: Worker[], currentTime: number): void {
-        const depositId = deposit.getId();
-        
-        // Check performance limits first
-        const activeParasiteCount = this.getParasites().length;
-        if (activeParasiteCount >= this.maxActiveParasites) {
-            return; // Don't spawn if at performance limit
-        }
-        
-        // Check if we've reached max parasites for this deposit
-        const currentCount = this.depositParasiteCount.get(depositId) || 0;
-        if (currentCount >= this.spawnConfig.maxParasitesPerDeposit) {
-            return;
-        }
-        
-        // Check if enough time has passed since last spawn attempt
-        let lastSpawn = this.lastSpawnAttempt.get(depositId);
-        if (lastSpawn === undefined) {
-            // First time seeing this deposit - randomly decide if this deposit can spawn parasites
-            const canSpawnParasites = Math.random() < 0.375; // 37.5% chance (50% more parasites)
-            
-            if (!canSpawnParasites) {
-                // Mark this deposit as non-spawning by setting a very high timestamp
-                this.lastSpawnAttempt.set(depositId, Number.MAX_SAFE_INTEGER);
-                return;
-            }
-            
-            // This deposit can spawn parasites - set initial delay to prevent immediate spawning
-            this.lastSpawnAttempt.set(depositId, currentTime);
-            return; // Skip spawning this frame
-        }
-        
-        // Skip deposits marked as non-spawning
-        if (lastSpawn === Number.MAX_SAFE_INTEGER) {
-            return;
-        }
-        
-        // Calculate spawn interval based on activity and performance
-        // Use spatial index for O(1) lookup if available
-        const gameEngine = GameEngine.getInstance();
-        const spatialIndex = gameEngine?.getSpatialIndex();
-        let hasActiveMiners = false;
-
-        if (spatialIndex) {
-            const nearbyWorkerIds = spatialIndex.getEntitiesInRange(deposit.getPosition(), 20, 'worker');
-            hasActiveMiners = nearbyWorkerIds.length > 0;
-        } else {
-            const workersNearDeposit = workers.filter(worker => {
-                const distance = Vector3.Distance(worker.getPosition(), deposit.getPosition());
-                return distance <= 20;
-            });
-            hasActiveMiners = workersNearDeposit.length > 0;
-        }
-        let spawnInterval = hasActiveMiners 
-            ? this.spawnConfig.baseSpawnInterval / this.spawnConfig.activeMiningMultiplier
-            : this.spawnConfig.baseSpawnInterval;
-        
-        // Increase spawn interval if performance optimization is active
-        if (this.renderingOptimizationLevel > 0) {
-            spawnInterval *= (1 + this.renderingOptimizationLevel * 0.5); // 50% longer per optimization level
-        }
-        
-        if (currentTime - lastSpawn < spawnInterval) {
-            return;
-        }
-        
-        // Attempt to spawn parasite
-        this.spawnParasite(deposit);
-        this.lastSpawnAttempt.set(depositId, currentTime);
-    }
-
-    /**
-     * Territorial spawning logic - respects Queen control and territory status
-     */
-    private updateTerritorialSpawning(deposit: MineralDeposit, workers: Worker[], currentTime: number, territory: Territory): void {
-        const depositId = deposit.getId();
-        
-        // Don't spawn parasites in liberated territories (requirement 4.2)
-        if (territory.controlStatus === 'liberated') {
-            return;
-        }
-        
-        // Check if territory has an active Queen
-        const queen = territory.queen;
-        if (!queen || !queen.isActiveQueen()) {
-            // No active Queen - use original spawning logic but with reduced rate
-            this.updateOriginalSpawning(deposit, workers, currentTime);
-            return;
-        }
-        
-        // Check performance limits first
-        const activeParasiteCount = this.getParasites().length;
-        if (activeParasiteCount >= this.maxActiveParasites) {
-            return; // Don't spawn if at performance limit
-        }
-        
-        // Get territorial configuration
-        const territorialConfig = this.territorialConfigs.get(territory.id);
-        const spawnRateMultiplier = territorialConfig?.spawnRate || 1.0;
-        
-        // Check if we've reached max parasites for this deposit
-        const currentCount = this.depositParasiteCount.get(depositId) || 0;
-        if (currentCount >= this.spawnConfig.maxParasitesPerDeposit) {
-            return;
-        }
-        
-        // Check if enough time has passed since last spawn attempt
-        let lastSpawn = this.lastSpawnAttempt.get(depositId);
-        if (lastSpawn === undefined) {
-            // First time seeing this deposit in this territory
-            // Queen-controlled territories have higher spawn probability
-            const canSpawnParasites = Math.random() < 0.75; // 75% chance (higher than normal)
-            
-            if (!canSpawnParasites) {
-                this.lastSpawnAttempt.set(depositId, Number.MAX_SAFE_INTEGER);
-                return;
-            }
-            
-            this.lastSpawnAttempt.set(depositId, currentTime);
-            return;
-        }
-        
-        // Skip deposits marked as non-spawning
-        if (lastSpawn === Number.MAX_SAFE_INTEGER) {
-            return;
-        }
-        
-        // Calculate spawn interval based on Queen control and activity
-        // Use spatial index for O(1) lookup if available
-        const gameEngine = GameEngine.getInstance();
-        const spatialIndex = gameEngine?.getSpatialIndex();
-        let hasActiveMiners = false;
-
-        if (spatialIndex) {
-            const nearbyWorkerIds = spatialIndex.getEntitiesInRange(deposit.getPosition(), 20, 'worker');
-            hasActiveMiners = nearbyWorkerIds.length > 0;
-        } else {
-            const workersNearDeposit = workers.filter(worker => {
-                const distance = Vector3.Distance(worker.getPosition(), deposit.getPosition());
-                return distance <= 20;
-            });
-            hasActiveMiners = workersNearDeposit.length > 0;
-        }
-        let spawnInterval = hasActiveMiners 
-            ? this.spawnConfig.baseSpawnInterval / this.spawnConfig.activeMiningMultiplier
-            : this.spawnConfig.baseSpawnInterval;
-        
-        // Apply territorial spawn rate multiplier
-        spawnInterval = spawnInterval / spawnRateMultiplier;
-        
-        // Increase spawn interval if performance optimization is active
-        if (this.renderingOptimizationLevel > 0) {
-            spawnInterval *= (1 + this.renderingOptimizationLevel * 0.5);
-        }
-        
-        if (currentTime - lastSpawn < spawnInterval) {
-            return;
-        }
-        
-        // Attempt to spawn parasite under Queen control
-        this.spawnTerritorialParasite(deposit, territory, queen);
-        this.lastSpawnAttempt.set(depositId, currentTime);
-    }
-
-    /**
-     * Spawn a parasite under Queen control within a territory
-     */
-    private spawnTerritorialParasite(deposit: MineralDeposit, territory: Territory, queen: Queen): void {
-        const depositPosition = deposit.getPosition();
-
-        // Generate random spawn position near deposit
-        const angle = Math.random() * Math.PI * 2;
-        const distance = 5 + Math.random() * (this.spawnConfig.spawnRadius - 5);
-
-        const spawnOffset = new Vector3(
-            Math.cos(angle) * distance,
-            0.5,
-            Math.sin(angle) * distance
-        );
-
-        const spawnPosition = depositPosition.add(spawnOffset);
-
-        // Get territorial configuration for spawn strategy
-        const territorialConfig = this.territorialConfigs.get(territory.id);
-        const spawnStrategy = territorialConfig?.spawnStrategy || 'balanced';
-
-        // Determine parasite type based on spawn strategy
-        let parasiteType: ParasiteType;
-        switch (spawnStrategy) {
-            case 'defensive':
-                // More combat parasites for defense
-                parasiteType = Math.random() < 0.6 ? ParasiteType.COMBAT : ParasiteType.ENERGY;
-                break;
-            case 'aggressive':
-                // Even more combat parasites for aggression
-                parasiteType = Math.random() < 0.8 ? ParasiteType.COMBAT : ParasiteType.ENERGY;
-                break;
-            case 'balanced':
-            default:
-                // Use distribution tracker for balanced spawning
-                parasiteType = this.distributionTracker.getNextParasiteType();
-                break;
-        }
-
-        // Check Queen energy before spawning (NN v2 energy system)
-        const energySystem = queen.getEnergySystem();
-        const spawnType = parasiteType === ParasiteType.ENERGY ? 'energy' : 'combat';
-
-        if (!energySystem.canAffordSpawn(spawnType)) {
-            // Insufficient energy - spawn rejected
-            return;
-        }
-
-        // Consume energy for spawn
-        if (!energySystem.consumeForSpawn(spawnType)) {
-            // Energy consumption failed (race condition or edge case)
-            return;
-        }
-        
-        // Create parasite using factory pattern
-        const parasite = this.createParasite(parasiteType, {
-            position: spawnPosition,
-            scene: this.scene,
-            materialManager: this.materialManager,
-            homeDeposit: deposit
-        });
-        
-        // Set terrain generator with fallback
-        if (this.terrainGenerator) {
-            parasite.setTerrainGenerator(this.terrainGenerator);
-        }
-        
-        this.parasites.set(parasite.getId(), parasite);
-
-        // Add to spatial index for O(1) lookups
-        const gameEngine = GameEngine.getInstance();
-        const spatialIndex = gameEngine?.getSpatialIndex();
-        if (spatialIndex) {
-            const parasiteEntityType = parasiteType === ParasiteType.COMBAT ? 'combat_parasite' : 'parasite';
-            spatialIndex.add(parasite.getId(), spawnPosition, parasiteEntityType);
-        }
-
-        // Add parasite to Queen's control (requirement 2.3)
-        queen.addControlledParasite(parasite.getId());
-        
-        // Record spawn in distribution tracker
-        this.distributionTracker.recordSpawn(parasiteType, deposit.getId());
-        
-        // Update enhanced tracking
-        const depositId = deposit.getId();
-        const currentCount = this.depositParasiteCount.get(depositId) || 0;
-        this.depositParasiteCount.set(depositId, currentCount + 1);
-        
-        // Update type tracking
-        const currentTypeCount = this.parasiteCountByType.get(parasiteType) || 0;
-        this.parasiteCountByType.set(parasiteType, currentTypeCount + 1);
-        
-        // Update deposit-specific tracking
-        if (!this.parasitesByDeposit.has(depositId)) {
-            this.parasitesByDeposit.set(depositId, new Set());
-        }
-        this.parasitesByDeposit.get(depositId)!.add(parasite.getId());
-    }
-
-    // ==================== NN v2: Chunk-Based Spawning ====================
+    // ==================== NN: Chunk-Based Spawning ====================
 
     /**
      * NN v2: Spawn a parasite at a specific chunk location
@@ -723,27 +451,47 @@ export class ParasiteManager {
      * @returns true if spawn was successful
      */
     public spawnAtChunk(chunkId: number, spawnType: 'energy' | 'combat', queen: Queen): boolean {
+        console.log(`🐛 spawnAtChunk called: chunk=${chunkId}, type=${spawnType}`);
+
         // Validate chunk ID
         if (chunkId < 0 || chunkId >= 256) {
+            console.log(`🐛 FAIL: Invalid chunk ID ${chunkId}`);
             return false;
         }
 
         // Check Queen is active
         if (!queen || !queen.isActiveQueen()) {
+            console.log(`🐛 FAIL: Queen not active`);
             return false;
         }
 
         // Check Queen energy (should already be checked, but double-check)
         const energySystem = queen.getEnergySystem();
         if (!energySystem.canAffordSpawn(spawnType)) {
+            console.log(`🐛 FAIL: Can't afford spawn (energy: ${energySystem.getCurrentEnergy()})`);
             return false;
         }
 
         // Convert chunk to random position within chunk
-        const spawnPosition = chunkIdToRandomPosition(chunkId, 5);
-        if (!spawnPosition) {
+        const chunkPosition = chunkIdToRandomPosition(chunkId, 5);
+        if (!chunkPosition) {
+            console.log(`🐛 FAIL: Could not convert chunk ${chunkId} to position`);
             return false;
         }
+
+        // Get territory to offset chunk position
+        // Chunk system assumes [0, 1024] but territory is centered at its position
+        const territory = queen.getTerritory();
+        const territoryCenter = territory.centerPosition;
+
+        // Offset chunk position to be relative to territory center
+        // Chunk (0-1024) -> Territory-relative (-512 to 512) + territory center
+        const spawnPosition = new Vector3(
+            chunkPosition.x - 512 + territoryCenter.x,
+            0,
+            chunkPosition.z - 512 + territoryCenter.z
+        );
+        console.log(`🐛 Chunk ${chunkId} → territory-relative (${spawnPosition.x.toFixed(1)}, ${spawnPosition.z.toFixed(1)})`);
 
         // Get terrain height at spawn position
         if (this.terrainGenerator && this.terrainGenerator.getHeightAtPosition) {
@@ -751,27 +499,27 @@ export class ParasiteManager {
         } else {
             spawnPosition.y = 0.5;
         }
-
-        // Validate spawn is within Queen's territory
-        const territory = queen.getTerritory();
         if (this.territoryManager && !this.territoryManager.isPositionInTerritory(spawnPosition, territory.id)) {
+            console.log(`🐛 FAIL: Position not in Queen's territory`);
             return false;
         }
 
         // Consume energy
         if (!energySystem.consumeForSpawn(spawnType)) {
+            console.log(`🐛 FAIL: Energy consumption failed`);
             return false;
         }
 
         // Determine parasite type
         const parasiteType = spawnType === 'combat' ? ParasiteType.COMBAT : ParasiteType.ENERGY;
 
-        // Create parasite
+        // Create parasite (home deposit is optional - parasite will find targets)
+        const homeDeposit = this.findNearestDeposit(spawnPosition);
         const parasite = this.createParasite(parasiteType, {
             position: spawnPosition,
             scene: this.scene,
             materialManager: this.materialManager,
-            homeDeposit: this.findNearestDeposit(spawnPosition) // Find closest deposit as "home"
+            homeDeposit: homeDeposit || undefined
         });
 
         // Set terrain generator
@@ -797,6 +545,7 @@ export class ParasiteManager {
         const currentTypeCount = this.parasiteCountByType.get(parasiteType) || 0;
         this.parasiteCountByType.set(parasiteType, currentTypeCount + 1);
 
+        console.log(`🐛 SUCCESS: Spawned ${spawnType} parasite at (${spawnPosition.x.toFixed(1)}, ${spawnPosition.z.toFixed(1)}), total: ${this.parasites.size}`);
         return true;
     }
 
@@ -860,22 +609,25 @@ export class ParasiteManager {
                 
                 // Update tracking
                 const parasiteType = parasite instanceof CombatParasite ? ParasiteType.COMBAT : ParasiteType.ENERGY;
-                const depositId = parasite.getHomeDeposit().getId();
-                
-                // Update deposit tracking
-                const currentCount = this.depositParasiteCount.get(depositId) || 0;
-                this.depositParasiteCount.set(depositId, Math.max(0, currentCount - 1));
-                
+                const homeDeposit = parasite.getHomeDeposit();
+
+                // Update deposit tracking (only if parasite has a home deposit)
+                if (homeDeposit) {
+                    const depositId = homeDeposit.getId();
+                    const currentCount = this.depositParasiteCount.get(depositId) || 0;
+                    this.depositParasiteCount.set(depositId, Math.max(0, currentCount - 1));
+
+                    // Update deposit-specific tracking
+                    const depositParasites = this.parasitesByDeposit.get(depositId);
+                    if (depositParasites) {
+                        depositParasites.delete(parasiteId);
+                    }
+                }
+
                 // Update type tracking
                 const currentTypeCount = this.parasiteCountByType.get(parasiteType) || 0;
                 this.parasiteCountByType.set(parasiteType, Math.max(0, currentTypeCount - 1));
-                
-                // Update deposit-specific tracking
-                const depositParasites = this.parasitesByDeposit.get(depositId);
-                if (depositParasites) {
-                    depositParasites.delete(parasiteId);
-                }
-                
+
                 // Remove from spatial index
                 const gameEngine = GameEngine.getInstance();
                 const spatialIndex = gameEngine?.getSpatialIndex();
@@ -975,71 +727,6 @@ export class ParasiteManager {
     }
     
     /**
-     * Spawn a new parasite near a mineral deposit using distribution tracking
-     */
-    private spawnParasite(deposit: MineralDeposit): void {
-        const depositPosition = deposit.getPosition();
-        
-        // Generate random spawn position near deposit
-        const angle = Math.random() * Math.PI * 2;
-        const distance = 5 + Math.random() * (this.spawnConfig.spawnRadius - 5); // 5-15 units from deposit
-        
-        const spawnOffset = new Vector3(
-            Math.cos(angle) * distance,
-            0.5, // Slightly above ground
-            Math.sin(angle) * distance
-        );
-        
-        const spawnPosition = depositPosition.add(spawnOffset);
-        
-        // Determine parasite type using distribution tracker
-        const parasiteType = this.distributionTracker.getNextParasiteType();
-        
-        // Create parasite using factory pattern
-        const parasite = this.createParasite(parasiteType, {
-            position: spawnPosition,
-            scene: this.scene,
-            materialManager: this.materialManager,
-            homeDeposit: deposit
-        });
-        
-        // Set terrain generator with fallback
-        if (this.terrainGenerator) {
-            parasite.setTerrainGenerator(this.terrainGenerator);
-        }
-        
-        this.parasites.set(parasite.getId(), parasite);
-
-        // Add to spatial index for O(1) lookups
-        const gameEngine = GameEngine.getInstance();
-        const spatialIndex = gameEngine?.getSpatialIndex();
-        if (spatialIndex) {
-            const parasiteEntityType = parasiteType === ParasiteType.COMBAT ? 'combat_parasite' : 'parasite';
-            spatialIndex.add(parasite.getId(), spawnPosition, parasiteEntityType);
-        }
-
-        // Record spawn in distribution tracker
-        this.distributionTracker.recordSpawn(parasiteType, deposit.getId());
-
-        // Update enhanced tracking
-        const depositId = deposit.getId();
-        const currentCount = this.depositParasiteCount.get(depositId) || 0;
-        this.depositParasiteCount.set(depositId, currentCount + 1);
-
-        // Update type tracking
-        const currentTypeCount = this.parasiteCountByType.get(parasiteType) || 0;
-        this.parasiteCountByType.set(parasiteType, currentTypeCount + 1);
-
-        // Update deposit-specific tracking
-        if (!this.parasitesByDeposit.has(depositId)) {
-            this.parasitesByDeposit.set(depositId, new Set());
-        }
-        this.parasitesByDeposit.get(depositId)!.add(parasite.getId());
-
-        // Parasite spawned with enhanced type tracking
-    }
-    
-    /**
      * Factory method for creating parasites based on type
      */
     private createParasite(type: ParasiteType, config: EnergyParasiteConfig | CombatParasiteConfig): EnergyParasite | CombatParasite {
@@ -1097,12 +784,15 @@ export class ParasiteManager {
             // Award energy for successful kill
             const killReward = 2; // 2 energy reward
             protector.getEnergyStorage().addEnergy(killReward, 'parasite_kill_reward');
-            
-            // Update tracking
-            const depositId = targetParasite.getHomeDeposit().getId();
-            const currentCount = this.depositParasiteCount.get(depositId) || 0;
-            this.depositParasiteCount.set(depositId, Math.max(0, currentCount - 1));
-            
+
+            // Update tracking (only if parasite has a home deposit)
+            const homeDeposit = targetParasite.getHomeDeposit();
+            if (homeDeposit) {
+                const depositId = homeDeposit.getId();
+                const currentCount = this.depositParasiteCount.get(depositId) || 0;
+                this.depositParasiteCount.set(depositId, Math.max(0, currentCount - 1));
+            }
+
             // Parasite destroyed silently
         }
         
@@ -1135,21 +825,24 @@ export class ParasiteManager {
 
         // Update tracking before hiding parasite
         const parasiteType = parasite instanceof CombatParasite ? ParasiteType.COMBAT : ParasiteType.ENERGY;
-        const depositId = parasite.getHomeDeposit().getId();
-        
-        // Update deposit tracking
-        const currentCount = this.depositParasiteCount.get(depositId) || 0;
-        this.depositParasiteCount.set(depositId, Math.max(0, currentCount - 1));
-        
+        const homeDeposit = parasite.getHomeDeposit();
+
+        // Update deposit tracking (only if parasite has a home deposit)
+        if (homeDeposit) {
+            const depositId = homeDeposit.getId();
+            const currentCount = this.depositParasiteCount.get(depositId) || 0;
+            this.depositParasiteCount.set(depositId, Math.max(0, currentCount - 1));
+
+            // Update deposit-specific tracking
+            const depositParasites = this.parasitesByDeposit.get(depositId);
+            if (depositParasites) {
+                depositParasites.delete(parasiteId);
+            }
+        }
+
         // Update type tracking
         const currentTypeCount = this.parasiteCountByType.get(parasiteType) || 0;
         this.parasiteCountByType.set(parasiteType, Math.max(0, currentTypeCount - 1));
-        
-        // Update deposit-specific tracking
-        const depositParasites = this.parasitesByDeposit.get(depositId);
-        if (depositParasites) {
-            depositParasites.delete(parasiteId);
-        }
 
         // Remove from spatial index while hidden
         const gameEngine = GameEngine.getInstance();

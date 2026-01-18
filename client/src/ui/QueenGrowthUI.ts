@@ -6,7 +6,7 @@
  */
 
 import { TerritoryManager } from '../game/TerritoryManager';
-import { Queen, QueenPhase } from '../game/entities/Queen';
+import { Queen } from '../game/entities/Queen';
 
 export interface QueenGrowthUIConfig {
     containerId: string;
@@ -17,12 +17,10 @@ export interface QueenGrowthUIConfig {
 
 export interface QueenDisplayInfo {
     queen: Queen;
-    territoryId: string;
-    generation: number;
-    phase: QueenPhase;
-    progress: number;
-    timeRemaining: number;
-    isVulnerable: boolean;
+    energy: {
+        current: number;
+        max: number;
+    };
 }
 
 export class QueenGrowthUI {
@@ -38,6 +36,10 @@ export class QueenGrowthUI {
     private updateInterval: number | null = null;
     private lastUpdateTime: number = 0;
     private isVisible: boolean = true;
+
+    // Energy display throttling (1-second updates)
+    private lastEnergyUpdateTime: number = 0;
+    private cachedEnergyValues: Map<string, { current: number; max: number }> = new Map();
 
     constructor(config: QueenGrowthUIConfig) {
         this.config = {
@@ -89,13 +91,12 @@ export class QueenGrowthUI {
         this.mainContainer.className = 'queen-growth-ui';
         this.mainContainer.style.cssText = `
             position: fixed;
-            top: 20px;
-            right: 20px;
+            top: 68px;
+            right: 160px;
             z-index: 1000;
             display: flex;
             flex-direction: column;
             gap: 8px;
-            max-width: 280px;
             font-family: 'Orbitron', monospace;
             pointer-events: none;
         `;
@@ -105,7 +106,7 @@ export class QueenGrowthUI {
     }
 
     /**
-     * Add CSS styles for Queen growth UI
+     * Add CSS styles for Queen energy UI
      */
     private addUIStyles(): void {
         if (!document.querySelector('#queen-growth-ui-styles')) {
@@ -113,161 +114,39 @@ export class QueenGrowthUI {
             style.id = 'queen-growth-ui-styles';
             style.textContent = `
                 .queen-display {
-                    background: rgba(20, 0, 40, 0.85);
-                    border: 1px solid rgba(255, 0, 255, 0.6);
-                    border-radius: 8px;
-                    padding: 10px 12px;
-                    backdrop-filter: blur(10px);
-                    box-shadow: 0 0 15px rgba(255, 0, 255, 0.2);
-                    transition: all 0.3s ease;
-                    font-size: 11px;
-                    letter-spacing: 0.5px;
-                    min-width: 260px;
-                }
-
-                .queen-display:hover {
-                    background: rgba(30, 0, 50, 0.9);
-                    box-shadow: 0 0 25px rgba(255, 0, 255, 0.4);
-                    transform: translateX(-5px);
-                }
-
-                .queen-header {
+                    height: 40px;
+                    min-width: 120px;
+                    background: rgba(0, 10, 20, 0.2);
+                    border: 1px solid rgba(255, 70, 0, 0.4);
+                    border-radius: 6px;
+                    backdrop-filter: blur(8px);
+                    box-shadow: 0 0 10px rgba(255, 70, 0, 0.15);
                     display: flex;
-                    justify-content: space-between;
                     align-items: center;
-                    margin-bottom: 6px;
-                    color: #ff00ff;
-                    font-weight: 700;
+                    padding: 6px 12px;
                     font-size: 12px;
-                }
-
-                .queen-generation {
-                    color: #ffaa00;
-                    font-size: 10px;
-                    font-weight: 600;
-                }
-
-                .queen-phase {
-                    font-size: 10px;
-                    padding: 2px 6px;
-                    border-radius: 4px;
-                    font-weight: 600;
-                    text-transform: uppercase;
-                }
-
-                .phase-underground {
-                    background: rgba(139, 69, 19, 0.8);
-                    color: #deb887;
-                    border: 1px solid rgba(139, 69, 19, 0.6);
-                }
-
-                .phase-construction {
-                    background: rgba(255, 165, 0, 0.8);
-                    color: #fff;
-                    border: 1px solid rgba(255, 165, 0, 0.6);
-                }
-
-                .phase-active {
-                    background: rgba(255, 0, 0, 0.8);
-                    color: #fff;
-                    border: 1px solid rgba(255, 0, 0, 0.6);
-                    animation: pulse-danger 2s infinite;
-                }
-
-                .progress-container {
-                    margin: 6px 0;
-                }
-
-                .progress-label {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 4px;
-                    font-size: 10px;
-                    color: #cccccc;
-                }
-
-                .progress-bar {
-                    width: 100%;
-                    height: 6px;
-                    background: rgba(0, 0, 0, 0.6);
-                    border-radius: 3px;
-                    overflow: hidden;
-                    border: 1px solid rgba(255, 255, 255, 0.2);
-                }
-
-                .progress-fill {
-                    height: 100%;
-                    transition: width 0.5s ease;
-                    border-radius: 2px;
-                }
-
-                .progress-underground {
-                    background: linear-gradient(90deg, 
-                        rgba(139, 69, 19, 0.8) 0%, 
-                        rgba(210, 180, 140, 0.8) 100%);
-                }
-
-                .progress-construction {
-                    background: linear-gradient(90deg, 
-                        rgba(255, 165, 0, 0.8) 0%, 
-                        rgba(255, 215, 0, 0.8) 100%);
-                }
-
-                .progress-active {
-                    background: linear-gradient(90deg, 
-                        rgba(255, 0, 0, 0.8) 0%, 
-                        rgba(255, 100, 100, 0.8) 100%);
-                }
-
-                .queen-stats {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    font-size: 10px;
-                    color: #aaaaaa;
-                    margin-top: 4px;
-                }
-
-                .vulnerability-indicator {
-                    font-size: 10px;
-                    padding: 2px 6px;
-                    border-radius: 4px;
-                    font-weight: 600;
-                }
-
-                .vulnerable {
-                    background: rgba(255, 0, 0, 0.8);
-                    color: #fff;
-                    animation: pulse-danger 1.5s infinite;
-                }
-
-                .invulnerable {
-                    background: rgba(0, 100, 0, 0.8);
-                    color: #fff;
-                }
-
-                @keyframes pulse-danger {
-                    0%, 100% { opacity: 1; }
-                    50% { opacity: 0.6; }
+                    color: #ff4500;
+                    font-weight: bold;
+                    letter-spacing: 0.5px;
+                    text-shadow: 0 0 5px rgba(255, 70, 0, 0.6);
                 }
 
                 .fade-in {
-                    animation: fadeIn 0.5s ease;
+                    animation: fadeIn 0.3s ease;
                 }
 
                 .fade-out {
-                    animation: fadeOut 0.5s ease;
+                    animation: fadeOut 0.3s ease;
                 }
 
                 @keyframes fadeIn {
-                    from { opacity: 0; transform: translateX(20px); }
-                    to { opacity: 1; transform: translateX(0); }
+                    from { opacity: 0; }
+                    to { opacity: 1; }
                 }
 
                 @keyframes fadeOut {
-                    from { opacity: 1; transform: translateX(0); }
-                    to { opacity: 0; transform: translateX(20px); }
+                    from { opacity: 1; }
+                    to { opacity: 0; }
                 }
             `;
             document.head.appendChild(style);
@@ -331,54 +210,46 @@ export class QueenGrowthUI {
      */
     private getQueenDisplayInfo(queen: Queen): QueenDisplayInfo | null {
         try {
-            const stats = queen.getStats();
-            const territory = queen.getTerritory();
-            
-            // Calculate progress and time remaining based on phase
-            let progress = 0;
-            let timeRemaining = 0;
-            
-            switch (stats.currentPhase) {
-                case QueenPhase.UNDERGROUND_GROWTH:
-                    progress = stats.growthProgress;
-                    // Estimate time remaining based on growth progress
-                    const totalGrowthTime = 90; // Average of 60-120 seconds
-                    timeRemaining = (1 - progress) * totalGrowthTime;
-                    break;
-                    
-                case QueenPhase.HIVE_CONSTRUCTION:
-                    // For construction, we need to get hive construction progress
-                    const hive = queen.getHive();
-                    if (hive) {
-                        const hiveStats = hive.getStats();
-                        progress = hiveStats.constructionProgress;
-                        const avgConstructionTime = 12.5; // Average of 10-15 seconds
-                        timeRemaining = (1 - progress) * avgConstructionTime;
-                    } else {
-                        progress = 0;
-                        timeRemaining = 12.5;
-                    }
-                    break;
-                    
-                case QueenPhase.ACTIVE_CONTROL:
-                    progress = 1.0; // Fully active
-                    timeRemaining = 0;
-                    break;
-            }
-
-            return {
-                queen,
-                territoryId: territory.id,
-                generation: stats.generation,
-                phase: stats.currentPhase,
-                progress: Math.max(0, Math.min(1, progress)),
-                timeRemaining: Math.max(0, timeRemaining),
-                isVulnerable: stats.isVulnerable
-            };
+            const energy = this.getThrottledEnergyValues(queen);
+            return { queen, energy };
         } catch (error) {
             console.error('Error getting Queen display info:', error);
             return null;
         }
+    }
+
+    /**
+     * Get energy values with 1-second throttling
+     */
+    private getThrottledEnergyValues(queen: Queen): { current: number; max: number } {
+        const now = performance.now();
+        const timeSinceLastUpdate = now - this.lastEnergyUpdateTime;
+
+        // Update energy values every 3 seconds (matches regen rate)
+        if (timeSinceLastUpdate >= 3000) {
+            this.lastEnergyUpdateTime = now;
+
+            const energySystem = queen.getEnergySystem();
+            const current = energySystem.getCurrentEnergy();
+            const max = energySystem.getMaxEnergy();
+
+            this.cachedEnergyValues.set(queen.id, { current, max });
+            return { current, max };
+        }
+
+        // Return cached value if available
+        const cached = this.cachedEnergyValues.get(queen.id);
+        if (cached) {
+            return cached;
+        }
+
+        // First time - fetch and cache
+        const energySystem = queen.getEnergySystem();
+        const current = energySystem.getCurrentEnergy();
+        const max = energySystem.getMaxEnergy();
+
+        this.cachedEnergyValues.set(queen.id, { current, max });
+        return { current, max };
     }
 
     /**
@@ -414,129 +285,7 @@ export class QueenGrowthUI {
      * Update the content of a Queen display element
      */
     private updateQueenDisplayContent(element: HTMLElement, queenInfo: QueenDisplayInfo): void {
-        const phaseClass = this.getPhaseClass(queenInfo.phase);
-        const progressClass = this.getProgressClass(queenInfo.phase);
-        
-        element.innerHTML = `
-            <div class="queen-header">
-                <span>👑 Queen ${queenInfo.generation}</span>
-                <span class="queen-generation">Gen ${queenInfo.generation}</span>
-            </div>
-            
-            <div class="queen-phase ${phaseClass}">
-                ${this.getPhaseDisplayName(queenInfo.phase)}
-            </div>
-            
-            <div class="progress-container">
-                <div class="progress-label">
-                    <span>${this.getProgressLabel(queenInfo.phase)}</span>
-                    <span>${this.formatTimeRemaining(queenInfo.timeRemaining)}</span>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill ${progressClass}" style="width: ${queenInfo.progress * 100}%"></div>
-                </div>
-            </div>
-            
-            <div class="queen-stats">
-                <span>Territory: ${this.formatTerritoryId(queenInfo.territoryId)}</span>
-                <span class="vulnerability-indicator ${queenInfo.isVulnerable ? 'vulnerable' : 'invulnerable'}">
-                    ${queenInfo.isVulnerable ? 'VULNERABLE' : 'PROTECTED'}
-                </span>
-            </div>
-        `;
-    }
-
-    /**
-     * Get CSS class for Queen phase
-     */
-    private getPhaseClass(phase: QueenPhase): string {
-        switch (phase) {
-            case QueenPhase.UNDERGROUND_GROWTH:
-                return 'phase-underground';
-            case QueenPhase.HIVE_CONSTRUCTION:
-                return 'phase-construction';
-            case QueenPhase.ACTIVE_CONTROL:
-                return 'phase-active';
-            default:
-                return '';
-        }
-    }
-
-    /**
-     * Get CSS class for progress bar
-     */
-    private getProgressClass(phase: QueenPhase): string {
-        switch (phase) {
-            case QueenPhase.UNDERGROUND_GROWTH:
-                return 'progress-underground';
-            case QueenPhase.HIVE_CONSTRUCTION:
-                return 'progress-construction';
-            case QueenPhase.ACTIVE_CONTROL:
-                return 'progress-active';
-            default:
-                return '';
-        }
-    }
-
-    /**
-     * Get display name for Queen phase
-     */
-    private getPhaseDisplayName(phase: QueenPhase): string {
-        switch (phase) {
-            case QueenPhase.UNDERGROUND_GROWTH:
-                return 'Growing Underground';
-            case QueenPhase.HIVE_CONSTRUCTION:
-                return 'Building Hive';
-            case QueenPhase.ACTIVE_CONTROL:
-                return 'Active Control';
-            default:
-                return 'Unknown Phase';
-        }
-    }
-
-    /**
-     * Get progress label for Queen phase
-     */
-    private getProgressLabel(phase: QueenPhase): string {
-        switch (phase) {
-            case QueenPhase.UNDERGROUND_GROWTH:
-                return 'Growth Progress';
-            case QueenPhase.HIVE_CONSTRUCTION:
-                return 'Construction Progress';
-            case QueenPhase.ACTIVE_CONTROL:
-                return 'Fully Active';
-            default:
-                return 'Progress';
-        }
-    }
-
-    /**
-     * Format time remaining display
-     */
-    private formatTimeRemaining(seconds: number): string {
-        if (seconds <= 0) {
-            return 'Complete';
-        }
-        
-        if (seconds < 60) {
-            return `${Math.ceil(seconds)}s`;
-        }
-        
-        const minutes = Math.floor(seconds / 60);
-        const remainingSeconds = Math.ceil(seconds % 60);
-        return `${minutes}m ${remainingSeconds}s`;
-    }
-
-    /**
-     * Format territory ID for display
-     */
-    private formatTerritoryId(territoryId: string): string {
-        // Extract coordinates from territory ID (e.g., "territory_0_1" -> "0,1")
-        const match = territoryId.match(/territory_(-?\d+)_(-?\d+)/);
-        if (match) {
-            return `${match[1]},${match[2]}`;
-        }
-        return territoryId;
+        element.innerHTML = `Queen ⚡: ${Math.floor(queenInfo.energy.current)}/${queenInfo.energy.max}`;
     }
 
     /**
@@ -546,12 +295,13 @@ export class QueenGrowthUI {
         const displayElement = this.queenDisplays.get(queenId);
         if (displayElement) {
             displayElement.classList.add('fade-out');
-            
+
             (window as any).setTimeout(() => {
                 if (displayElement.parentNode && displayElement.parentNode.removeChild) {
                     displayElement.parentNode.removeChild(displayElement);
                 }
                 this.queenDisplays.delete(queenId);
+                this.cachedEnergyValues.delete(queenId);  // Clean up cached energy
             }, 500); // Match fade-out animation duration
         }
     }
@@ -589,6 +339,7 @@ export class QueenGrowthUI {
 
         // Clear all Queen displays
         this.queenDisplays.clear();
+        this.cachedEnergyValues.clear();
 
         if (this.container) {
             this.container.innerHTML = '';
