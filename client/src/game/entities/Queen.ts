@@ -15,6 +15,8 @@ import { Parasite, ParasiteConfig, ParasiteState, TargetType } from './Parasite'
 import { CombatTarget } from '../CombatSystem';
 import { Territory } from '../TerritoryManager';
 import { Hive } from './Hive';
+import { QueenEnergySystem } from '../systems/QueenEnergySystem';
+import { QueenEnergyState, SpawnCapacity } from '../types/QueenEnergyTypes';
 
 export enum QueenPhase {
     UNDERGROUND_GROWTH = 'underground_growth',
@@ -78,6 +80,9 @@ export class Queen extends Parasite {
     private onPhaseChangeCallbacks: ((queen: Queen, oldPhase: QueenPhase, newPhase: QueenPhase) => void)[] = [];
     private onGrowthProgressCallbacks: ((queen: Queen, progress: number) => void)[] = [];
 
+    // Energy system for spawn throttling (NN v2)
+    private energySystem: QueenEnergySystem;
+
     constructor(config: QueenConfig) {
         // Create base config for Parasite
         const gameEngine = require('../GameEngine').GameEngine.getInstance();
@@ -115,6 +120,9 @@ export class Queen extends Parasite {
         // Initialize in underground growth phase
         this.currentPhase = QueenPhase.UNDERGROUND_GROWTH;
         this.phaseStartTime = performance.now();
+
+        // Initialize energy system for spawn throttling
+        this.energySystem = new QueenEnergySystem();
 
         // Create visual mesh
         this.createQueenMesh();
@@ -269,6 +277,9 @@ export class Queen extends Parasite {
 
         this.lastUpdateTime = performance.now();
         this.isMoving = false;
+
+        // Update energy system (passive regeneration)
+        this.energySystem.update(deltaTime);
 
         // Update current phase
         switch (this.currentPhase) {
@@ -582,6 +593,29 @@ export class Queen extends Parasite {
         return this.isActive;
     }
 
+    // ==================== Energy System Access ====================
+
+    /**
+     * Get the energy system for spawn throttling
+     */
+    public getEnergySystem(): QueenEnergySystem {
+        return this.energySystem;
+    }
+
+    /**
+     * Get current energy state for observation data
+     */
+    public getEnergyState(): QueenEnergyState {
+        return this.energySystem.getEnergyState();
+    }
+
+    /**
+     * Get spawn capacities for NN inputs
+     */
+    public getSpawnCapacities(): SpawnCapacity {
+        return this.energySystem.getSpawnCapacities();
+    }
+
     // ==================== Event Subscriptions ====================
 
     public onQueenDestroyed(callback: (queen: Queen) => void): void {
@@ -606,6 +640,9 @@ export class Queen extends Parasite {
             this.hive.dispose();
             this.hive = null;
         }
+
+        // Cleanup energy system
+        this.energySystem.dispose();
 
         this.onDestroyedCallbacks = [];
         this.onPhaseChangeCallbacks = [];

@@ -52,6 +52,10 @@ export class UnitManager {
     private protectorUnits: Protector[] = [];
     private scoutUnits: Scout[] = [];
 
+    // Event-driven mining worker tracking (NN v2)
+    // O(1) add/remove - no iteration needed to find mining workers
+    private miningWorkers: Set<Worker> = new Set();
+
     // Command system
     private commandQueue: UnitCommand[] = [];
     private commandIdCounter: number = 0;
@@ -239,6 +243,8 @@ export class UnitManager {
             case 'worker':
                 const wIdx = this.workerUnits.findIndex(u => u.getId() === unitId);
                 if (wIdx !== -1) this.workerUnits.splice(wIdx, 1);
+                // Also remove from mining workers set (NN v2)
+                this.miningWorkers.delete(unit as Worker);
                 break;
             case 'protector':
                 const pIdx = this.protectorUnits.findIndex(u => u.getId() === unitId);
@@ -532,6 +538,39 @@ export class UnitManager {
         }
     }
 
+    // ==================== Mining Worker Tracking (NN v2) ====================
+
+    /**
+     * Called when a worker starts mining - O(1) add
+     * Event-driven tracking for efficient observation collection
+     */
+    public onWorkerStartMining(worker: Worker): void {
+        this.miningWorkers.add(worker);
+    }
+
+    /**
+     * Called when a worker stops mining - O(1) remove
+     * Event-driven tracking for efficient observation collection
+     */
+    public onWorkerStopMining(worker: Worker): void {
+        this.miningWorkers.delete(worker);
+    }
+
+    /**
+     * Get all currently mining workers - O(1) access
+     * Returns the Set directly for zero-allocation iteration
+     */
+    public getMiningWorkers(): Set<Worker> {
+        return this.miningWorkers;
+    }
+
+    /**
+     * Get mining worker count - O(1)
+     */
+    public getMiningWorkerCount(): number {
+        return this.miningWorkers.size;
+    }
+
     /**
      * Get active units
      */
@@ -597,5 +636,8 @@ export class UnitManager {
         this.workerUnits.length = 0;
         this.protectorUnits.length = 0;
         this.scoutUnits.length = 0;
+
+        // Clear mining worker tracking (NN v2)
+        this.miningWorkers.clear();
     }
 }

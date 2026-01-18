@@ -615,23 +615,23 @@ export class ParasiteManager {
      */
     private spawnTerritorialParasite(deposit: MineralDeposit, territory: Territory, queen: Queen): void {
         const depositPosition = deposit.getPosition();
-        
+
         // Generate random spawn position near deposit
         const angle = Math.random() * Math.PI * 2;
         const distance = 5 + Math.random() * (this.spawnConfig.spawnRadius - 5);
-        
+
         const spawnOffset = new Vector3(
             Math.cos(angle) * distance,
             0.5,
             Math.sin(angle) * distance
         );
-        
+
         const spawnPosition = depositPosition.add(spawnOffset);
-        
+
         // Get territorial configuration for spawn strategy
         const territorialConfig = this.territorialConfigs.get(territory.id);
         const spawnStrategy = territorialConfig?.spawnStrategy || 'balanced';
-        
+
         // Determine parasite type based on spawn strategy
         let parasiteType: ParasiteType;
         switch (spawnStrategy) {
@@ -648,6 +648,21 @@ export class ParasiteManager {
                 // Use distribution tracker for balanced spawning
                 parasiteType = this.distributionTracker.getNextParasiteType();
                 break;
+        }
+
+        // Check Queen energy before spawning (NN v2 energy system)
+        const energySystem = queen.getEnergySystem();
+        const spawnType = parasiteType === ParasiteType.ENERGY ? 'energy' : 'combat';
+
+        if (!energySystem.canAffordSpawn(spawnType)) {
+            // Insufficient energy - spawn rejected
+            return;
+        }
+
+        // Consume energy for spawn
+        if (!energySystem.consumeForSpawn(spawnType)) {
+            // Energy consumption failed (race condition or edge case)
+            return;
         }
         
         // Create parasite using factory pattern

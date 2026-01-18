@@ -6,10 +6,10 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
 
 ## Tasks
 
-### Phase 1: Queen Energy System (Frontend)
+### Phase 1: Queen Energy System (Frontend) ✅ COMPLETE
 
-- [ ] 1. Create Queen Energy System
-  - [ ] 1.1 Create QueenEnergySystem class
+- [x] 1. Create Queen Energy System ✓
+  - [x] 1.1 Create QueenEnergySystem class ✓
     - File: `client/src/game/systems/QueenEnergySystem.ts` (new)
     - Properties: currentEnergy, maxEnergy (100), regenRate (3.0)
     - Properties: energyParasiteCost (15), combatParasiteCost (25)
@@ -19,31 +19,31 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
     - Method: getSpawnCapacity(type): number (normalized 0-1)
     - _Requirements: 2.1-2.5, 9.1-9.6_
 
-  - [ ] 1.2 Create energy type definitions
+  - [x] 1.2 Create energy type definitions ✓
     - File: `client/src/game/types/QueenEnergyTypes.ts` (new)
     - Interface: QueenEnergyConfig
     - Interface: SpawnCapacity { energy: number, combat: number }
     - Constants: DEFAULT_QUEEN_ENERGY_CONFIG
     - _Requirements: 2.1_
 
-  - [ ] 1.3 Integrate with Queen entity
+  - [x] 1.3 Integrate with Queen entity ✓
     - File: `client/src/game/entities/Queen.ts`
     - Add energySystem: QueenEnergySystem property
     - Initialize in constructor
     - Call energySystem.update(deltaTime) in update loop
     - _Requirements: 9.6_
 
-  - [ ] 1.4 Integrate with ParasiteManager
+  - [x] 1.4 Integrate with ParasiteManager ✓
     - File: `client/src/game/ParasiteManager.ts`
     - Check queen.energySystem.canAffordSpawn() before spawn
     - Call queen.energySystem.consumeForSpawn() on spawn
     - Log warning if spawn rejected due to insufficient energy
     - _Requirements: 9.3, 9.4_
 
-### Phase 2: Event-Driven Worker Tracking (Frontend)
+### Phase 2: Event-Driven Worker Tracking (Frontend) ✅ COMPLETE
 
-- [ ] 2. Create Mining Worker Tracker
-  - [ ] 2.1 Add mining worker tracking to UnitManager
+- [x] 2. Create Mining Worker Tracker ✓
+  - [x] 2.1 Add mining worker tracking to UnitManager ✓
     - File: `client/src/game/UnitManager.ts`
     - Add miningWorkers: Set<Worker> property
     - Method: onWorkerStartMining(worker) - add to set
@@ -51,14 +51,14 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
     - Method: getMiningWorkers(): Set<Worker>
     - _Requirements: 8.1-8.5_
 
-  - [ ] 2.2 Update Worker entity for mining events
+  - [x] 2.2 Update Worker entity for mining events ✓
     - File: `client/src/game/entities/Worker.ts`
     - Emit event on mining start (call UnitManager.onWorkerStartMining)
     - Emit event on mining stop (call UnitManager.onWorkerStopMining)
     - Integrate with existing MiningAction callbacks
     - _Requirements: 8.2, 8.3_
 
-  - [ ] 2.3 Add chunk tracking to mining workers
+  - [x] 2.3 Add chunk tracking to mining workers ✓
     - File: `client/src/game/entities/Worker.ts`
     - Property: currentChunkId (update on position change)
     - Calculate chunk: floor(x/64), floor(z/64) → chunkId
