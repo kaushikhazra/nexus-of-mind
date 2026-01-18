@@ -16,6 +16,8 @@ from ai_engine.data_models import (
     LearningProgressMessage, serialize_message, deserialize_message
 )
 from ai_engine.continuous_trainer import ContinuousTrainer, AsyncContinuousTrainer
+from ai_engine.feature_extractor_v2 import FeatureExtractorV2
+from ai_engine.nn_model_v2 import NNModelV2
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +37,7 @@ class MessageHandler:
             "difficulty_status_request": self._handle_difficulty_status_request,
             "learning_progress_request": self._handle_learning_progress_request,
             "observation_data": self._handle_observation_data,
+            "observation_data_v2": self._handle_observation_data_v2,  # NN v2
             "training_status_request": self._handle_training_status_request,
             "ping": self._handle_ping,
             "health_check": self._handle_health_check,
@@ -57,7 +60,10 @@ class MessageHandler:
             logger.info("ContinuousTrainer initialized for real-time learning")
         except Exception as e:
             logger.warning(f"Failed to initialize ContinuousTrainer: {e}. Continuous learning disabled.")
-        
+
+        # NN v2: Initialize feature extractor and model
+        self._init_nn_v2()
+
         # Message processing statistics
         self.message_stats = {
             "total_processed": 0,
@@ -66,6 +72,23 @@ class MessageHandler:
             "validation_errors": 0,
             "processing_errors": 0
         }
+
+    def _init_nn_v2(self) -> None:
+        """Initialize NN v2 components for chunk-based spawning."""
+        self.feature_extractor_v2 = None
+        self.nn_model_v2 = None
+
+        try:
+            self.feature_extractor_v2 = FeatureExtractorV2()
+            logger.info("FeatureExtractorV2 initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize FeatureExtractorV2: {e}")
+
+        try:
+            self.nn_model_v2 = NNModelV2()
+            logger.info(f"NNModelV2 initialized with {self.nn_model_v2._count_parameters()} parameters")
+        except Exception as e:
+            logger.warning(f"Failed to initialize NNModelV2: {e}")
     
     def _initialize_schemas(self) -> Dict[str, Dict]:
         """Initialize JSON schemas for message validation"""
@@ -250,6 +273,28 @@ class MessageHandler:
                         "type": "object",
                         "properties": {
                             "confirm": {"type": "boolean"}
+                        }
+                    }
+                }
+            },
+            "observation_data_v2": {
+                "type": "object",
+                "required": ["type", "data"],
+                "properties": {
+                    "type": {"type": "string", "enum": ["observation_data_v2"]},
+                    "timestamp": {"type": "number"},
+                    "data": {
+                        "type": "object",
+                        "required": ["timestamp", "miningWorkers", "protectors", "queenEnergy", "playerEnergy", "territoryId"],
+                        "properties": {
+                            "timestamp": {"type": "number"},
+                            "miningWorkers": {"type": "array"},
+                            "protectors": {"type": "array"},
+                            "parasitesStart": {"type": "array"},
+                            "parasitesEnd": {"type": "array"},
+                            "queenEnergy": {"type": "object"},
+                            "playerEnergy": {"type": "object"},
+                            "territoryId": {"type": "string"}
                         }
                     }
                 }
@@ -824,3 +869,72 @@ class MessageHandler:
             ) * 100,
             "supported_message_types": list(self.message_handlers.keys())
         }
+
+    # ==================== NN V2 Handlers ====================
+
+    async def _handle_observation_data_v2(self, message: Dict[str, Any], client_id: str) -> Dict[str, Any]:
+        """
+        Handle V2 observation data for chunk-based NN spawning.
+
+        Processes observation → extracts 28 features → runs NN inference → returns spawn decision.
+        """
+        try:
+            observation = message.get("data")
+            if not observation:
+                logger.warning(f"[ObservationV2] Missing observation data from client {client_id}")
+                return self._create_error_response("Missing observation data", error_code="MISSING_DATA")
+
+            # Check V2 components are available
+            if not self.feature_extractor_v2 or not self.nn_model_v2:
+                logger.warning(f"[ObservationV2] NN V2 components not available for client {client_id}")
+                return self._create_error_response(
+                    "NN V2 not available",
+                    error_code="V2_NOT_AVAILABLE"
+                )
+
+            territory_id = observation.get("territoryId", "unknown")
+            logger.info(f"[ObservationV2] Processing observation for territory {territory_id} from client {client_id}")
+
+            try:
+                # Extract features (28 normalized values)
+                features = self.feature_extractor_v2.extract(observation)
+                logger.debug(f"[ObservationV2] Extracted {len(features)} features")
+
+                # Run NN inference with timeout
+                spawn_decision = await asyncio.wait_for(
+                    asyncio.get_event_loop().run_in_executor(
+                        None,
+                        self.nn_model_v2.get_spawn_decision,
+                        features
+                    ),
+                    timeout=0.05  # 50ms timeout for real-time response
+                )
+
+                logger.info(f"[ObservationV2] Spawn decision: chunk={spawn_decision['spawnChunk']}, "
+                           f"type={spawn_decision['spawnType']}, confidence={spawn_decision['confidence']:.3f}")
+
+                return {
+                    "type": "spawn_decision",
+                    "timestamp": asyncio.get_event_loop().time(),
+                    "data": {
+                        "spawnChunk": spawn_decision["spawnChunk"],
+                        "spawnType": spawn_decision["spawnType"],
+                        "confidence": spawn_decision["confidence"],
+                        "typeConfidence": spawn_decision["typeConfidence"],
+                        "territoryId": territory_id
+                    }
+                }
+
+            except asyncio.TimeoutError:
+                logger.warning(f"[ObservationV2] Inference timeout for client {client_id}")
+                return self._create_error_response(
+                    "NN inference timeout",
+                    error_code="INFERENCE_TIMEOUT"
+                )
+
+        except Exception as e:
+            logger.error(f"[ObservationV2] Error processing observation: {e}")
+            return self._create_error_response(
+                f"Failed to process V2 observation: {str(e)}",
+                error_code="PROCESSING_ERROR"
+            )

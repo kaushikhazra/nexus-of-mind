@@ -101,15 +101,15 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
     - Connect to WebSocket for sending observation data
     - _Requirements: 7.5_
 
-### Phase 4: Backend Preprocessing
+### Phase 4: Backend Preprocessing ✅ COMPLETE
 
-- [ ] 4. Create Feature Extractor V2 (Backend)
-  - [ ] 4.1 Create FeatureExtractorV2 class
+- [x] 4. Create Feature Extractor V2 (Backend) ✓
+  - [x] 4.1 Create FeatureExtractorV2 class ✓
     - File: `server/ai_engine/feature_extractor_v2.py` (new)
     - Method: extract_features(observation_data) → [28 floats]
     - _Requirements: 1.1-1.5, 2.1-2.5, 3.1-3.5_
 
-  - [ ] 4.2 Implement top 5 chunk selection
+  - [x] 4.2 Implement top 5 chunk selection ✓
     - File: `server/ai_engine/feature_extractor_v2.py`
     - Group mining workers by chunk
     - Calculate mining worker density per chunk
@@ -117,7 +117,7 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
     - Pad with zeros if fewer than 5
     - _Requirements: 1.1, 1.5_
 
-  - [ ] 4.3 Implement per-chunk feature calculation
+  - [x] 4.3 Implement per-chunk feature calculation ✓
     - File: `server/ai_engine/feature_extractor_v2.py`
     - For each of top 5 chunks:
       - chunk_id / 255 → normalized chunk ID
@@ -126,22 +126,22 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
       - (parasites_end - parasites_start) / max(...) → parasite rates
     - _Requirements: 1.2_
 
-  - [ ] 4.4 Implement spawn capacity calculation
+  - [x] 4.4 Implement spawn capacity calculation ✓
     - File: `server/ai_engine/feature_extractor_v2.py`
     - energy_capacity = floor(current/15) / 6
     - combat_capacity = floor(current/25) / 4
     - _Requirements: 2.2_
 
-  - [ ] 4.5 Implement player energy rate calculation
+  - [x] 4.5 Implement player energy rate calculation ✓
     - File: `server/ai_engine/feature_extractor_v2.py`
     - rate = (end - start) / max(start, end)
     - Handle edge cases (zero values)
     - _Requirements: 3.2, 3.5_
 
-### Phase 5: Neural Network Model V2 (Backend)
+### Phase 5: Neural Network Model V2 (Backend) ✅ COMPLETE
 
-- [ ] 5. Create Split-Head NN Architecture
-  - [ ] 5.1 Create NNModelV2 class
+- [x] 5. Create Split-Head NN Architecture ✓
+  - [x] 5.1 Create NNModelV2 class ✓
     - File: `server/ai_engine/nn_model_v2.py` (new)
     - Architecture: 28 → 32 → 16 → split heads
     - Input layer: 28 neurons
@@ -149,24 +149,24 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
     - Hidden 2: 16 neurons (ReLU)
     - _Requirements: 6.1-6.6_
 
-  - [ ] 5.2 Implement chunk head
+  - [x] 5.2 Implement chunk head ✓
     - File: `server/ai_engine/nn_model_v2.py`
     - Hidden 2 (16) → Expand (32) → Output (256)
     - Softmax activation
     - _Requirements: 4.1, 4.2_
 
-  - [ ] 5.3 Implement type head
+  - [x] 5.3 Implement type head ✓
     - File: `server/ai_engine/nn_model_v2.py`
     - Hidden 2 (16) → Output (1)
     - Sigmoid activation
     - _Requirements: 5.1, 5.2_
 
-  - [ ] 5.4 Implement inference method
+  - [x] 5.4 Implement inference method ✓
     - File: `server/ai_engine/nn_model_v2.py`
     - Method: predict(features) → (chunk_probs, type_prob)
     - _Requirements: 6.1_
 
-  - [ ] 5.5 Implement post-processing
+  - [x] 5.5 Implement post-processing ✓
     - File: `server/ai_engine/nn_model_v2.py`
     - Method: get_spawn_decision(chunk_probs, type_prob)
     - chunk_id = argmax(chunk_probs)
@@ -174,23 +174,23 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
     - Return: { spawn_chunk, spawn_type }
     - _Requirements: 4.3, 5.3_
 
-### Phase 6: WebSocket Integration
+### Phase 6: WebSocket Integration ✅ COMPLETE
 
-- [ ] 6. Update WebSocket Protocol
-  - [ ] 6.1 Add observation_data_v2 handler (Backend)
+- [x] 6. Update WebSocket Protocol ✓
+  - [x] 6.1 Add observation_data_v2 handler (Backend) ✓
     - File: `server/websocket/message_handler.py`
     - Parse ObservationDataV2 format
     - Route to FeatureExtractorV2
     - Route to NNModelV2
     - _Requirements: 7.1-7.4_
 
-  - [ ] 6.2 Add spawn_decision response (Backend)
+  - [x] 6.2 Add spawn_decision response (Backend) ✓
     - File: `server/websocket/message_handler.py`
     - Format: { spawn_chunk: number, spawn_type: "energy" | "combat" }
     - Send after NN inference
     - _Requirements: 7.4_
 
-  - [ ] 6.3 Handle spawn_decision in frontend
+  - [x] 6.3 Handle spawn_decision in frontend ✓
     - File: `client/src/game/AdaptiveQueenIntegration.ts`
     - Listen for spawn_decision message
     - Validate spawn affordability
