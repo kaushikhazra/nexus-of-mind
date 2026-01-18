@@ -1,11 +1,125 @@
 # Development Log - Nexus of Mind
 
-**Project**: Nexus of Mind - AI-Powered Real Time Strategy Game  
-**Duration**: January 5-23, 2026  
-**Total Time**: ~22 hours  
+**Project**: Nexus of Mind - AI-Powered Real Time Strategy Game
+**Duration**: January 5-18, 2026
+**Total Time**: ~25 hours  
 
 ## Overview
 Building an innovative AI-powered Real Time Strategy game where players face off against a self-learning AI opponent. The AI adapts and evolves its strategies based on player behavior, creating dynamic and increasingly challenging gameplay experiences. Using Babylon.js for cross-platform 3D gaming and Python for advanced AI/ML capabilities.
+
+---
+
+## 🚀 FPS OPTIMIZATION: Stable 60 FPS Achievement (Jan 18) [3h] ⚡
+
+### MAJOR MILESTONE: Zero-Allocation Patterns & GPU Shader Optimization Complete!
+
+**Problem Identified**: FPS drops from 60 to 25-47 during parasite-unit interactions, especially when:
+- Camera angle changes from top-down to ground level
+- Parasites actively chase and engage workers/protectors
+- Units spread out across the map (fleeing, expanding territory)
+
+**Root Cause Analysis**:
+- Per-frame memory allocations in ParasiteManager and Parasite classes
+- JavaScript garbage collection pressure from frequent Vector3 creations
+- CPU-bound tree glow animations iterating over ~3,920 glow spots
+
+#### Fix 20: UI Interval Memory Leak Prevention ✅
+- **Problem**: Multiple UI components creating intervals without cleanup
+- **Solution**: Added interval tracking and proper disposal in:
+  - `CameraController.ts`: Track render observer and keyboard handlers for cleanup
+  - `MiningUI.ts`: Store updateIntervalId for clearInterval in dispose()
+  - `ProtectorCreationUI.ts`: Track updateIntervalId for proper cleanup
+  - `DifficultyDisplayUI.ts`: Track both main and compact update intervals
+- **Impact**: Eliminated memory leaks from orphaned intervals
+
+#### Fix 21: Parasite Segment Animation Zero-Allocation ✅
+- **Problem**: `updateSegmentAnimation()` creating new Vector3 objects every frame per parasite
+- **Solution**: Implemented zero-allocation pattern:
+  ```typescript
+  // Before (allocations per frame)
+  this.segments[i].position = Vector3.Zero();
+  this.segmentPositions[i] = position.clone();
+  offset = new Vector3(x, y, z);
+  this.segmentPositions[i] = this.position.add(offset);
+
+  // After (zero allocations)
+  this.segments[i].position.set(0, 0, 0);
+  this.segmentPositions[i].copyFrom(this.position);
+  this.cachedWorldOffset.set(x, y, z);
+  this.position.addToRef(this.cachedWorldOffset, this.segmentPositions[i]);
+  ```
+- **Impact**: Eliminated ~40+ Vector3 allocations per parasite per frame
+
+#### Fix 22: ParasiteManager Spatial Query Optimization ✅
+- **Problem**: `updateParasites()` using `.map()/.filter()` chains creating arrays every frame
+- **Solution**:
+  - Added `getEntitiesInRangeTo()` method to SpatialIndex that reuses output array
+  - Added `getPositionRef()` to Parasite for zero-copy position access
+  - Replaced functional chains with for-loops using cached arrays:
+  ```typescript
+  // Before (allocations per frame)
+  const parasiteIds = spatialIndex.getEntitiesInRange(target, range, types);
+  const parasites = parasiteIds.map(id => getEntity(id)).filter(p => p !== null);
+
+  // After (zero allocations)
+  spatialIndex.getEntitiesInRangeTo(target, range, types, this.cachedParasiteIds);
+  this.cachedParasites.length = 0;
+  for (const id of this.cachedParasiteIds) {
+    const entity = getEntity(id);
+    if (entity) this.cachedParasites.push(entity);
+  }
+  ```
+- **Impact**: Eliminated 6+ array allocations per frame in hot path
+
+#### Fix 23: GPU Shader Tree Glow Animation ✅
+- **Problem**: Tree glow animation iterating over ~3,920 glow spots per frame on CPU
+- **Solution**: Custom GLSL vertex/fragment shaders with Babylon.js thin instances:
+  ```glsl
+  // Vertex shader - GPU-based pulsing animation
+  float phase = instanceColor.a;
+  float pulse = sin(time * 1.5 + phase) * 0.15 + 0.85;
+  vColor = glowColor * (0.8 + pulse * 0.4);
+  vec3 scaledPos = position * pulse;
+  ```
+- **Technical Implementation**:
+  - Custom shader registration via `Effect.ShadersStore`
+  - Thin instances for all glow spots (single draw call)
+  - Per-instance color and phase via `thinInstanceRegisterAttribute('instanceColor', 4)`
+  - Single `setFloat('time', ...)` call per frame instead of 3,920 iterations
+- **Impact**: Reduced tree animation from O(n) CPU iterations to O(1) GPU uniform update
+
+### Technical Achievements ✅
+- **Performance**: Stable 60 FPS (occasionally 58-59) from previous 25-47 dropping
+- **Memory**: Eliminated per-frame garbage collection pressure
+- **GPU Utilization**: Moved animation workload from CPU to GPU
+- **Code Quality**: Zero-allocation patterns documented for future development
+
+### Time Breakdown
+- **Analysis & Debugging**: 1h - User-guided observation analysis, profiling
+- **Documentation**: 0.5h - Updated requirements.md, design.md, tasks.md before implementation
+- **Implementation**: 1h - Fix 20-23 code changes
+- **Testing & Iteration**: 0.5h - Shader debugging, validation
+
+### Kiro CLI Impact
+- **Root Cause Identification**: AI analysis of user's observation patterns (camera angle, spread, interaction dependency)
+- **Zero-Allocation Patterns**: AI-guided transformation of allocation-heavy code
+- **Shader Development**: First-time GLSL shader implementation with AI teaching
+- **Documentation**: Systematic spec updates before code changes
+
+### Git Workflow ✅
+- **Branch**: `feature/queen-nn-continuous-learning`
+- **Commits**: Incremental commits for each fix (Fix 11-15, Fix 17-19, Fix 20-23)
+- **Merge**: Successfully merged to `develop` branch
+- **Result**: Clean commit history with detailed performance fix descriptions
+
+### Key Insights
+1. **User Observations Are Gold**: "Spread" and "interaction dependency" were critical clues from user testing
+2. **Documentation First**: Updating specs before code prevented scope creep and ensured focused fixes
+3. **GPU > CPU for Animation**: Moving repetitive calculations to shaders provides massive performance gains
+4. **Zero-Allocation Mindset**: In game loops, `new` is the enemy - always reuse objects
+
+**Status**: ✅ COMPLETE - Stable 60 FPS achieved
+**Next Phase**: Neural Network continuous learning implementation
 
 ---
 
