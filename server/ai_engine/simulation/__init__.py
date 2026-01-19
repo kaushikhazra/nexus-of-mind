@@ -10,6 +10,7 @@ from .cost_function import SimulationCostFunction
 from .gate import SimulationGate, GateDecision
 from .metrics import GateMetrics, GateMetricsSample
 from .logging_utils import GateLogger, get_gate_logger
+from .config_loader import ConfigLoader, get_config_loader, load_simulation_config
 
 __all__ = [
     'SimulationGateConfig',
@@ -19,5 +20,8 @@ __all__ = [
     'GateMetrics',
     'GateMetricsSample',
     'GateLogger',
-    'get_gate_logger'
+    'get_gate_logger',
+    'ConfigLoader',
+    'get_config_loader',
+    'load_simulation_config'
 ]
