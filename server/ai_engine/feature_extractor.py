@@ -1,10 +1,10 @@
 """
 Feature Extractor for Queen AI Neural Network
 
-Extracts 28 normalized features from chunk-based observation data.
+Extracts 29 normalized features from chunk-based observation data.
 Processes raw observation data from frontend into NN-ready features.
 
-Feature Layout (28 total):
+Feature Layout (29 total):
 - Top 5 Chunks (25): 5 chunks × 5 features each
   - Normalized chunk ID (0-1)
   - Mining worker density (0-1)
@@ -14,8 +14,9 @@ Feature Layout (28 total):
 - Spawn Capacities (2):
   - Energy spawn capacity (0-1)
   - Combat spawn capacity (0-1)
-- Player Energy (1):
+- Player State (2):
   - Player energy rate (-1 to +1, scaled to 0-1)
+  - Player mineral rate (-1 to +1, scaled to 0-1)
 """
 
 import logging
@@ -46,12 +47,12 @@ class FeatureConfig:
 
 class FeatureExtractor:
     """
-    Extracts 28 normalized features from observation data.
+    Extracts 29 normalized features from observation data.
 
     Processes chunk-based observations into features for the split-head NN:
     - 25 features for top 5 mining chunks
     - 2 features for spawn capacities
-    - 1 feature for player energy rate
+    - 2 features for player state (energy rate, mineral rate)
     """
 
     def __init__(self, config: Optional[FeatureConfig] = None):
@@ -78,8 +79,11 @@ class FeatureExtractor:
             'spawn_capacity_combat'
         ])
 
-        # Player energy rate (1 feature)
-        names.append('player_energy_rate')
+        # Player state (2 features)
+        names.extend([
+            'player_energy_rate',
+            'player_mineral_rate'
+        ])
 
         return names
 
@@ -95,15 +99,15 @@ class FeatureExtractor:
 
     def extract(self, observation: Dict[str, Any]) -> np.ndarray:
         """
-        Extract 28 features from V2 observation data.
+        Extract 29 features from V2 observation data.
 
         Args:
             observation: ObservationDataV2 from frontend
 
         Returns:
-            numpy array of 28 normalized features
+            numpy array of 29 normalized features
         """
-        features = np.zeros(28, dtype=np.float32)
+        features = np.zeros(29, dtype=np.float32)
 
         try:
             # Extract chunk-based features (indices 0-24)
@@ -112,8 +116,8 @@ class FeatureExtractor:
             # Extract spawn capacity features (indices 25-26)
             self._extract_spawn_capacity_features(observation, features)
 
-            # Extract player energy rate (index 27)
-            self._extract_player_energy_feature(observation, features)
+            # Extract player state features (indices 27-28)
+            self._extract_player_state_features(observation, features)
 
             # Ensure all features are in valid range
             features = np.clip(features, 0.0, 1.0)
@@ -244,22 +248,29 @@ class FeatureExtractor:
         combat_affordable = int(current_energy // self.config.combat_parasite_cost)
         features[26] = min(1.0, combat_affordable / self.config.max_combat_parasites)
 
-    def _extract_player_energy_feature(self, obs: Dict[str, Any], features: np.ndarray) -> None:
+    def _extract_player_state_features(self, obs: Dict[str, Any], features: np.ndarray) -> None:
         """
-        Extract player energy rate feature.
+        Extract player state features: energy rate and mineral rate.
 
         Formula: (end - start) / max(start, end)
-        - Negative rate = player losing energy (good for Queen)
-        - Positive rate = player gaining energy (bad for Queen)
+        - Negative rate = player losing resources (good for Queen)
+        - Positive rate = player gaining resources (bad for Queen)
 
         Scaled from -1,+1 to 0,1 for NN input.
         """
+        # Player energy rate (index 27)
         player_energy = obs.get('playerEnergy', {})
-        start = player_energy.get('start', 0)
-        end = player_energy.get('end', 0)
+        energy_start = player_energy.get('start', 0)
+        energy_end = player_energy.get('end', 0)
+        energy_rate = self._calculate_rate(energy_start, energy_end)
+        features[27] = (energy_rate + 1.0) / 2.0  # -1,+1 -> 0,1
 
-        rate = self._calculate_rate(start, end)
-        features[27] = (rate + 1.0) / 2.0  # -1,+1 -> 0,1
+        # Player mineral rate (index 28)
+        player_minerals = obs.get('playerMinerals', {})
+        mineral_start = player_minerals.get('start', 0)
+        mineral_end = player_minerals.get('end', 0)
+        mineral_rate = self._calculate_rate(mineral_start, mineral_end)
+        features[28] = (mineral_rate + 1.0) / 2.0  # -1,+1 -> 0,1
 
     def _calculate_rate(self, start: float, end: float) -> float:
         """
@@ -341,3 +352,16 @@ class FeatureExtractor:
         """
         # Convert back from 0,1 to -1,+1
         return (features[27] * 2.0) - 1.0
+
+    def get_player_mineral_rate_from_features(self, features: np.ndarray) -> float:
+        """
+        Extract player mineral rate from features.
+
+        Args:
+            features: Feature array
+
+        Returns:
+            Rate in original -1 to +1 scale
+        """
+        # Convert back from 0,1 to -1,+1
+        return (features[28] * 2.0) - 1.0

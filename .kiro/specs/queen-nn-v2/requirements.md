@@ -185,3 +185,57 @@ This specification defines the second generation Queen AI neural network. Buildi
 3. THE reward calculation SHALL use the rate formula:
    - (end - start) / max(start, end) → bounded -1 to +1
 4. THE reward signals SHALL be derived from observation data
+
+### Requirement 12: Confidence-Based Spawn Gating
+
+**User Story:** As the Queen AI, I need the ability to choose NOT to spawn when conditions are unfavorable, so that I can conserve energy and learn when spawning is wasteful.
+
+#### Acceptance Criteria
+
+1. THE NN output confidence (max chunk probability) SHALL be used as spawn confidence
+2. THE System SHALL use a configurable confidence threshold (default: 0.5)
+3. THE System SHALL skip spawn execution when confidence < threshold
+4. THE System SHALL log skipped spawns with confidence value for training feedback
+5. THE reward system SHALL provide:
+   - Negative reward for spawning with no valid targets (wasted energy)
+   - Neutral reward for skipping spawn when no targets exist (energy conserved)
+   - Positive reward for spawning that results in kills
+6. THE NN SHALL learn to output low confidence when:
+   - No workers are present in the territory
+   - No player buildings exist
+   - Spawning would be wasteful
+7. THE confidence threshold SHALL be adjustable for tuning exploration vs exploitation
+
+### Requirement 13: Spawn Location Rewards (Strategic Spatial Awareness)
+
+**User Story:** As the Queen AI, I need to learn spatial awareness so that I spawn parasites near my hive when idle (defensive posture) and near worker activity when threats are present (offensive posture).
+
+**Problem Statement:**
+- NN currently spawns at random chunks with no spatial understanding
+- Parasites spawned far from hive waste energy when idle
+- Parasites spawned far from workers miss interception opportunities
+
+#### Acceptance Criteria
+
+1. THE frontend SHALL send hive chunk ID in observation data:
+   - hiveChunkX = floor(queenPosition.x / 64)
+   - hiveChunkZ = floor(queenPosition.z / 64)
+   - hiveChunk = hiveChunkZ * 20 + hiveChunkX
+2. THE System SHALL calculate chunk distance using grid coordinates:
+   - distance = sqrt((x1-x2)^2 + (z1-z2)^2) where x = chunk % 20, z = chunk // 20
+   - normalized_distance = distance / 26.87 (max possible distance)
+3. THE System SHALL apply hive proximity penalty when spawning during IDLE state:
+   - Idle = no workers present in territory
+   - penalty = normalized_distance_to_hive * hive_proximity_penalty_weight
+   - Default hive_proximity_penalty_weight: -0.3
+4. THE System SHALL apply threat proximity penalty when spawning during ACTIVE state:
+   - Active = one or more workers present in territory
+   - Calculate distance to nearest worker chunk
+   - penalty = normalized_min_distance_to_worker * threat_proximity_penalty_weight
+   - Default threat_proximity_penalty_weight: -0.4
+5. THE spawn location reward SHALL be added to existing reward components
+6. THE System SHALL log spawn location decisions with:
+   - Spawn chunk, hive chunk, nearest worker chunk
+   - Distance calculated and penalty applied
+   - Mode used (idle vs active)
+7. THE spawn location penalty SHALL ONLY apply when spawn actually occurs (not when skipped)

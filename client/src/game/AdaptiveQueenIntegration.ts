@@ -196,8 +196,16 @@ export class AdaptiveQueenIntegration {
         const data = decision.data || decision;
         const spawnChunk = data.spawnChunk;
         const spawnType = data.spawnType;
+        const confidence = data.confidence;
+        const skip = data.skip;
 
-        console.log('🧠 Spawn decision received:', { spawnChunk, spawnType, confidence: data.confidence });
+        console.log('🧠 Spawn decision received:', { spawnChunk, spawnType, confidence: confidence?.toFixed(3), skip });
+
+        // Check if spawn was skipped due to low confidence
+        if (skip) {
+            console.log(`🧠 Spawn SKIPPED by NN (confidence ${confidence?.toFixed(3)} below threshold)`);
+            return;
+        }
 
         if (!this.currentTerritoryId) {
             console.log('🧠 No current territory, ignoring spawn decision');

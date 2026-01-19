@@ -45,30 +45,18 @@ export interface ParasiteSpawnConfig {
     activeMiningMultiplier: number; // Spawn rate multiplier when workers present
 }
 
-// Pending respawn tracking
-interface PendingRespawn {
-    parasiteId: string;
-    deathTime: number;
-    respawnPosition: Vector3;
-}
-
 export class ParasiteManager {
     private scene: Scene;
     private materialManager: MaterialManager;
     private terrainGenerator: any = null;
     private parasites: Map<string, EnergyParasite | CombatParasite> = new Map();
-    
+
     // Territory integration
     private territoryManager: TerritoryManager | null = null;
     private territorialConfigs: Map<string, TerritorialParasiteConfig> = new Map();
-    
+
     // Distribution tracking for spawn ratios
     private distributionTracker: DistributionTracker;
-
-    // Respawn configuration
-    private readonly RESPAWN_DELAY = 30000; // 30 seconds delay before respawn
-    private readonly RESPAWN_DISTANCE = 15; // 15 meters away from death point
-    private pendingRespawns: PendingRespawn[] = [];
 
     // Spawning configuration
     private spawnConfig: ParasiteSpawnConfig = {
@@ -174,10 +162,7 @@ export class ParasiteManager {
             this.updateSpawning(deposit, workers, currentTime);
         }
 
-        // Process pending respawns
-        this.processPendingRespawns(currentTime);
-
-        // Clean up dead parasites (adds them to pending respawn queue)
+        // Clean up dead parasites (actually dispose them - NN controls spawning)
         this.cleanupDeadParasites();
         
         // Periodic cleanup of orphaned tracking data (every 10 seconds)
@@ -240,71 +225,6 @@ export class ParasiteManager {
         }
     }
 
-    /**
-     * Process pending respawns after delay has passed
-     */
-    private processPendingRespawns(currentTime: number): void {
-        const readyToRespawn: PendingRespawn[] = [];
-        const stillPending: PendingRespawn[] = [];
-
-        for (const pending of this.pendingRespawns) {
-            if (currentTime - pending.deathTime >= this.RESPAWN_DELAY) {
-                readyToRespawn.push(pending);
-            } else {
-                stillPending.push(pending);
-            }
-        }
-
-        // Update pending list
-        this.pendingRespawns = stillPending;
-
-        // Process respawns
-        for (const pending of readyToRespawn) {
-            const parasite = this.parasites.get(pending.parasiteId);
-            if (parasite) {
-                parasite.respawn(pending.respawnPosition);
-
-                // Update tracking when parasite respawns
-                const parasiteType = parasite instanceof CombatParasite ? ParasiteType.COMBAT : ParasiteType.ENERGY;
-                const homeDeposit = parasite.getHomeDeposit();
-
-                // Update deposit tracking (only if parasite has a home deposit)
-                if (homeDeposit) {
-                    const depositId = homeDeposit.getId();
-                    const currentCount = this.depositParasiteCount.get(depositId) || 0;
-                    this.depositParasiteCount.set(depositId, currentCount + 1);
-
-                    // Update deposit-specific tracking
-                    if (!this.parasitesByDeposit.has(depositId)) {
-                        this.parasitesByDeposit.set(depositId, new Set());
-                    }
-                    this.parasitesByDeposit.get(depositId)!.add(parasite.getId());
-                }
-
-                // Update type tracking
-                const currentTypeCount = this.parasiteCountByType.get(parasiteType) || 0;
-                this.parasiteCountByType.set(parasiteType, currentTypeCount + 1);
-                
-                // Re-add to spatial index after respawn
-                const gameEngine = GameEngine.getInstance();
-                const spatialIndex = gameEngine?.getSpatialIndex();
-                if (spatialIndex) {
-                    const parasiteEntityType = parasiteType === ParasiteType.COMBAT ? 'combat_parasite' : 'parasite';
-                    spatialIndex.add(parasite.getId(), pending.respawnPosition, parasiteEntityType);
-                }
-
-                // Add to Queen control if respawning in a Queen-controlled territory
-                if (this.territoryManager) {
-                    const respawnPosition = pending.respawnPosition;
-                    const territory = this.territoryManager.getTerritoryAt(respawnPosition.x, respawnPosition.z);
-                    if (territory?.queen && territory.queen.isActiveQueen()) {
-                        territory.queen.addControlledParasite(parasite.getId());
-                    }
-                }
-            }
-        }
-    }
-    
     /**
      * Update parasites near the camera using spatial index for O(1) chunk lookups
      * Only parasites within nearby chunks are updated - distant parasites are skipped
@@ -801,17 +721,12 @@ export class ParasiteManager {
     
     /**
      * Handle parasite destruction (called by CombatSystem)
-     * Instead of destroying, respawn the parasite 15m away from death point
+     * Actually destroys the parasite - NN controls all spawning decisions
      */
     public handleParasiteDestruction(parasiteId: string): void {
         const parasite = this.parasites.get(parasiteId);
         if (!parasite) {
             return; // Parasite not found
-        }
-
-        // Check if already pending respawn
-        if (this.pendingRespawns.some(p => p.parasiteId === parasiteId)) {
-            return; // Already queued for respawn
         }
 
         // Remove from Queen control if applicable
@@ -823,7 +738,7 @@ export class ParasiteManager {
             }
         }
 
-        // Update tracking before hiding parasite
+        // Update tracking before disposing parasite
         const parasiteType = parasite instanceof CombatParasite ? ParasiteType.COMBAT : ParasiteType.ENERGY;
         const homeDeposit = parasite.getHomeDeposit();
 
@@ -844,38 +759,16 @@ export class ParasiteManager {
         const currentTypeCount = this.parasiteCountByType.get(parasiteType) || 0;
         this.parasiteCountByType.set(parasiteType, Math.max(0, currentTypeCount - 1));
 
-        // Remove from spatial index while hidden
+        // Remove from spatial index
         const gameEngine = GameEngine.getInstance();
         const spatialIndex = gameEngine?.getSpatialIndex();
         if (spatialIndex) {
             spatialIndex.remove(parasiteId);
         }
 
-        // Calculate respawn position 15m away in a random direction
-        const deathPosition = parasite.getPosition();
-        const randomAngle = Math.random() * Math.PI * 2;
-
-        const respawnX = deathPosition.x + Math.cos(randomAngle) * this.RESPAWN_DISTANCE;
-        const respawnZ = deathPosition.z + Math.sin(randomAngle) * this.RESPAWN_DISTANCE;
-
-        // Get terrain height at respawn position
-        let respawnY = 0.5;
-        if (this.terrainGenerator && this.terrainGenerator.getHeightAtPosition) {
-            respawnY = this.terrainGenerator.getHeightAtPosition(respawnX, respawnZ) + 0.5;
-        }
-
-        const respawnPosition = new Vector3(respawnX, respawnY, respawnZ);
-
-        // Hide the parasite while waiting to respawn
-        parasite.hide();
-
-        // Add to pending respawn queue
-        this.pendingRespawns.push({
-            parasiteId,
-            deathTime: Date.now(),
-            respawnPosition
-        });
-
+        // Actually dispose the parasite
+        parasite.dispose();
+        this.parasites.delete(parasiteId);
     }
 
     /**
@@ -894,12 +787,12 @@ export class ParasiteManager {
     }
     
     /**
-     * Clean up dead parasites - respawn them 15m away instead of removing
+     * Clean up dead parasites - actually dispose them (NN controls spawning)
      */
     private cleanupDeadParasites(): void {
         for (const [id, parasite] of this.parasites.entries()) {
             if (!parasite.isAlive()) {
-                // Respawn 15m away instead of disposing
+                // Actually destroy the parasite - NN will decide when to spawn new ones
                 this.handleParasiteDestruction(id);
             }
         }
@@ -1225,7 +1118,6 @@ export class ParasiteManager {
         totalParasites: number;
         energyParasites: number;
         combatParasites: number;
-        pendingRespawns: number;
         parasitesByDeposit: Map<string, number>;
         distributionAccuracy: number;
     } {
@@ -1233,14 +1125,13 @@ export class ParasiteManager {
         for (const [depositId, parasiteIds] of this.parasitesByDeposit.entries()) {
             parasitesByDeposit.set(depositId, parasiteIds.size);
         }
-        
+
         const distributionStats = this.distributionTracker.getDistributionStats();
-        
+
         return {
             totalParasites: this.parasites.size,
             energyParasites: this.getParasiteCountByType(ParasiteType.ENERGY),
             combatParasites: this.getParasiteCountByType(ParasiteType.COMBAT),
-            pendingRespawns: this.pendingRespawns.length,
             parasitesByDeposit,
             distributionAccuracy: distributionStats.isAccurate ? 1.0 : 0.0
         };
@@ -1541,8 +1432,7 @@ export class ParasiteManager {
         this.depositParasiteCount.clear();
         this.parasiteCountByType.clear();
         this.parasitesByDeposit.clear();
-        this.pendingRespawns.length = 0;
-        
+
         // Clear territorial configurations
         this.territorialConfigs.clear();
         this.territoryManager = null;

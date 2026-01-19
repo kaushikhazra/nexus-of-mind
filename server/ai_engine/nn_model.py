@@ -1,14 +1,14 @@
 """
 Neural Network Model for Queen AI - Split-Head Architecture
 
-Architecture: 28 → 32 → 16 → split heads
-- Input: 28 normalized features from FeatureExtractor
+Architecture: 29 → 32 → 16 → split heads
+- Input: 29 normalized features from FeatureExtractor
 - Hidden 1: 32 neurons (ReLU)
 - Hidden 2: 16 neurons (ReLU)
 - Chunk Head: 16 → 32 → 256 (Softmax) - spawn location
 - Type Head: 16 → 1 (Sigmoid) - parasite type
 
-Total parameters: ~10,465
+Total parameters: ~10,497
 """
 
 import logging
@@ -44,7 +44,7 @@ class NNModel:
         if not TENSORFLOW_AVAILABLE:
             raise ImportError("TensorFlow is required. Install with: pip install tensorflow")
 
-        self.input_size = 28
+        self.input_size = 29
         self.hidden1_size = 32
         self.hidden2_size = 16
         self.chunk_expand_size = 32
@@ -164,7 +164,7 @@ class NNModel:
         Run inference on input features.
 
         Args:
-            features: numpy array of shape (28,) or (batch, 28)
+            features: numpy array of shape (29,) or (batch, 29)
 
         Returns:
             Tuple of (chunk_probs, type_prob)
@@ -189,7 +189,7 @@ class NNModel:
         Get spawn decision from features.
 
         Args:
-            features: numpy array of 28 normalized features
+            features: numpy array of 29 normalized features
 
         Returns:
             Dictionary with:
@@ -225,7 +225,7 @@ class NNModel:
         Perform a single training step.
 
         Args:
-            features: Input features (batch, 28)
+            features: Input features (batch, 29)
             chunk_targets: One-hot encoded chunk targets (batch, 256)
             type_targets: Binary type targets (batch, 1)
 
@@ -269,7 +269,7 @@ class NNModel:
         Negative reward discourages the action taken.
 
         Args:
-            features: Input features (28,)
+            features: Input features (29,)
             chunk_id: Chunk that was selected
             spawn_type: Type that was selected ('energy' or 'combat')
             reward: Reward signal (-1 to +1)

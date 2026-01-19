@@ -10,7 +10,7 @@ This design document details the chunk-based neural network architecture for Que
                     QUEEN NEURAL NETWORK v2.0
 ═══════════════════════════════════════════════════════════════
 
-    28 INPUTS              HIDDEN LAYERS              OUTPUTS
+    29 INPUTS              HIDDEN LAYERS              OUTPUTS
     ═════════              ═════════════              ═══════
 
 ┌──────────────┐
@@ -20,8 +20,8 @@ This design document details the chunk-based neural network architecture for Que
 │ Queen Spawn  │ │       │          │
 │ Capacity (2) │ ├──────▶│ 32 ReLU  │──┐
 ├──────────────┤ │       │          │  │
-│ Player Energy│ │       └──────────┘  │
-│  (1 value)   │─┘                     │     ┌──────────┐
+│ Player State │ │       └──────────┘  │
+│  (2 values)  │─┘                     │     ┌──────────┐
                                        │     │ 32 ReLU  │     ┌─────────┐
                          ┌──────────┐  │     └────┬─────┘     │   256   │
                          │          │  │          │           │ Softmax │
@@ -34,12 +34,12 @@ This design document details the chunk-based neural network architecture for Que
                                                                 Type
 
 ═══════════════════════════════════════════════════════════════
-Architecture: 28 → 32 → 16 → (32 → 256) + (1)
-Parameters:   ~10,465
+Architecture: 29 → 32 → 16 → (32 → 256) + (1)
+Parameters:   ~10,497
 ═══════════════════════════════════════════════════════════════
 ```
 
-## Input Specification (28 total)
+## Input Specification (29 total)
 
 ### Unified Normalization Formula
 
@@ -93,12 +93,17 @@ INPUT SPECIFICATION (28 total)
     - 0.0 = cannot spawn any
 
 
-[Player State]                                1 value
+[Player State]                                2 values
 ───────────────────────────────────────────────────────────────
-  └── Player Energy Rate         (e_end - e_start) / max(e_start, e_end) → -1 to +1
+  ├── Player Energy Rate         (e_end - e_start) / max(e_start, e_end) → -1 to +1
+  └── Player Mineral Rate        (m_end - m_start) / max(m_start, m_end) → -1 to +1
+
+  Minerals = player's stockpile (mined resources waiting for power plant)
+  - Positive rate = player accumulating minerals = bad for Queen
+  - Negative rate = player depleting minerals = good for Queen
 
 ───────────────────────────────────────────────────────────────
-TOTAL: 25 + 2 + 1 = 28 inputs
+TOTAL: 25 + 2 + 2 = 29 inputs
 ```
 
 ### Input Examples
@@ -422,6 +427,365 @@ REWARD (+)                              PENALTY (-)
 
 All signals derived from:
   rate = (end - start) / max(start, end)  →  bounded -1 to +1
+```
+
+## Confidence-Based Spawn Gating
+
+```
+PROBLEM: NN spawns every 15s even when no targets exist
+═══════════════════════════════════════════════════════════════
+
+Without spawn gating:
+  - NN is FORCED to spawn every observation window
+  - No workers → spawn anyway → wasted energy
+  - NN cannot learn "don't spawn when idle"
+
+With confidence threshold:
+  - NN CAN choose to skip spawning
+  - Low confidence = uncertain/unfavorable = skip spawn
+  - NN learns: no targets → low confidence → conserve energy
+
+
+CONFIDENCE CALCULATION
+═══════════════════════════════════════════════════════════════
+
+Confidence = max(chunk_probabilities)
+
+The softmax output gives probability distribution over 256 chunks.
+The maximum probability indicates how "certain" the NN is about its choice.
+
+Examples:
+  - Confident:   [0.01, 0.02, 0.85, 0.01, ...] → max = 0.85 ✓ SPAWN
+  - Uncertain:   [0.01, 0.01, 0.02, 0.01, ...] → max = 0.02 ✗ SKIP
+  - Threshold:   [0.01, 0.48, 0.02, 0.01, ...] → max = 0.48 ✗ SKIP (if threshold=0.5)
+
+
+SPAWN DECISION FLOW
+═══════════════════════════════════════════════════════════════
+
+                    NN Inference
+                         │
+                         ▼
+              ┌─────────────────────┐
+              │  chunk_probs (256)  │
+              │  type_prob (1)      │
+              └──────────┬──────────┘
+                         │
+                         ▼
+              ┌─────────────────────┐
+              │  confidence =       │
+              │  max(chunk_probs)   │
+              └──────────┬──────────┘
+                         │
+                         ▼
+              ┌─────────────────────┐
+              │ confidence >= 0.5?  │──── NO ───▶ SKIP SPAWN
+              └──────────┬──────────┘             (log: "skipped, conf=X")
+                         │
+                        YES
+                         │
+                         ▼
+              ┌─────────────────────┐
+              │ Can afford spawn?   │──── NO ───▶ SKIP SPAWN
+              └──────────┬──────────┘             (insufficient energy)
+                         │
+                        YES
+                         │
+                         ▼
+                   EXECUTE SPAWN
+
+
+REWARD SHAPING FOR SPAWN GATING
+═══════════════════════════════════════════════════════════════
+
+Scenario                           Reward
+────────────────────────────────   ──────────────────
+Spawn + kills workers              +1.0 (success!)
+Spawn + no targets exist           -0.5 (wasted energy)
+Skip + no targets exist             0.0 (smart conservation)
+Skip + targets existed             -0.3 (missed opportunity)
+
+NN learns:
+  - High confidence when targets exist → spawn → positive reward
+  - Low confidence when no targets → skip → neutral (better than negative)
+
+
+CONFIGURATION
+═══════════════════════════════════════════════════════════════
+
+Parameter               Default    Description
+────────────────────    ───────    ─────────────────────────────
+CONFIDENCE_THRESHOLD    0.5        Min confidence to spawn
+MIN_WORKERS_FOR_SPAWN   0          If > 0, require workers present
+EXPLORATION_RATE        0.1        Chance to spawn despite low confidence
+                                   (for exploration during training)
+```
+
+## Revised Reward Structure (Presence-Based)
+
+```
+PROBLEM: Mining speed > observation transmission speed
+═══════════════════════════════════════════════════════════════
+
+The observation window (15s) is too slow to catch fast mining.
+By the time the system transmits data, mining may already be done.
+
+SOLUTION: Track worker PRESENCE, not just mining activity
+═══════════════════════════════════════════════════════════════
+
+Instead of "workers currently mining", track "workers present in territory".
+This makes the Queen aggressive about ANY worker intrusion.
+
+
+NEW REWARD SIGNALS
+═══════════════════════════════════════════════════════════════
+
+Signal                          Weight    Description
+────────────────────────────    ──────    ─────────────────────────────
+Workers Present                 -0.1      Penalty if NN doesn't act when
+                                          workers are in territory
+                                          (Queen doesn't tolerate intruders)
+
+Active Mining                   -0.6      Penalty when miningWorkers > 0
+                                          (workers actively harvesting)
+
+Energy Rate > 0                 Scaled    Penalty scales with rate:
+                                          rate × -0.5 (max -0.5)
+                                          Higher player income = higher penalty
+
+Mineral Rate > 0                Scaled    Penalty scales with rate:
+                                          rate × -0.5 (max -0.5)
+                                          Player stockpiling minerals = penalty
+
+
+REWARD FORMULA
+═══════════════════════════════════════════════════════════════
+
+total_penalty = 0
+
+if workers_present > 0 and NN_skipped:
+    total_penalty += -0.1  # Workers in territory
+
+if mining_workers > 0 and NN_skipped:
+    total_penalty += -0.6  # Active mining happening
+
+if energy_rate > 0 and NN_skipped:
+    total_penalty += energy_rate × -0.5  # Scaled with energy income
+
+if mineral_rate > 0 and NN_skipped:
+    total_penalty += mineral_rate × -0.5  # Scaled with mineral stockpiling
+
+# Rewards for attacking
+if workers_killed > 0:
+    reward += workers_killed × 0.2  # Per worker killed
+
+if mining_disrupted:
+    reward += 0.3  # Successfully stopped mining
+
+
+EXAMPLE SCENARIOS
+═══════════════════════════════════════════════════════════════
+
+Scenario 1: Workers present, idle
+  - workers_present = 3, mining_workers = 0, mineral_rate = 0, energy_rate = 0
+  - NN skips spawn
+  - Penalty: -0.1 (workers in territory)
+
+Scenario 2: Active mining operation
+  - workers_present = 5, mining_workers = 3, mineral_rate = +0.4, energy_rate = +0.3
+  - NN skips spawn
+  - Penalty: -0.1 (workers) + -0.6 (mining) + (-0.15 energy) + (-0.2 mineral)
+  - Total: -1.05 (clipped to -1.0)
+
+Scenario 3: No activity
+  - workers_present = 0, mining_workers = 0, mineral_rate = 0, energy_rate = 0
+  - NN skips spawn
+  - Penalty: 0 (correctly conserving energy)
+
+Scenario 4: NN attacks active miners
+  - Spawns parasites, kills 2 workers
+  - Reward: +0.4 (2 × 0.2) + 0.3 (disruption)
+  - Total: +0.7
+```
+
+## Spawn Location Rewards (Strategic Spatial Awareness)
+
+```
+PROBLEM: NN spawns at random chunks with no spatial understanding
+═══════════════════════════════════════════════════════════════
+
+Current behavior:
+  - NN outputs chunk 0-399 with no understanding of strategy
+  - Parasites spawned far from hive = wasted energy when idle
+  - Parasites spawned far from workers = missed interception
+
+SOLUTION: Distance-based reward shaping
+═══════════════════════════════════════════════════════════════
+
+Teach the NN spatial awareness through rewards:
+  - "Stay near hive when idle" (defensive posture)
+  - "Go to threats when active" (offensive posture)
+
+
+HIVE CHUNK CALCULATION
+═══════════════════════════════════════════════════════════════
+
+Frontend calculates hive chunk from Queen/territory position:
+
+  hiveChunkX = floor(queenPosition.x / 64)   // 64 = chunk size
+  hiveChunkZ = floor(queenPosition.z / 64)
+  hiveChunk = hiveChunkZ * 20 + hiveChunkX   // 20x20 grid
+
+Example:
+  Queen at position (150, 0, 220)
+  hiveChunkX = floor(150 / 64) = 2
+  hiveChunkZ = floor(220 / 64) = 3
+  hiveChunk = 3 * 20 + 2 = 62
+
+
+CHUNK DISTANCE CALCULATION
+═══════════════════════════════════════════════════════════════
+
+Chunks are on a 20x20 grid (400 total chunks).
+
+  chunk1_x = chunk1 % 20
+  chunk1_z = chunk1 // 20
+  chunk2_x = chunk2 % 20
+  chunk2_z = chunk2 // 20
+
+  distance = sqrt((x1 - x2)² + (z1 - z2)²)
+
+  Max distance = sqrt(19² + 19²) = 26.87 chunks
+  Normalized distance = distance / 26.87  →  0 to 1
+
+Example:
+  Spawn chunk = 47  (x=7, z=2)
+  Hive chunk = 62   (x=2, z=3)
+  distance = sqrt((7-2)² + (2-3)²) = sqrt(25+1) = 5.1 chunks
+  normalized = 5.1 / 26.87 = 0.19
+
+
+REWARD LOGIC
+═══════════════════════════════════════════════════════════════
+
+                    ┌─────────────────────────┐
+                    │  Workers Present?       │
+                    └───────────┬─────────────┘
+                                │
+               ┌────────────────┼────────────────┐
+               │ NO             │                │ YES
+               ▼                                 ▼
+    ┌──────────────────────┐          ┌──────────────────────┐
+    │  IDLE MODE           │          │  ACTIVE MODE         │
+    │                      │          │                      │
+    │  Penalize distance   │          │  Penalize distance   │
+    │  from HIVE           │          │  from WORKERS        │
+    │                      │          │                      │
+    │  "Stay near home     │          │  "Go to the threat"  │
+    │   when no threats"   │          │                      │
+    └──────────────────────┘          └──────────────────────┘
+
+
+IDLE MODE (no workers present)
+═══════════════════════════════════════════════════════════════
+
+When territory is clear, parasites should defend the hive.
+
+  distance_to_hive = chunk_distance(spawn_chunk, hive_chunk)
+  normalized_distance = distance_to_hive / 26.87
+  penalty = normalized_distance * hive_proximity_penalty_weight
+
+  Default weight: -0.3
+
+Example:
+  Spawn at chunk 200 (far from hive at 62)
+  distance = 15.3 chunks → normalized = 0.57
+  penalty = 0.57 × -0.3 = -0.17
+
+
+ACTIVE MODE (workers present)
+═══════════════════════════════════════════════════════════════
+
+When workers are in territory, parasites should intercept them.
+
+  worker_chunks = [w.chunkId for w in workers_present]
+  distances = [chunk_distance(spawn_chunk, wc) for wc in worker_chunks]
+  min_distance = min(distances)  # Distance to nearest worker
+  normalized_distance = min_distance / 26.87
+  penalty = normalized_distance * threat_proximity_penalty_weight
+
+  Default weight: -0.4
+
+Example:
+  Workers at chunks [45, 67, 89]
+  Spawn at chunk 47
+  distances = [chunk_distance(47, 45), chunk_distance(47, 67), chunk_distance(47, 89)]
+           = [1.0, 2.2, 4.5]
+  min_distance = 1.0 → normalized = 0.037
+  penalty = 0.037 × -0.4 = -0.015 (very small - good placement!)
+
+
+CONFIGURATION PARAMETERS
+═══════════════════════════════════════════════════════════════
+
+Parameter                        Default    Description
+────────────────────────────     ───────    ─────────────────────────────
+hive_proximity_penalty_weight    -0.3       Weight when idle (no workers)
+threat_proximity_penalty_weight  -0.4       Weight when active (workers present)
+max_chunk_distance               26.87      Maximum possible chunk distance
+
+
+INTEGRATION WITH EXISTING REWARDS
+═══════════════════════════════════════════════════════════════
+
+The spawn_location reward is added to the existing reward components:
+
+  total_reward = (
+      mining_disruption +
+      protector_reduction +
+      player_energy_drain +
+      bonuses +
+      spawn_gating +
+      spawn_location  ← NEW
+  )
+
+Note: spawn_location penalty ONLY applies when spawn actually occurs.
+If NN skips spawn (low confidence), no spawn_location penalty is applied.
+
+
+EXAMPLE SCENARIOS
+═══════════════════════════════════════════════════════════════
+
+Scenario 1: Idle territory, spawn near hive
+  - workers_present = 0
+  - spawn_chunk = 63, hive_chunk = 62
+  - distance = 1.0 chunk → normalized = 0.037
+  - penalty = 0.037 × -0.3 = -0.011 (minimal - good!)
+
+Scenario 2: Idle territory, spawn far from hive
+  - workers_present = 0
+  - spawn_chunk = 350, hive_chunk = 62
+  - distance = 18.4 chunks → normalized = 0.68
+  - penalty = 0.68 × -0.3 = -0.20 (significant - bad placement!)
+
+Scenario 3: Workers present, spawn near workers
+  - workers_present at chunks [45, 48]
+  - spawn_chunk = 47
+  - min_distance = 1.0 chunk → normalized = 0.037
+  - penalty = 0.037 × -0.4 = -0.015 (minimal - good interception!)
+
+Scenario 4: Workers present, spawn far from workers
+  - workers_present at chunks [45, 48]
+  - spawn_chunk = 300
+  - min_distance = 14.2 chunks → normalized = 0.53
+  - penalty = 0.53 × -0.4 = -0.21 (significant - missed opportunity!)
+
+
+LOGGING OUTPUT
+═══════════════════════════════════════════════════════════════
+
+[SpawnLocation] Mode=IDLE, spawn=200, hive=62, distance=15.3, penalty=-0.17
+[SpawnLocation] Mode=ACTIVE, spawn=47, nearest_worker=45, distance=1.0, penalty=-0.015
 ```
 
 ## Edge Cases

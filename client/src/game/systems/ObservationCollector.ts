@@ -2,7 +2,7 @@
  * ObservationCollector - Chunk-based observation collection for Queen NN
  *
  * Collects raw game state data every 15 seconds and formats it for backend
- * preprocessing. The backend converts this into 28 normalized features for the NN.
+ * preprocessing. The backend converts this into 29 normalized features for the NN.
  *
  * Key responsibilities:
  * - Track 15-second observation windows
@@ -10,7 +10,8 @@
  * - Collect protector positions and chunk IDs
  * - Track parasite counts at window start/end for rate calculation
  * - Capture Queen energy state for spawn capacity
- * - Track player energy trends
+ * - Track player energy and mineral trends
+ * - Calculate hive chunk for spawn location rewards
  */
 
 import {
@@ -20,6 +21,7 @@ import {
     ParasiteObservation,
     QueenEnergyObservation,
     PlayerEnergyObservation,
+    PlayerMineralsObservation,
     ParasiteSnapshot,
     ObservationConfig,
     DEFAULT_OBSERVATION_CONFIG
@@ -41,6 +43,7 @@ export class ObservationCollector {
     // Snapshots at window boundaries
     private startSnapshot: ParasiteSnapshot | null = null;
     private playerEnergyStart: number = 0;
+    private playerMineralsStart: number = 0;
 
     // Callback for when observation is ready
     private onObservationReadyCallbacks: ((data: ObservationData) => void)[] = [];
@@ -63,6 +66,7 @@ export class ObservationCollector {
         // Capture start snapshots
         this.startSnapshot = this.captureParasiteSnapshot();
         this.playerEnergyStart = this.getPlayerEnergy();
+        this.playerMineralsStart = this.getPlayerMinerals();
     }
 
     /**
@@ -98,6 +102,7 @@ export class ObservationCollector {
         return {
             timestamp: Date.now(),
             miningWorkers: this.collectMiningWorkers(),
+            workersPresent: this.collectAllWorkersPresent(),
             protectors: this.collectProtectors(),
             parasitesStart: this.snapshotToObservations(this.startSnapshot),
             parasitesEnd: this.collectCurrentParasites(),
@@ -106,8 +111,35 @@ export class ObservationCollector {
                 start: this.playerEnergyStart,
                 end: this.getPlayerEnergy()
             },
-            territoryId
+            playerMinerals: {
+                start: this.playerMineralsStart,
+                end: this.getPlayerMinerals()
+            },
+            territoryId,
+            hiveChunk: this.calculateHiveChunk(territoryId)
         };
+    }
+
+    /**
+     * Calculate hive chunk ID from Queen/territory position
+     * Used for spawn location rewards (strategic spatial awareness)
+     */
+    private calculateHiveChunk(territoryId: string): number {
+        const territoryManager = this.gameEngine?.getTerritoryManager();
+        if (!territoryManager) {
+            return 0;
+        }
+
+        const territory = territoryManager.getTerritory(territoryId);
+        if (!territory || !territory.centerPosition) {
+            return 0;
+        }
+
+        // Use territory center as hive position
+        const centerX = territory.centerPosition.x;
+        const centerZ = territory.centerPosition.z;
+
+        return this.calculateChunkId(centerX, centerZ);
     }
 
     /**
@@ -129,6 +161,31 @@ export class ObservationCollector {
                 x: pos.x,
                 z: pos.z,
                 chunkId: worker.getChunkId()
+            });
+        }
+
+        return observations;
+    }
+
+    /**
+     * Collect ALL workers present in territory (not just mining)
+     * Used for aggressive Queen behavior - any worker presence is a threat
+     */
+    private collectAllWorkersPresent(): WorkerObservation[] {
+        const unitManager = this.gameEngine?.getUnitManager();
+        if (!unitManager) {
+            return [];
+        }
+
+        const allWorkers = unitManager.getUnitsByType('worker') as Worker[];
+        const observations: WorkerObservation[] = [];
+
+        for (const worker of allWorkers) {
+            const pos = worker.getPosition();
+            observations.push({
+                x: pos.x,
+                z: pos.z,
+                chunkId: this.calculateChunkId(pos.x, pos.z)
             });
         }
 
@@ -274,6 +331,18 @@ export class ObservationCollector {
         }
 
         return gameState.getEnergyLevel();
+    }
+
+    /**
+     * Get current player minerals (stockpile)
+     */
+    private getPlayerMinerals(): number {
+        const energyManager = this.gameEngine?.getEnergyManager();
+        if (!energyManager) {
+            return 0;
+        }
+
+        return energyManager.getTotalMaterials();
     }
 
     /**

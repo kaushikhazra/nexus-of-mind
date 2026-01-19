@@ -64,6 +64,19 @@ export interface PlayerEnergyObservation {
 }
 
 /**
+ * Player minerals at observation window boundaries
+ * Used to calculate mineral rate: (end - start) / max(start, end)
+ * Minerals UP = player accumulating = bad for Queen
+ * Minerals DOWN = player depleting = good for Queen
+ */
+export interface PlayerMineralsObservation {
+    /** Player minerals at window start */
+    start: number;
+    /** Player minerals at window end */
+    end: number;
+}
+
+/**
  * Parasite count snapshot for rate calculation
  * Tracked per chunk at window start/end
  */
@@ -79,7 +92,7 @@ export interface ParasiteSnapshot {
 /**
  * Complete observation data sent to backend every 15 seconds
  *
- * Backend will preprocess this into 28 normalized features:
+ * Backend will preprocess this into 29 normalized features:
  * - 25 values: Top 5 chunks × 5 values each
  *   - Normalized chunk ID
  *   - Mining worker density
@@ -87,7 +100,10 @@ export interface ParasiteSnapshot {
  *   - Energy parasite rate
  *   - Combat parasite rate
  * - 2 values: Spawn capacities (energy, combat)
- * - 1 value: Player energy rate
+ * - 2 values: Player state (energy rate, mineral rate)
+ *
+ * Additional data for reward calculation:
+ * - hiveChunk: Used for spawn location rewards (strategic spatial awareness)
  */
 export interface ObservationData {
     /** Timestamp of observation */
@@ -95,6 +111,9 @@ export interface ObservationData {
 
     /** All currently mining workers with positions and chunk IDs */
     miningWorkers: WorkerObservation[];
+
+    /** All workers PRESENT in territory (mining or not) - for aggressive response */
+    workersPresent: WorkerObservation[];
 
     /** All protectors with positions and chunk IDs */
     protectors: ProtectorObservation[];
@@ -111,8 +130,14 @@ export interface ObservationData {
     /** Player energy at window boundaries */
     playerEnergy: PlayerEnergyObservation;
 
+    /** Player minerals (stockpile) at window boundaries */
+    playerMinerals: PlayerMineralsObservation;
+
     /** Territory ID being observed */
     territoryId: string;
+
+    /** Hive chunk ID - Queen/territory center location for spawn location rewards */
+    hiveChunk: number;
 }
 
 /**

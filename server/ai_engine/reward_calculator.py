@@ -8,6 +8,10 @@ Reward Signals:
 - Positive: Mining activity decreased, protectors reduced, player energy declining
 - Negative: Mining activity increased, protectors increased, player energy growing
 
+Spawn Location Rewards (Strategic Spatial Awareness):
+- IDLE mode (no workers): Penalize spawning far from hive (defensive posture)
+- ACTIVE mode (workers present): Penalize spawning far from workers (offensive posture)
+
 All rates use unified normalization: (end - start) / max(start, end) → [-1, +1]
 """
 
@@ -32,9 +36,26 @@ class RewardConfig:
     # Bonus rewards
     mining_stopped_bonus: float = 0.2  # Bonus when mining completely stops in a chunk
     protector_killed_bonus: float = 0.15  # Bonus per protector killed
+    worker_killed_bonus: float = 0.2  # Bonus per worker killed
 
     # Penalty for ineffective actions
     no_impact_penalty: float = -0.1  # Penalty when action has no observable impact
+
+    # Presence-based penalties (Queen doesn't tolerate intruders)
+    workers_present_penalty: float = -0.1  # Penalty when workers present and NN skips
+    active_mining_penalty: float = -0.6  # Higher penalty when mining is active and NN skips
+    energy_rate_penalty_multiplier: float = -0.5  # Scaled with energy rate: rate × this
+    mineral_rate_penalty_multiplier: float = -0.5  # Scaled with mineral rate: rate × this (player stockpiling)
+
+    # Spawn location rewards (strategic spatial awareness)
+    hive_proximity_penalty_weight: float = -0.3  # Penalty weight when idle (spawn far from hive)
+    threat_proximity_penalty_weight: float = -0.4  # Penalty weight when active (spawn far from workers)
+    max_chunk_distance: float = 26.87  # Max distance on 20x20 grid: sqrt(19^2 + 19^2)
+    chunks_per_axis: int = 20  # Grid size for chunk distance calculation
+
+    # Legacy spawn gating (kept for compatibility)
+    spawn_no_targets_penalty: float = -0.5  # Penalty for spawning when no targets exist
+    skip_no_targets_reward: float = 0.0  # Neutral for skipping when no targets
 
     # Clipping bounds
     min_reward: float = -1.0
@@ -119,7 +140,23 @@ class RewardCalculator:
             total_reward += self.config.no_impact_penalty
             components['no_impact_penalty'] = self.config.no_impact_penalty
 
-        # 7. Clip to bounds
+        # 7. Apply spawn gating rewards/penalties
+        spawn_gating_reward = self._calculate_spawn_gating_reward(
+            prev_observation, curr_observation, spawn_decision, details
+        )
+        if spawn_gating_reward != 0:
+            total_reward += spawn_gating_reward
+            components['spawn_gating'] = spawn_gating_reward
+
+        # 8. Apply spawn location rewards (strategic spatial awareness)
+        spawn_location_reward = self._calculate_spawn_location_reward(
+            curr_observation, spawn_decision
+        )
+        if spawn_location_reward != 0:
+            total_reward += spawn_location_reward
+            components['spawn_location'] = spawn_location_reward
+
+        # 9. Clip to bounds
         total_reward = np.clip(
             total_reward,
             self.config.min_reward,
@@ -278,6 +315,198 @@ class RewardCalculator:
             protector_rate < threshold and
             energy_rate < threshold
         )
+
+    def _has_workers_present(self, observation: Dict[str, Any]) -> int:
+        """
+        Check how many workers are PRESENT in territory (not just mining).
+        Queen doesn't tolerate ANY worker intrusion.
+        """
+        # Use workersPresent if available, fall back to miningWorkers
+        workers = observation.get('workersPresent', observation.get('miningWorkers', []))
+        return len(workers)
+
+    def _has_active_mining(self, observation: Dict[str, Any]) -> bool:
+        """
+        Check if active mining is happening.
+        Uses miningWorkers count as indicator.
+        """
+        mining_workers = observation.get('miningWorkers', [])
+        return len(mining_workers) > 0
+
+    def _get_energy_rate(self, observation: Dict[str, Any]) -> float:
+        """
+        Get player energy rate from observation.
+        Positive = player gaining energy.
+        """
+        player_energy = observation.get('playerEnergy', {})
+        start = player_energy.get('start', 0)
+        end = player_energy.get('end', 0)
+        return self._calculate_rate(start, end)
+
+    def _get_mineral_rate(self, observation: Dict[str, Any]) -> float:
+        """
+        Get player mineral rate from observation.
+        Positive = player accumulating minerals (stockpiling).
+        """
+        player_minerals = observation.get('playerMinerals', {})
+        start = player_minerals.get('start', 0)
+        end = player_minerals.get('end', 0)
+        return self._calculate_rate(start, end)
+
+    def _calculate_spawn_gating_reward(
+        self,
+        prev_observation: Dict[str, Any],
+        curr_observation: Dict[str, Any],
+        spawn_decision: Optional[Dict[str, Any]],
+        details: Dict[str, Any]
+    ) -> float:
+        """
+        Calculate reward/penalty based on presence-based system.
+
+        Penalty structure:
+        - Workers present + NN skips: -0.1 (Queen doesn't tolerate intruders)
+        - Active mining + NN skips: -0.6 (active economic damage)
+        - Energy rate positive + NN skips: scaled penalty (rate × -0.5)
+        - Mineral rate positive + NN skips: scaled penalty (rate × -0.5)
+        - Spawned with no workers: -0.5 (wasted energy)
+        - Skipped with no workers: 0 (smart conservation)
+        """
+        if spawn_decision is None:
+            return 0.0
+
+        was_skipped = spawn_decision.get('skipped', False)
+
+        # Get presence metrics from previous observation
+        workers_present = self._has_workers_present(prev_observation)
+        has_mining = self._has_active_mining(prev_observation)
+        energy_rate = self._get_energy_rate(curr_observation)
+        mineral_rate = self._get_mineral_rate(curr_observation)
+
+        total_penalty = 0.0
+
+        if was_skipped:
+            # NN chose not to spawn - calculate presence-based penalties
+            if workers_present > 0:
+                # Workers in territory - Queen doesn't tolerate this
+                total_penalty += self.config.workers_present_penalty
+                logger.info(f"[SpawnGating] Workers present ({workers_present}): {self.config.workers_present_penalty}")
+
+            if has_mining:
+                # Active mining happening - higher penalty
+                total_penalty += self.config.active_mining_penalty
+                logger.info(f"[SpawnGating] Active mining: {self.config.active_mining_penalty}")
+
+            if energy_rate > 0:
+                # Player energy growing - scaled penalty
+                energy_penalty = energy_rate * self.config.energy_rate_penalty_multiplier
+                total_penalty += energy_penalty
+                logger.info(f"[SpawnGating] Energy rate {energy_rate:.2f}: {energy_penalty:.3f}")
+
+            if mineral_rate > 0:
+                # Player accumulating minerals - scaled penalty
+                mineral_penalty = mineral_rate * self.config.mineral_rate_penalty_multiplier
+                total_penalty += mineral_penalty
+                logger.info(f"[SpawnGating] Mineral rate {mineral_rate:.2f}: {mineral_penalty:.3f}")
+
+            if workers_present == 0 and not has_mining and energy_rate <= 0 and mineral_rate <= 0:
+                # No activity - smart conservation
+                logger.info(f"[SpawnGating] No activity - smart skip")
+                return self.config.skip_no_targets_reward
+        else:
+            # NN chose to spawn
+            if workers_present == 0 and not has_mining:
+                # Spawned but nothing to attack - wasted energy
+                logger.info(f"[SpawnGating] Spawned without targets: {self.config.spawn_no_targets_penalty}")
+                return self.config.spawn_no_targets_penalty
+            # else: spawned with targets - normal reward flow handles effectiveness
+
+        return total_penalty
+
+    def _chunk_distance(self, chunk1: int, chunk2: int) -> float:
+        """
+        Calculate Euclidean distance between two chunks on the grid.
+
+        Chunks are on a 20x20 grid (400 total).
+        chunk_x = chunk % 20
+        chunk_z = chunk // 20
+        """
+        if chunk1 < 0 or chunk2 < 0:
+            return self.config.max_chunk_distance  # Max distance for invalid chunks
+
+        x1 = chunk1 % self.config.chunks_per_axis
+        z1 = chunk1 // self.config.chunks_per_axis
+        x2 = chunk2 % self.config.chunks_per_axis
+        z2 = chunk2 // self.config.chunks_per_axis
+
+        return np.sqrt((x1 - x2) ** 2 + (z1 - z2) ** 2)
+
+    def _normalize_distance(self, distance: float) -> float:
+        """Normalize distance to 0-1 range."""
+        return min(1.0, distance / self.config.max_chunk_distance)
+
+    def _calculate_spawn_location_reward(
+        self,
+        observation: Dict[str, Any],
+        spawn_decision: Optional[Dict[str, Any]]
+    ) -> float:
+        """
+        Calculate reward/penalty based on spawn location strategy.
+
+        IDLE mode (no workers): Penalize spawning far from hive
+        ACTIVE mode (workers present): Penalize spawning far from workers
+
+        Only applies when spawn actually occurs (not skipped).
+        """
+        if spawn_decision is None:
+            return 0.0
+
+        # Only apply when spawn actually occurred
+        was_skipped = spawn_decision.get('skipped', False)
+        if was_skipped:
+            return 0.0
+
+        spawn_chunk = spawn_decision.get('spawnChunk', -1)
+        if spawn_chunk < 0:
+            return 0.0
+
+        hive_chunk = observation.get('hiveChunk', -1)
+        workers_present = observation.get('workersPresent', [])
+
+        if len(workers_present) == 0:
+            # IDLE MODE: Penalize distance from hive
+            if hive_chunk < 0:
+                return 0.0  # No hive data
+
+            distance = self._chunk_distance(spawn_chunk, hive_chunk)
+            normalized_distance = self._normalize_distance(distance)
+            penalty = normalized_distance * self.config.hive_proximity_penalty_weight
+
+            logger.info(
+                f"[SpawnLocation] Mode=IDLE, spawn={spawn_chunk}, hive={hive_chunk}, "
+                f"distance={distance:.1f}, penalty={penalty:.3f}"
+            )
+            return penalty
+        else:
+            # ACTIVE MODE: Penalize distance from nearest worker
+            worker_chunks = [w.get('chunkId', -1) for w in workers_present]
+            worker_chunks = [c for c in worker_chunks if c >= 0]
+
+            if not worker_chunks:
+                return 0.0  # No valid worker chunks
+
+            # Find minimum distance to any worker
+            distances = [self._chunk_distance(spawn_chunk, wc) for wc in worker_chunks]
+            min_distance = min(distances)
+            nearest_worker_chunk = worker_chunks[distances.index(min_distance)]
+
+            normalized_distance = self._normalize_distance(min_distance)
+            penalty = normalized_distance * self.config.threat_proximity_penalty_weight
+
+            logger.info(
+                f"[SpawnLocation] Mode=ACTIVE, spawn={spawn_chunk}, nearest_worker={nearest_worker_chunk}, "
+                f"distance={min_distance:.1f}, penalty={penalty:.3f}"
+            )
+            return penalty
 
     def _calculate_rate(self, start: float, end: float) -> float:
         """

@@ -243,41 +243,170 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
     - Train on observation/reward pairs via NNModel.train_with_reward()
     - _Requirements: 11.4_
 
-### Phase 9: Testing & Validation
+### Phase 9: Confidence-Based Spawn Gating
 
-- [ ] 9. Testing
-  - [ ] 9.1 Test Queen Energy System
+- [ ] 9. Implement Spawn Gating
+  - [ ] 9.1 Add confidence calculation to backend
+    - File: `server/ai_engine/nn_model.py`
+    - Calculate confidence = max(chunk_probabilities)
+    - Include confidence in spawn_decision response
+    - _Requirements: 12.1_
+
+  - [ ] 9.2 Add confidence threshold to spawn decision handler
+    - File: `server/websocket/message_handler.py`
+    - Add CONFIDENCE_THRESHOLD constant (default: 0.5)
+    - Skip spawn if confidence < threshold
+    - Log skipped spawns with confidence value
+    - _Requirements: 12.2, 12.3, 12.4_
+
+  - [ ] 9.3 Update frontend to handle skipped spawns
+    - File: `client/src/game/AdaptiveQueenIntegration.ts`
+    - Handle spawn_decision with skip flag
+    - Log when spawn is skipped due to low confidence
+    - _Requirements: 12.4_
+
+  - [ ] 9.4 Update reward calculator for spawn gating
+    - File: `server/ai_engine/reward_calculator.py`
+    - Add reward for spawn with no targets (negative: wasted energy)
+    - Add reward for skip with no targets (neutral: conserved)
+    - Add reward for skip with targets (negative: missed opportunity)
+    - Track whether spawn was executed or skipped
+    - _Requirements: 12.5_
+
+  - [ ] 9.5 Add target presence detection
+    - File: `server/ai_engine/feature_extractor.py`
+    - Method: has_valid_targets(observation_data) → boolean
+    - Check for workers > 0 or player buildings
+    - Used by reward calculator to determine if skip was smart
+    - _Requirements: 12.6_
+
+  - [ ] 9.6 Add configuration for threshold tuning
+    - File: `server/ai_engine/config.py` (new or existing)
+    - CONFIDENCE_THRESHOLD: float = 0.5
+    - EXPLORATION_RATE: float = 0.1 (chance to spawn despite low confidence)
+    - Make configurable via environment or config file
+    - _Requirements: 12.7_
+
+### Phase 10: Spawn Location Rewards (Strategic Spatial Awareness)
+
+- [ ] 10. Implement Spawn Location Rewards
+  - [ ] 10.1 Add hive chunk to observation data (Frontend)
+    - File: `client/src/game/types/ObservationTypes.ts`
+    - Add hiveChunk: number to ObservationData interface
+    - _Requirements: 13.1_
+
+  - [ ] 10.2 Calculate and send hive chunk (Frontend)
+    - File: `client/src/game/systems/ObservationCollector.ts`
+    - Calculate hiveChunk from Queen/territory position:
+      - hiveChunkX = floor(queenPosition.x / 64)
+      - hiveChunkZ = floor(queenPosition.z / 64)
+      - hiveChunk = hiveChunkZ * 20 + hiveChunkX
+    - Include hiveChunk in observation data sent to backend
+    - _Requirements: 13.1_
+
+  - [ ] 10.3 Add chunk distance calculation (Backend)
+    - File: `server/ai_engine/reward_calculator.py`
+    - Method: _chunk_distance(chunk1, chunk2) → float
+    - Implementation:
+      - x1, z1 = chunk1 % 20, chunk1 // 20
+      - x2, z2 = chunk2 % 20, chunk2 // 20
+      - distance = sqrt((x1-x2)^2 + (z1-z2)^2)
+    - Method: _normalize_distance(distance) → float (0-1)
+      - return distance / 26.87 (max possible distance)
+    - _Requirements: 13.2_
+
+  - [ ] 10.4 Implement idle mode reward (hive proximity)
+    - File: `server/ai_engine/reward_calculator.py`
+    - Detect idle state: len(workers_present) == 0
+    - Calculate distance from spawn_chunk to hive_chunk
+    - Apply penalty: normalized_distance * hive_proximity_penalty_weight
+    - Default weight: -0.3
+    - _Requirements: 13.3_
+
+  - [ ] 10.5 Implement active mode reward (threat proximity)
+    - File: `server/ai_engine/reward_calculator.py`
+    - Detect active state: len(workers_present) > 0
+    - Get worker chunks from workers_present array
+    - Calculate distance from spawn_chunk to each worker chunk
+    - Use minimum distance (nearest worker)
+    - Apply penalty: normalized_min_distance * threat_proximity_penalty_weight
+    - Default weight: -0.4
+    - _Requirements: 13.4_
+
+  - [ ] 10.6 Integrate spawn location reward
+    - File: `server/ai_engine/reward_calculator.py`
+    - Add spawn_location to reward components
+    - Only apply when spawn actually occurs (not when skipped)
+    - Add to total reward calculation
+    - _Requirements: 13.5_
+
+  - [ ] 10.7 Add configuration parameters
+    - File: `server/ai_engine/reward_calculator.py`
+    - Add to RewardConfig dataclass:
+      - hive_proximity_penalty_weight: float = -0.3
+      - threat_proximity_penalty_weight: float = -0.4
+      - max_chunk_distance: float = 26.87
+    - _Requirements: 13.6_
+
+  - [ ] 10.8 Add logging for spawn location decisions
+    - File: `server/ai_engine/reward_calculator.py`
+    - Log spawn location mode (IDLE vs ACTIVE)
+    - Log spawn chunk, hive chunk, nearest worker chunk
+    - Log calculated distance and penalty
+    - Follow existing structured logging format
+    - _Requirements: 13.6_
+
+### Phase 11: Testing & Validation
+
+- [ ] 11. Testing
+  - [ ] 11.1 Test Queen Energy System
     - Verify regeneration rate (3.0/sec)
     - Verify spawn costs (15 energy, 25 combat)
     - Verify capacity calculation
     - Verify spawn rejection when insufficient
     - _Requirements: 2.1-2.5, 9.1-9.6_
 
-  - [ ] 9.2 Test event-driven worker tracking
+  - [ ] 11.2 Test event-driven worker tracking
     - Verify O(1) add/remove
     - Verify set accuracy vs full iteration
     - _Requirements: 8.1-8.5_
 
-  - [ ] 9.3 Test observation collection
+  - [ ] 11.3 Test observation collection
     - Verify 15-second window timing
     - Verify all data fields populated
     - Verify parasite rate calculation
-    - _Requirements: 1.1-1.5, 7.1_
+    - Verify hive chunk is included
+    - _Requirements: 1.1-1.5, 7.1, 13.1_
 
-  - [ ] 9.4 Test NN inference
-    - Verify 28 inputs processed
+  - [ ] 11.4 Test NN inference
+    - Verify 29 inputs processed
     - Verify 257 outputs generated
     - Verify chunk selection via argmax
     - Verify type selection via threshold
     - _Requirements: 6.1-6.6_
 
-  - [ ] 9.5 Test spawn execution
+  - [ ] 11.5 Test spawn execution
     - Verify chunk-to-position conversion
     - Verify territory validation
     - Verify energy deduction
     - _Requirements: 4.3-4.5, 5.3-5.5_
 
-  - [ ] 9.6 Performance testing
+  - [ ] 11.6 Test confidence-based spawn gating
+    - Verify confidence calculation (max of chunk probs)
+    - Verify skip when confidence < threshold
+    - Verify spawn when confidence >= threshold
+    - Verify reward shaping for skip vs spawn scenarios
+    - _Requirements: 12.1-12.7_
+
+  - [ ] 11.7 Test spawn location rewards
+    - Verify chunk distance calculation
+    - Verify idle mode (hive proximity penalty)
+    - Verify active mode (threat proximity penalty)
+    - Verify reward only applied on actual spawn
+    - Verify logging output format
+    - _Requirements: 13.1-13.7_
+
+  - [ ] 11.8 Performance testing
     - Verify < 5% CPU overhead
     - Verify < 50ms inference time
     - Verify 60 FPS maintained
@@ -287,11 +416,13 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
 
 - [ ] Queen Energy System implemented and integrated
 - [ ] Event-driven worker tracking operational
-- [ ] ObservationCollector sending data every 15s
-- [ ] Backend preprocessing 28 features correctly
+- [ ] ObservationCollector sending data every 15s (includes hiveChunk)
+- [ ] Backend preprocessing 29 features correctly
 - [ ] NNModel with split heads operational
 - [ ] Spawn decisions executing correctly
-- [ ] Reward signals driving learning
+- [ ] Confidence-based spawn gating working (skip when uncertain)
+- [ ] Reward signals driving learning (including spawn gating rewards)
+- [ ] Spawn location rewards working (hive proximity + threat proximity)
 - [ ] Performance requirements met (60 FPS, < 50ms inference)
 
 ## File Summary
@@ -300,19 +431,20 @@ Transform the Queen AI from centroid-based inputs to chunk-based strategic decis
 |------|--------|---------|
 | `client/src/game/systems/QueenEnergySystem.ts` | Create | Queen spawn energy management |
 | `client/src/game/types/QueenEnergyTypes.ts` | Create | Energy configuration types |
-| `client/src/game/systems/ObservationCollector.ts` | Create | Chunk-based data collection |
-| `client/src/game/types/ObservationTypes.ts` | Create | Observation data types |
+| `client/src/game/systems/ObservationCollector.ts` | Modify | Add hiveChunk calculation |
+| `client/src/game/types/ObservationTypes.ts` | Modify | Add hiveChunk field |
 | `client/src/game/utils/ChunkUtils.ts` | Create | Chunk-to-position utilities |
 | `client/src/game/entities/Queen.ts` | Modify | Add energy system |
 | `client/src/game/entities/Worker.ts` | Modify | Mining events + chunk tracking |
 | `client/src/game/UnitManager.ts` | Modify | Mining worker set tracking |
-| `client/src/game/ParasiteManager.ts` | Modify | Energy check + chunk spawn |
+| `client/src/game/ParasiteManager.ts` | Modify | Energy check + chunk spawn + remove auto-respawn |
 | `client/src/game/AdaptiveQueenIntegration.ts` | Modify | WebSocket integration |
-| `server/ai_engine/feature_extractor.py` | Create | 28-feature extraction |
+| `server/ai_engine/feature_extractor.py` | Create | 29-feature extraction |
 | `server/ai_engine/nn_model.py` | Create | Split-head NN architecture |
-| `server/ai_engine/reward_calculator.py` | Create | Reward signals |
+| `server/ai_engine/reward_calculator.py` | Modify | Add spawn location rewards |
 | `server/websocket/message_handler.py` | Modify | Message handling |
 
 ## Notes
 
 - Research document: `.kiro/research/nn-co-research-sessions.md`
+- Auto-respawn removed from ParasiteManager - NN controls all spawning decisions

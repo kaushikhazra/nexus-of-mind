@@ -19,6 +19,7 @@ from ai_engine.continuous_trainer import ContinuousTrainer, AsyncContinuousTrain
 from ai_engine.feature_extractor import FeatureExtractor
 from ai_engine.nn_model import NNModel
 from ai_engine.reward_calculator import RewardCalculator
+from ai_engine.config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,9 @@ class MessageHandler:
         
         # Message validation schemas
         self.message_schemas = self._initialize_schemas()
+
+        # Load spawn gating config
+        self.nn_config = get_config()
 
     def _init_continuous_trainer(self) -> None:
         """Initialize the continuous trainer for real-time learning."""
@@ -835,6 +839,17 @@ class MessageHandler:
             logger.info(f"[Observation] Processing observation for territory {territory_id} from client {client_id}")
 
             try:
+                # Log raw observation data
+                workers_mining = observation.get('miningWorkers', [])
+                workers_present = observation.get('workersPresent', [])
+                protectors = observation.get('protectors', [])
+                queen_energy = observation.get('queenEnergy', {})
+                player_energy = observation.get('playerEnergy', {})
+                player_minerals = observation.get('playerMinerals', {})
+                logger.info(f"[Observation] Raw data: present={len(workers_present)}, mining={len(workers_mining)}, "
+                           f"protectors={len(protectors)}, queenE={queen_energy.get('current', 0)}, "
+                           f"playerE={player_energy.get('end', 0)}, minerals={player_minerals.get('end', 0)}")
+
                 # Calculate reward and train if we have previous observation
                 reward_info = None
                 if territory_id in self.prev_observations and self.reward_calculator:
@@ -845,6 +860,8 @@ class MessageHandler:
                     reward_info = self.reward_calculator.calculate_reward(
                         prev_obs, observation, prev_decision
                     )
+                    logger.info(f"[Observation] Reward calculated: {reward_info['reward']:.3f}, "
+                               f"components={reward_info.get('components', {})}")
 
                     # Train model with reward if we have a previous decision
                     if prev_decision and reward_info['reward'] != 0:
@@ -855,12 +872,19 @@ class MessageHandler:
                             prev_decision['spawnType'],
                             reward_info['reward']
                         )
-                        logger.info(f"[Observation] Training: reward={reward_info['reward']:.3f}, "
+                        logger.info(f"[Observation] NN TRAINING: reward={reward_info['reward']:.3f}, "
                                    f"loss={train_result.get('loss', 0):.4f}")
+                    elif prev_decision:
+                        logger.info(f"[Observation] No training: reward=0 (skipped={prev_decision.get('skipped', False)})")
+                    else:
+                        logger.info(f"[Observation] No training: no previous decision")
+                else:
+                    logger.info(f"[Observation] First observation for territory - no reward calculation")
 
                 # Extract features (28 normalized values)
                 features = self.feature_extractor.extract(observation)
-                logger.debug(f"[Observation] Extracted {len(features)} features")
+                logger.info(f"[Observation] Features extracted: {len(features)} values, "
+                           f"first 5: {[f'{f:.3f}' for f in features[:5]]}")
 
                 # Run NN inference with timeout (2s for first inference, then fast)
                 spawn_decision = await asyncio.wait_for(
@@ -872,19 +896,39 @@ class MessageHandler:
                     timeout=2.0  # 2s timeout to allow TensorFlow warm-up
                 )
 
-                logger.info(f"[Observation] Spawn decision: chunk={spawn_decision['spawnChunk']}, "
-                           f"type={spawn_decision['spawnType']}, confidence={spawn_decision['confidence']:.3f}")
+                # Check confidence threshold - skip spawn if NN is uncertain
+                confidence = spawn_decision['confidence']
+                threshold = self.nn_config.spawn_gating.confidence_threshold
+                exploration_rate = self.nn_config.spawn_gating.exploration_rate
+                should_skip = confidence < threshold
+
+                # Exploration: occasionally spawn despite low confidence (for learning)
+                import random
+                if should_skip and random.random() < exploration_rate:
+                    should_skip = False
+                    logger.info(f"[Observation] Exploration override: spawning despite low confidence {confidence:.3f}")
+
+                if should_skip:
+                    logger.info(f"[Observation] Spawn SKIPPED: confidence {confidence:.3f} < threshold {threshold}")
+                else:
+                    logger.info(f"[Observation] Spawn decision: chunk={spawn_decision['spawnChunk']}, "
+                               f"type={spawn_decision['spawnType']}, confidence={confidence:.3f}")
 
                 # Store for next reward calculation
                 self.prev_observations[territory_id] = observation
-                self.prev_decisions[territory_id] = spawn_decision
+                self.prev_decisions[territory_id] = {
+                    **spawn_decision,
+                    'skipped': should_skip
+                }
 
                 response_data = {
                     "spawnChunk": spawn_decision["spawnChunk"],
                     "spawnType": spawn_decision["spawnType"],
-                    "confidence": spawn_decision["confidence"],
+                    "confidence": confidence,
                     "typeConfidence": spawn_decision["typeConfidence"],
-                    "territoryId": territory_id
+                    "territoryId": territory_id,
+                    "skip": should_skip,
+                    "confidenceThreshold": threshold
                 }
 
                 # Include reward info if available

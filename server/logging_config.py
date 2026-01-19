@@ -84,13 +84,31 @@ class AILearningFilter(logging.Filter):
     """
     Filter specifically for AI learning events
     """
-    
+
     def filter(self, record: logging.LogRecord) -> bool:
         # Only pass through AI learning related logs
         ai_keywords = ['neural', 'training', 'strategy', 'queen', 'learning', 'generation']
         message_lower = record.getMessage().lower()
-        
+
         return any(keyword in message_lower for keyword in ai_keywords)
+
+
+class NNOnlyFilter(logging.Filter):
+    """
+    Filter that only allows NN-related logs through.
+    Enable with environment variable NN_LOGS_ONLY=true
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        # Check if NN-only mode is enabled
+        if not os.getenv("NN_LOGS_ONLY", "false").lower() == "true":
+            return True  # Pass all logs if not in NN-only mode
+
+        # Only pass through NN-related logs
+        message = record.getMessage()
+        nn_keywords = ['[Observation]', 'NN ', 'Training', 'Reward', 'Spawn', 'confidence', 'features']
+
+        return any(keyword in message for keyword in nn_keywords)
 
 
 class LoggingConfig:
@@ -156,11 +174,14 @@ class LoggingConfig:
             )
         
         console_handler.setFormatter(console_formatter)
-        
+
         # Add performance filter if enabled
         if self.enable_performance_logging:
             console_handler.addFilter(PerformanceFilter())
-        
+
+        # Add NN-only filter (controlled by NN_LOGS_ONLY env var)
+        console_handler.addFilter(NNOnlyFilter())
+
         logging.getLogger().addHandler(console_handler)
     
     def setup_file_handlers(self):
