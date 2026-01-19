@@ -10,6 +10,7 @@ from .disruption import calculate_worker_disruption
 from .location import calculate_location_penalty
 from .capacity import validate_spawn_capacity
 from .exploration import ExplorationTracker
+from .gpu_utils import GPUCostFunction, get_gpu_cost_function, get_device, get_device_info
 
 __all__ = [
     'chunk_to_coords',
@@ -20,5 +21,9 @@ __all__ = [
     'calculate_worker_disruption',
     'calculate_location_penalty',
     'validate_spawn_capacity',
-    'ExplorationTracker'
+    'ExplorationTracker',
+    'GPUCostFunction',
+    'get_gpu_cost_function',
+    'get_device',
+    'get_device_info'
 ]
