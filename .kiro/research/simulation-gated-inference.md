@@ -23,18 +23,18 @@ The game dynamics are deterministic and known. We don't need to learn a "world m
 ## 2. Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              BACKEND (Python)                               │
-│                                                                             │
-│    ┌─────────────────────────────────────────────────────────────────┐     │
-│    │                     THINKING LOOP                                │     │
-│    │                                                                  │     │
+┌───────────────────────────────────────────────────────────────────────────┐
+│                              BACKEND (Python)                             │
+│                                                                           │
+│    ┌────────────────────────────────────────────────────────────────┐     │
+│    │                     THINKING LOOP                              │     │
+│    │                                                                │     │
 │    │   ┌──────────┐      ┌────────────┐      ┌─────────────────┐    │     │
-│    │   │    NN    │─────▶│    Cost    │─────▶│   Reward > 0?   │    │     │
+│    │   │    NN    │─────▶│    Cost    │─────▶│   Reward > 0?   │   │     │
 │    │   │ Inference│      │  Function  │      │                 │    │     │
 │    │   └──────────┘      │(Simulation)│      └────────┬────────┘    │     │
-│    │        ▲            └────────────┘               │              │     │
-│    │        │                                         │              │     │
+│    │        ▲            └────────────┘               │             │     │
+│    │        │                                         │             │     │
 │    │        │  Backprop                    ┌──────────┴──────────┐  │     │
 │    │        │  + Re-infer                  │                     │  │     │
 │    │        │                              ▼                     ▼  │     │
@@ -59,8 +59,8 @@ The game dynamics are deterministic and known. We don't need to learn a "world m
                │                 │  (Real Game)        │
                │                 └─────────────────────┘
 ┌──────────────┴─────────────────────────────────────────────────────────────┐
-│                              FRONTEND                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
+│                              FRONTEND                                      │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Flow Description
@@ -301,7 +301,13 @@ def cost_function(observation: Tensor, action: Tensor) -> Tensor:
 ### The Problem
 What if no action ever yields positive reward? The NN would wait forever.
 
-### Solutions
+### Chosen Strategies
+
+> **Selected approaches: 5.2 Exploration Bonus + 5.4 Confidence-Based Override**
+> These complement each other - exploration bonus is additive (nudges toward unexplored),
+> while confidence override is multiplicative (lets trained NN break rules when sure).
+
+### All Options Considered
 
 #### 5.1 Threshold Decay
 ```
@@ -311,7 +317,7 @@ After N observations without action, lower the bar.
 Eventually any action becomes acceptable.
 ```
 
-#### 5.2 Exploration Bonus
+#### 5.2 Exploration Bonus ✅ SELECTED
 ```
 R_expected += ε · exploration_bonus(c_s)
 
@@ -319,6 +325,9 @@ where:
     exploration_bonus(c_s) = time_since_spawn(c_s) / max_time
     ε = exploration coefficient (annealed)
 ```
+- Chunks not spawned in recently get a bonus
+- Prevents NN from getting stuck in local optima
+- ε anneals over training (high early, low later)
 
 #### 5.3 Forced Action Timeout
 ```
@@ -326,11 +335,19 @@ if observations_since_last_action > MAX_WAIT:
     execute best_available_action regardless of reward
 ```
 
-#### 5.4 Confidence-Based Override
+#### 5.4 Confidence-Based Override ✅ SELECTED
 ```
 if NN_confidence > HIGH_THRESHOLD:
     bypass simulation gate (let NN take calculated risks)
 ```
+- Early training: NN uncertain, follows simulation strictly
+- Late training: NN learned patterns, can override when confident
+- Allows discovery of strategies the cost function might miss
+
+### Why These Two Work Together
+- **Early game**: Exploration bonus dominates (NN unsure, needs to explore)
+- **Late game**: Confidence override dominates (NN knows what it's doing)
+- Creates natural curriculum from exploration → exploitation
 
 ---
 
