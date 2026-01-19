@@ -1060,7 +1060,9 @@ class MessageHandler:
                 if gate_decision:
                     response_data["gateDecision"] = gate_decision.decision
                     response_data["gateReason"] = gate_decision.reason
-                    response_data["expectedReward"] = gate_decision.expected_reward
+                    # Convert -inf to None for JSON serialization
+                    expected_reward = gate_decision.expected_reward
+                    response_data["expectedReward"] = None if expected_reward == float('-inf') else expected_reward
                 else:
                     response_data["confidenceThreshold"] = self.nn_config.spawn_gating.confidence_threshold
 
