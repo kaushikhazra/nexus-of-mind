@@ -20,7 +20,7 @@ from ai_engine.feature_extractor import FeatureExtractor
 from ai_engine.nn_model import NNModel
 from ai_engine.reward_calculator import RewardCalculator
 from ai_engine.config import get_config
-from ai_engine.simulation import SimulationGate, SimulationGateConfig
+from ai_engine.simulation import SimulationGate, SimulationGateConfig, get_gate_logger
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,8 @@ class MessageHandler:
             "health_check": self._handle_health_check,
             "reconnect": self._handle_reconnect,
             "heartbeat_response": self._handle_heartbeat_response,
-            "reset_nn": self._handle_reset_nn
+            "reset_nn": self._handle_reset_nn,
+            "gate_stats_request": self._handle_gate_stats_request
         }
 
         # Continuous trainer for real-time learning
@@ -105,10 +106,12 @@ class MessageHandler:
         # Initialize simulation gate for predictive cost function
         try:
             self.simulation_gate = SimulationGate(SimulationGateConfig())
+            self.gate_logger = get_gate_logger()
             logger.info("SimulationGate initialized for simulation-gated inference")
         except Exception as e:
             logger.warning(f"Failed to initialize SimulationGate: {e}")
             self.simulation_gate = None
+            self.gate_logger = None
 
         # Store previous observations for reward calculation (per territory)
         self.prev_observations: Dict[str, Dict[str, Any]] = {}
@@ -891,6 +894,20 @@ class MessageHandler:
                         )
                         logger.info(f"[Observation] NN TRAINING: reward={reward_info['reward']:.3f}, "
                                    f"loss={train_result.get('loss', 0):.4f}")
+
+                        # Record actual reward in gate metrics
+                        if self.simulation_gate:
+                            self.simulation_gate.record_actual_reward(reward_info['reward'])
+
+                        # Log real training feedback
+                        if self.gate_logger:
+                            self.gate_logger.log_training_feedback(
+                                feedback_type='real',
+                                reward=reward_info['reward'],
+                                loss=train_result.get('loss', 0),
+                                spawn_chunk=prev_decision['spawnChunk'],
+                                spawn_type=prev_decision['spawnType']
+                            )
                     elif prev_decision:
                         logger.info(f"[Observation] No training: reward=0 (skipped={prev_decision.get('skipped', False)})")
                     else:
@@ -938,6 +955,8 @@ class MessageHandler:
                     # Update thinking loop statistics
                     self.thinking_stats['total_gate_evaluations'] += 1
 
+                    obs_count = self.thinking_stats['observations_since_last_action']
+
                     if gate_decision.decision == 'SEND':
                         should_skip = False
                         self.thinking_stats['gate_passes'] += 1
@@ -949,13 +968,42 @@ class MessageHandler:
                         # Record spawn for exploration tracking
                         self.simulation_gate.record_spawn(spawn_chunk)
 
-                        logger.info(f"[SimGate] SEND: chunk={spawn_chunk}, type={spawn_type}, "
-                                   f"expected_reward={gate_decision.expected_reward:.3f}, "
-                                   f"confidence={confidence:.3f}, reason={gate_decision.reason}")
+                        # Structured logging
+                        if self.gate_logger:
+                            self.gate_logger.log_decision(
+                                decision='SEND',
+                                reason=gate_decision.reason,
+                                spawn_chunk=spawn_chunk,
+                                spawn_type=spawn_type,
+                                expected_reward=gate_decision.expected_reward,
+                                nn_confidence=confidence,
+                                components=gate_decision.components,
+                                observation_count=obs_count,
+                                territory_id=territory_id
+                            )
                     else:
                         should_skip = True
                         self.thinking_stats['observations_since_last_action'] += 1
                         gate_reason = gate_decision.reason
+
+                        # Structured logging
+                        if self.gate_logger:
+                            self.gate_logger.log_decision(
+                                decision='WAIT',
+                                reason=gate_decision.reason,
+                                spawn_chunk=spawn_chunk,
+                                spawn_type=spawn_type,
+                                expected_reward=gate_decision.expected_reward,
+                                nn_confidence=confidence,
+                                components=gate_decision.components,
+                                observation_count=obs_count + 1,
+                                territory_id=territory_id
+                            )
+
+                            # Check for deadlock risk
+                            wait_streak = self.simulation_gate.get_wait_streak()
+                            time_since = self.simulation_gate.get_time_since_last_action()
+                            self.gate_logger.log_wait_streak_warning(wait_streak, time_since)
 
                         # Train NN with simulation feedback (negative reward)
                         if gate_decision.expected_reward != float('-inf'):
@@ -966,12 +1014,14 @@ class MessageHandler:
                                 spawn_type,
                                 sim_reward
                             )
-                            logger.info(f"[SimGate] WAIT: chunk={spawn_chunk}, "
-                                       f"expected_reward={gate_decision.expected_reward:.3f}, "
-                                       f"reason={gate_reason}, sim_training_loss={train_result.get('loss', 0):.4f}")
-                        else:
-                            logger.info(f"[SimGate] WAIT: chunk={spawn_chunk}, "
-                                       f"reason={gate_reason} (no training - invalid action)")
+                            if self.gate_logger:
+                                self.gate_logger.log_training_feedback(
+                                    feedback_type='simulation',
+                                    reward=sim_reward,
+                                    loss=train_result.get('loss', 0),
+                                    spawn_chunk=spawn_chunk,
+                                    spawn_type=spawn_type
+                                )
                 else:
                     # Fallback to old confidence threshold if no simulation gate
                     threshold = self.nn_config.spawn_gating.confidence_threshold
@@ -1068,3 +1118,34 @@ class MessageHandler:
             'hive_chunk': hive_chunk,
             'queen_energy': queen_energy
         }
+
+    async def _handle_gate_stats_request(self, message: Dict[str, Any], client_id: str) -> Dict[str, Any]:
+        """
+        Handle request for simulation gate statistics.
+
+        Returns comprehensive metrics about gate behavior.
+        """
+        try:
+            if not self.simulation_gate:
+                return self._create_error_response(
+                    "Simulation gate not available",
+                    error_code="GATE_NOT_AVAILABLE"
+                )
+
+            stats = self.simulation_gate.get_statistics()
+
+            # Add thinking loop stats
+            stats['thinking_loop'] = self.thinking_stats.copy()
+
+            return {
+                "type": "gate_stats_response",
+                "timestamp": asyncio.get_event_loop().time(),
+                "data": stats
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting gate statistics: {e}")
+            return self._create_error_response(
+                f"Failed to get gate statistics: {str(e)}",
+                error_code="PROCESSING_ERROR"
+            )

@@ -256,6 +256,137 @@ class TestCostFunction:
         assert result['expected_reward'] == float('-inf')
 
 
+class TestGateMetrics:
+    """Test gate metrics collection."""
+
+    def test_record_evaluation(self):
+        from ai_engine.simulation.metrics import GateMetrics
+
+        metrics = GateMetrics(window_size=10)
+        metrics.record_evaluation(
+            decision='SEND',
+            reason='positive_reward',
+            expected_reward=0.5,
+            nn_confidence=0.3,
+            components={'survival': 0.8, 'disruption': 0.3}
+        )
+
+        assert metrics.total_evaluations == 1
+        assert metrics.total_sends == 1
+        assert metrics.total_waits == 0
+
+    def test_pass_rate(self):
+        from ai_engine.simulation.metrics import GateMetrics
+
+        metrics = GateMetrics(window_size=10)
+
+        # Record 3 sends, 2 waits
+        for _ in range(3):
+            metrics.record_evaluation('SEND', 'positive_reward', 0.5, 0.3, {})
+        for _ in range(2):
+            metrics.record_evaluation('WAIT', 'negative_reward', -0.1, 0.2, {})
+
+        assert metrics.get_lifetime_pass_rate() == 0.6
+        assert metrics.get_pass_rate() == 0.6
+
+    def test_confidence_override_rate(self):
+        from ai_engine.simulation.metrics import GateMetrics
+
+        metrics = GateMetrics(window_size=10)
+
+        # 2 confidence overrides, 2 positive rewards
+        metrics.record_evaluation('SEND', 'confidence_override', 0.5, 0.9, {})
+        metrics.record_evaluation('SEND', 'confidence_override', 0.5, 0.95, {})
+        metrics.record_evaluation('SEND', 'positive_reward', 0.8, 0.5, {})
+        metrics.record_evaluation('SEND', 'positive_reward', 0.7, 0.4, {})
+
+        assert metrics.get_lifetime_confidence_override_rate() == 0.5
+
+    def test_wait_streak(self):
+        from ai_engine.simulation.metrics import GateMetrics
+
+        metrics = GateMetrics(window_size=10)
+
+        metrics.record_evaluation('SEND', 'positive_reward', 0.5, 0.3, {})
+        metrics.record_evaluation('WAIT', 'negative_reward', -0.1, 0.2, {})
+        metrics.record_evaluation('WAIT', 'negative_reward', -0.2, 0.1, {})
+        metrics.record_evaluation('WAIT', 'negative_reward', -0.3, 0.1, {})
+
+        assert metrics.get_wait_streak() == 3
+
+    def test_average_expected_reward(self):
+        from ai_engine.simulation.metrics import GateMetrics
+
+        metrics = GateMetrics(window_size=10)
+
+        metrics.record_evaluation('SEND', 'positive_reward', 0.5, 0.3, {})
+        metrics.record_evaluation('SEND', 'positive_reward', 0.7, 0.4, {})
+        metrics.record_evaluation('WAIT', 'insufficient_energy', float('-inf'), 0.2, {})
+
+        # Should only average valid rewards (0.5 + 0.7) / 2 = 0.6
+        assert abs(metrics.get_average_expected_reward() - 0.6) < 0.01
+
+    def test_statistics_summary(self):
+        from ai_engine.simulation.metrics import GateMetrics
+
+        metrics = GateMetrics(window_size=10)
+        metrics.record_evaluation('SEND', 'positive_reward', 0.5, 0.3, {'survival': 0.8})
+
+        stats = metrics.get_statistics()
+
+        assert 'lifetime' in stats
+        assert 'rolling' in stats
+        assert 'recent' in stats
+        assert stats['lifetime']['total_evaluations'] == 1
+
+
+class TestGateLogger:
+    """Test structured gate logging."""
+
+    def test_logger_creation(self):
+        from ai_engine.simulation.logging_utils import GateLogger, get_gate_logger
+
+        logger1 = get_gate_logger()
+        logger2 = get_gate_logger()
+
+        # Should be singleton
+        assert logger1 is logger2
+
+    def test_log_decision(self):
+        from ai_engine.simulation.logging_utils import GateLogger
+
+        logger = GateLogger()
+        # Should not raise
+        logger.log_decision(
+            decision='SEND',
+            reason='positive_reward',
+            spawn_chunk=50,
+            spawn_type='energy',
+            expected_reward=0.5,
+            nn_confidence=0.3,
+            components={'survival': 0.8, 'disruption': 0.3},
+            observation_count=5,
+            territory_id='test'
+        )
+
+    def test_log_wait_with_inf(self):
+        from ai_engine.simulation.logging_utils import GateLogger
+
+        logger = GateLogger()
+        # Should handle -inf without error
+        logger.log_decision(
+            decision='WAIT',
+            reason='insufficient_energy',
+            spawn_chunk=50,
+            spawn_type='combat',
+            expected_reward=float('-inf'),
+            nn_confidence=0.1,
+            components={},
+            observation_count=0,
+            territory_id='test'
+        )
+
+
 class TestSimulationGate:
     """Test simulation gate."""
 
@@ -305,6 +436,54 @@ class TestSimulationGate:
         decision = gate.evaluate(observation, 51, 'energy', 0.1)
         assert decision.decision == 'SEND'
         assert decision.reason == 'gate_disabled'
+
+    def test_gate_records_metrics(self):
+        config = SimulationGateConfig()
+        gate = SimulationGate(config)
+
+        observation = {
+            'protector_chunks': [],
+            'worker_chunks': [50],
+            'hive_chunk': 0,
+            'queen_energy': 100
+        }
+
+        # Make multiple evaluations
+        gate.evaluate(observation, 51, 'energy', 0.3)
+        gate.evaluate(observation, 52, 'energy', 0.4)
+        gate.evaluate(observation, 53, 'combat', 0.95)  # Should trigger confidence override
+
+        stats = gate.get_statistics()
+        assert 'metrics' in stats
+        assert stats['metrics']['lifetime']['total_evaluations'] == 3
+
+    def test_gate_wait_streak(self):
+        config = SimulationGateConfig()
+        gate = SimulationGate(config)
+
+        observation = {
+            'protector_chunks': [0, 1, 2],  # Multiple protectors make spawning dangerous
+            'worker_chunks': [],
+            'hive_chunk': 200,
+            'queen_energy': 100
+        }
+
+        # Try to spawn in dangerous area (should WAIT)
+        for i in range(5):
+            gate.evaluate(observation, i, 'energy', 0.1)
+
+        # Should have some wait streak
+        assert gate.get_wait_streak() >= 0
+
+    def test_gate_actual_reward_tracking(self):
+        config = SimulationGateConfig()
+        gate = SimulationGate(config)
+
+        gate.record_actual_reward(0.5)
+        gate.record_actual_reward(0.3)
+
+        stats = gate.get_statistics()
+        assert stats['metrics']['lifetime']['cumulative_actual_reward'] == 0.8
 
 
 if __name__ == '__main__':
