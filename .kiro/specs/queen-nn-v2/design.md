@@ -192,7 +192,9 @@ COMPLETE FLOW
 │   queen_energy: 75,                                         │
 │   queen_max_energy: 100,                                    │
 │   player_energy_start: 100,   ← at window start             │
-│   player_energy_end: 85       ← at window end               │
+│   player_energy_end: 85,      ← at window end               │
+│   player_mineral_start: 500,  ← at window start             │
+│   player_mineral_end: 650     ← at window end               │
 │ }                                                           │
 └──────────────────────────┬──────────────────────────────────┘
                            │ WebSocket
@@ -211,8 +213,9 @@ COMPLETE FLOW
 │    - energy_capacity = floor(current/15) / 6                │
 │    - combat_capacity = floor(current/25) / 4                │
 │ 5. Calculate player energy rate                             │
+│ 6. Calculate player mineral rate                            │
 │                                                             │
-│ Output: [28 normalized floats]                              │
+│ Output: [29 normalized floats]                              │
 └──────────────────────────┬──────────────────────────────────┘
                            ▼
 ┌─────────────────────────────────────────────────────────────┐

@@ -60,7 +60,7 @@ REWARD (+)                              PENALTY (-)
                     QUEEN NEURAL NETWORK
 ═══════════════════════════════════════════════════════════════
 
-    28 INPUTS              HIDDEN LAYERS              OUTPUTS
+    29 INPUTS              HIDDEN LAYERS              OUTPUTS
     ═════════              ═════════════              ═══════
 
 ┌──────────────┐
@@ -70,8 +70,8 @@ REWARD (+)                              PENALTY (-)
 │ Queen Spawn  │ │       │          │
 │ Capacity (2) │ ├──────▶│ 32 ReLU  │──┐
 ├──────────────┤ │       │          │  │
-│ Player Energy│ │       └──────────┘  │
-│  (1 value)   │─┘                     │     ┌──────────┐
+│ Player State │ │       └──────────┘  │
+│  (2 values)  │─┘                     │     ┌──────────┐
                                        │     │ 32 ReLU  │     ┌─────────┐
                          ┌──────────┐  │     └────┬─────┘     │   256   │
                          │          │  │          │           │ Softmax │
@@ -84,13 +84,13 @@ REWARD (+)                              PENALTY (-)
                                                                 Type
 
 ═══════════════════════════════════════════════════════════════
-Architecture: 28 → 32 → 16 → (32 → 256) + (1)
+Architecture: 29 → 32 → 16 → (32 → 256) + (1)
 ═══════════════════════════════════════════════════════════════
 ```
 
 ---
 
-## 3. Inputs (28 total)
+## 3. Inputs (29 total)
 
 ### Unified Normalization Formula
 
@@ -113,7 +113,7 @@ All rates use the same bounded formula:
 ### Input Specification
 
 ```
-INPUT SPECIFICATION (28 total)
+INPUT SPECIFICATION (29 total)
 ═══════════════════════════════════════════════════════════════
 
 [Top 5 Chunks - by mining worker density]     25 values
@@ -145,12 +145,17 @@ INPUT SPECIFICATION (28 total)
     - Enables strategic type selection based on affordability
 
 
-[Player State]                                1 value
+[Player State]                                2 values
 ───────────────────────────────────────────────────────────────
-  └── Player Energy Rate         (e_end - e_start) / max(e_start, e_end) → -1 to +1
+  ├── Player Energy Rate         (e_end - e_start) / max(e_start, e_end) → -1 to +1
+  └── Player Mineral Rate        (m_end - m_start) / max(m_start, m_end) → -1 to +1
+
+  Minerals = player's stockpile (mined resources waiting for power plant)
+  - Positive rate = player accumulating minerals = bad for Queen
+  - Negative rate = player depleting minerals = good for Queen
 
 ───────────────────────────────────────────────────────────────
-TOTAL: 25 + 2 + 1 = 28 inputs
+TOTAL: 25 + 2 + 2 = 29 inputs
 ```
 
 ### Input Examples
@@ -264,7 +269,9 @@ COMPLETE FLOW
 │   queen_energy: 75,                                         │
 │   queen_max_energy: 100,                                    │
 │   player_energy_start: 100,   ← at window start             │
-│   player_energy_end: 85       ← at window end               │
+│   player_energy_end: 85,      ← at window end               │
+│   player_mineral_start: 500,  ← at window start             │
+│   player_mineral_end: 650     ← at window end               │
 │ }                                                           │
 └──────────────────────────┬──────────────────────────────────┘
                            │ WebSocket
@@ -283,14 +290,15 @@ COMPLETE FLOW
 │    - energy_capacity = floor(current/15) / 6                │
 │    - combat_capacity = floor(current/25) / 4                │
 │ 5. Calculate player energy rate                             │
+│ 6. Calculate player mineral rate                            │
 │                                                             │
-│ Output: [28 normalized floats]                              │
+│ Output: [29 normalized floats]                              │
 └──────────────────────────┬──────────────────────────────────┘
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ NEURAL NETWORK (inference)                                  │
 │                                                             │
-│ Input:  [28 values between -1 and +1]                       │
+│ Input:  [29 values between -1 and +1]                       │
 │ Output: [chunk_probs(256), type_prob(1)]                    │
 └──────────────────────────┬──────────────────────────────────┘
                            ▼
@@ -395,7 +403,7 @@ PROBLEM: Hidden layer → 257 outputs is a bottleneck
 SOLUTION: Split into specialized paths
 
          ┌─────┐     ┌─────┐
-    28 ──┤  32 ├─────┤ 16  ├───┬─────────────┐
+    29 ──┤  32 ├─────┤ 16  ├───┬─────────────┐
          └─────┘     └─────┘   │             │
                                ▼             ▼
                            ┌──────┐      ┌──────┐
@@ -419,7 +427,7 @@ WHY?
 LAYER BREAKDOWN
 ═══════════════════════════════════════════════════════════════
 
-Input → Hidden 1:     28 × 32 = 896 weights + 32 biases
+Input → Hidden 1:     29 × 32 = 928 weights + 32 biases
 Hidden 1 → Hidden 2:  32 × 16 = 512 weights + 16 biases
 
 CHUNK PATH:
@@ -430,7 +438,7 @@ TYPE PATH:
 Hidden 2 → Output:    16 × 1 = 16 weights + 1 bias
 
 ───────────────────────────────────────────────────────────────
-TOTAL: 10,128 weights + 337 biases = 10,465 parameters
+TOTAL: 10,160 weights + 337 biases = 10,497 parameters
 ```
 
 ---
@@ -536,15 +544,15 @@ RESOLVED:
 QUEEN NN AT A GLANCE
 ═══════════════════════════════════════════════════════════════
 
-Inputs:       28 (5 chunks × 5 values + 2 spawn capacities + player rate)
-Architecture: 28 → 32 → 16 → (32 → 256) + (1)
+Inputs:       29 (5 chunks × 5 values + 2 spawn capacities + 2 player rates)
+Architecture: 29 → 32 → 16 → (32 → 256) + (1)
 Outputs:      257 (256 chunks + 1 type)
-Parameters:   ~10,465
+Parameters:   ~10,497
 
 Input Breakdown:
   - Top 5 Chunks: 25 values (chunk ID, worker/protector density, parasite rates)
   - Queen Spawn Capacity: 2 values (energy & combat affordability)
-  - Player Energy Rate: 1 value
+  - Player State: 2 values (energy rate & mineral rate)
 
 Normalization:
   - Chunk IDs: ÷255 → 0-1

@@ -57,18 +57,24 @@ This specification defines the second generation Queen AI neural network. Buildi
 4. THE capacity value of 1.0 SHALL indicate maximum spawn potential
 5. THE capacity value of 0.0 SHALL indicate inability to spawn that type
 
-### Requirement 3: Player Energy Rate Input
+### Requirement 3: Player State Inputs (Energy & Mineral Rates)
 
-**User Story:** As the Queen AI, I need to observe the player's energy trend so that I can gauge the effectiveness of my strategy.
+**User Story:** As the Queen AI, I need to observe the player's energy and mineral trends so that I can gauge the effectiveness of my strategy.
 
 #### Acceptance Criteria
 
 1. THE System SHALL track player energy at observation window start and end
 2. THE System SHALL calculate player energy rate as:
    - (energy_end - energy_start) / max(energy_start, energy_end) → -1 to +1
-3. THE negative rate SHALL indicate player is losing energy (REWARD for Queen)
-4. THE positive rate SHALL indicate player is gaining energy (PENALTY for Queen)
-5. THE System SHALL handle edge cases (zero energy, no change)
+3. THE negative energy rate SHALL indicate player is losing energy (REWARD for Queen)
+4. THE positive energy rate SHALL indicate player is gaining energy (PENALTY for Queen)
+5. THE System SHALL track player minerals at observation window start and end
+6. THE System SHALL calculate player mineral rate as:
+   - (mineral_end - mineral_start) / max(mineral_start, mineral_end) → -1 to +1
+7. THE negative mineral rate SHALL indicate player is depleting minerals (REWARD for Queen)
+8. THE positive mineral rate SHALL indicate player is accumulating minerals (PENALTY for Queen)
+9. THE System SHALL handle edge cases (zero values, no change)
+10. THE System SHALL provide 2 normalized player state values to the NN
 
 ### Requirement 4: Chunk-Based Spawn Output
 
@@ -102,15 +108,15 @@ This specification defines the second generation Queen AI neural network. Buildi
 
 #### Acceptance Criteria
 
-1. THE NN architecture SHALL be: 28 → 32 → 16 → split heads
-2. THE input layer SHALL accept 28 normalized values:
+1. THE NN architecture SHALL be: 29 → 32 → 16 → split heads
+2. THE input layer SHALL accept 29 normalized values:
    - 25 values from top 5 chunks (5 × 5)
    - 2 values for spawn capacities
-   - 1 value for player energy rate
+   - 2 values for player state (energy rate + mineral rate)
 3. THE hidden layers SHALL use ReLU activation
 4. THE chunk head SHALL expand: 16 → 32 → 256 (Softmax)
 5. THE type head SHALL be: 16 → 1 (Sigmoid)
-6. THE total parameters SHALL be approximately 10,465
+6. THE total parameters SHALL be approximately 10,497
 
 ### Requirement 7: Data Pipeline
 
@@ -124,7 +130,8 @@ This specification defines the second generation Queen AI neural network. Buildi
    - Parasites (energy and combat) with chunk IDs
    - Queen current energy and max energy
    - Player energy at window start and end
-2. THE backend SHALL preprocess raw data into 28 normalized features
+   - Player minerals at window start and end
+2. THE backend SHALL preprocess raw data into 29 normalized features
 3. THE backend SHALL run NN inference and generate spawn decision
 4. THE backend SHALL return: { spawn_chunk: number, spawn_type: "energy" | "combat" }
 5. THE frontend SHALL execute spawn command from backend
@@ -178,10 +185,12 @@ This specification defines the second generation Queen AI neural network. Buildi
    - Mining activity stopped in targeted chunks
    - Player protector count reduced
    - Player energy rate becoming negative
+   - Player mineral rate becoming negative (depleting stockpile)
 2. THE System SHALL provide negative rewards for:
    - Mining activity continuing/increasing
    - Protector count increasing
    - Player energy rate becoming positive
+   - Player mineral rate becoming positive (accumulating stockpile)
 3. THE reward calculation SHALL use the rate formula:
    - (end - start) / max(start, end) → bounded -1 to +1
 4. THE reward signals SHALL be derived from observation data

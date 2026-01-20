@@ -22,6 +22,7 @@ from websocket.connection_manager import ConnectionManager
 from websocket.message_handler import MessageHandler
 from logging_config import initialize_logging, get_logger, log_ai_event, log_websocket_event, request_logging_context
 from routes.progress_routes import router as progress_router
+from routes.dashboard_routes import router as dashboard_router
 from database.energy_lords import init_db
 
 # Initialize comprehensive logging
@@ -134,6 +135,7 @@ app.add_middleware(
 
 # Register API routers
 app.include_router(progress_router)
+app.include_router(dashboard_router)
 
 
 @app.get("/")

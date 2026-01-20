@@ -1,0 +1,123 @@
+# Simulation Gate Configuration
+# Configuration for simulation-gated inference system
+#
+# All parameters can be tuned to balance exploration vs exploitation,
+# risk tolerance, and deadlock prevention.
+
+# ============================================================================
+# SURVIVAL PROBABILITY PARAMETERS
+# ============================================================================
+# Controls how survival probability is calculated based on protector distance
+
+# Kill range: Distance below which survival = 0 (certain death)
+# Units: Chunk distance (Euclidean)
+kill_range: 2.0
+
+# Safe range: Distance above which threat = 0 (completely safe)
+# Units: Chunk distance
+safe_range: 8.0
+
+# Threat decay: Exponential decay rate for threat in transition zone
+# Higher = faster falloff of threat with distance
+threat_decay: 0.5
+
+# ============================================================================
+# WORKER DISRUPTION PARAMETERS
+# ============================================================================
+# Controls expected disruption to enemy workers
+
+# Flee range: Distance below which workers flee immediately (max disruption)
+# Units: Chunk distance
+flee_range: 3.0
+
+# Ignore range: Distance above which workers ignore the parasite
+# Units: Chunk distance
+ignore_range: 10.0
+
+# Disruption decay: Exponential decay rate in transition zone
+disruption_decay: 0.3
+
+# ============================================================================
+# LOCATION PENALTY PARAMETERS
+# ============================================================================
+# Penalizes spawning far from strategic locations
+
+# Hive proximity weight: Importance of staying near hive (IDLE mode)
+# Range: [0, 1]
+hive_proximity_weight: 0.3
+
+# Worker proximity weight: Importance of spawning near workers (ACTIVE mode)
+# Range: [0, 1]
+worker_proximity_weight: 0.4
+
+# ============================================================================
+# COST FUNCTION WEIGHTS
+# ============================================================================
+# How different components contribute to final expected reward
+
+# Survival weight: How much survival probability affects reward
+# Higher = more risk-averse behavior
+survival_weight: 0.4
+
+# Disruption weight: How much worker disruption affects reward
+# Higher = more aggressive targeting of workers
+disruption_weight: 0.5
+
+# Location weight: How much location penalty affects reward
+location_weight: 0.1
+
+# ============================================================================
+# GATE DECISION PARAMETERS
+# ============================================================================
+
+# Reward threshold: Minimum expected reward for SEND decision
+# 0.0 = only positive expected rewards pass
+# Negative = allow some risky spawns
+reward_threshold: 0.0
+
+# Confidence threshold: NN confidence that bypasses reward check
+# When NN is highly confident, trust it over simulation
+# Range: [0, 1], typical: 0.8
+confidence_threshold: 0.8
+
+# ============================================================================
+# SPAWN CAPACITY
+# ============================================================================
+# Energy costs for spawning
+
+# Energy cost to spawn an energy parasite
+energy_spawn_cost: 25
+
+# Energy cost to spawn a combat parasite
+combat_spawn_cost: 25
+
+# ============================================================================
+# EXPLORATION BONUS (Deadlock Prevention)
+# ============================================================================
+
+# Exploration coefficient: Base bonus for underexplored chunks
+# Higher = more exploration, less exploitation
+exploration_coefficient: 0.2
+
+# Exploration decay: How fast exploration bonus fades after spawn
+# Units: Seconds
+exploration_decay_time: 60.0
+
+# ============================================================================
+# GENERAL SETTINGS
+# ============================================================================
+
+# Whether simulation gate is enabled
+# Set to false to bypass gate (all spawns pass through)
+gate_enabled: true
+
+# Number of chunks per axis in the game grid
+chunks_per_axis: 20
+
+# ============================================================================
+# HOT RELOAD
+# ============================================================================
+# The config loader checks this file for changes every N seconds
+# Changes are applied without server restart
+
+hot_reload_interval: 5.0

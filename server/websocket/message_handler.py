@@ -20,6 +20,8 @@ from ai_engine.feature_extractor import FeatureExtractor
 from ai_engine.nn_model import NNModel
 from ai_engine.reward_calculator import RewardCalculator
 from ai_engine.config import get_config
+from ai_engine.simulation import SimulationGate, SimulationGateConfig, get_gate_logger
+from ai_engine.simulation.dashboard_metrics import get_dashboard_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +46,8 @@ class MessageHandler:
             "health_check": self._handle_health_check,
             "reconnect": self._handle_reconnect,
             "heartbeat_response": self._handle_heartbeat_response,
-            "reset_nn": self._handle_reset_nn
+            "reset_nn": self._handle_reset_nn,
+            "gate_stats_request": self._handle_gate_stats_request
         }
 
         # Continuous trainer for real-time learning
@@ -101,9 +104,27 @@ class MessageHandler:
             logger.warning(f"Failed to initialize RewardCalculator: {e}")
             self.reward_calculator = None
 
+        # Initialize simulation gate for predictive cost function
+        try:
+            self.simulation_gate = SimulationGate(SimulationGateConfig())
+            self.gate_logger = get_gate_logger()
+            logger.info("SimulationGate initialized for simulation-gated inference")
+        except Exception as e:
+            logger.warning(f"Failed to initialize SimulationGate: {e}")
+            self.simulation_gate = None
+            self.gate_logger = None
+
         # Store previous observations for reward calculation (per territory)
         self.prev_observations: Dict[str, Dict[str, Any]] = {}
         self.prev_decisions: Dict[str, Dict[str, Any]] = {}
+
+        # Thinking loop statistics
+        self.thinking_stats = {
+            'observations_since_last_action': 0,
+            'total_gate_evaluations': 0,
+            'gate_passes': 0,
+            'confidence_overrides': 0
+        }
     
     def _initialize_schemas(self) -> Dict[str, Dict]:
         """Initialize JSON schemas for message validation"""
@@ -850,6 +871,18 @@ class MessageHandler:
                            f"protectors={len(protectors)}, queenE={queen_energy.get('current', 0)}, "
                            f"playerE={player_energy.get('end', 0)}, minerals={player_minerals.get('end', 0)}")
 
+                # Update dashboard game state
+                try:
+                    dashboard = get_dashboard_metrics()
+                    dashboard.update_game_state({
+                        'queen_energy': queen_energy.get('current', 0),
+                        'workers_visible': len(workers_present) + len(workers_mining),
+                        'protectors_visible': len(protectors),
+                        'territory_id': territory_id
+                    })
+                except Exception as e:
+                    logger.warning(f"Failed to update dashboard game state: {e}")
+
                 # Calculate reward and train if we have previous observation
                 reward_info = None
                 if territory_id in self.prev_observations and self.reward_calculator:
@@ -874,6 +907,31 @@ class MessageHandler:
                         )
                         logger.info(f"[Observation] NN TRAINING: reward={reward_info['reward']:.3f}, "
                                    f"loss={train_result.get('loss', 0):.4f}")
+
+                        # Record training step to dashboard
+                        try:
+                            dashboard = get_dashboard_metrics()
+                            dashboard.record_training_step(
+                                loss=train_result.get('loss', 0),
+                                reward=reward_info['reward'],
+                                is_simulation=False
+                            )
+                        except Exception as e:
+                            logger.warning(f"Failed to record training step to dashboard: {e}")
+
+                        # Record actual reward in gate metrics
+                        if self.simulation_gate:
+                            self.simulation_gate.record_actual_reward(reward_info['reward'])
+
+                        # Log real training feedback
+                        if self.gate_logger:
+                            self.gate_logger.log_training_feedback(
+                                feedback_type='real',
+                                reward=reward_info['reward'],
+                                loss=train_result.get('loss', 0),
+                                spawn_chunk=prev_decision['spawnChunk'],
+                                spawn_type=prev_decision['spawnType']
+                            )
                     elif prev_decision:
                         logger.info(f"[Observation] No training: reward=0 (skipped={prev_decision.get('skipped', False)})")
                     else:
@@ -896,23 +954,134 @@ class MessageHandler:
                     timeout=2.0  # 2s timeout to allow TensorFlow warm-up
                 )
 
-                # Check confidence threshold - skip spawn if NN is uncertain
+                # Extract confidence
                 confidence = spawn_decision['confidence']
-                threshold = self.nn_config.spawn_gating.confidence_threshold
-                exploration_rate = self.nn_config.spawn_gating.exploration_rate
-                should_skip = confidence < threshold
+                spawn_chunk = spawn_decision['spawnChunk']
+                spawn_type = spawn_decision['spawnType']
 
-                # Exploration: occasionally spawn despite low confidence (for learning)
-                import random
-                if should_skip and random.random() < exploration_rate:
-                    should_skip = False
-                    logger.info(f"[Observation] Exploration override: spawning despite low confidence {confidence:.3f}")
+                # === SIMULATION-GATED INFERENCE ===
+                should_skip = False
+                gate_decision = None
+                gate_reason = 'no_gate'
 
-                if should_skip:
-                    logger.info(f"[Observation] Spawn SKIPPED: confidence {confidence:.3f} < threshold {threshold}")
+                if self.simulation_gate:
+                    # Build observation for simulation gate
+                    sim_observation = self._build_simulation_observation(observation)
+
+                    # Evaluate through simulation gate
+                    # Pass full observation for dashboard recording
+                    gate_decision = self.simulation_gate.evaluate(
+                        sim_observation,
+                        spawn_chunk,
+                        spawn_type,
+                        confidence,
+                        full_observation=observation
+                    )
+
+                    # Update thinking loop statistics
+                    self.thinking_stats['total_gate_evaluations'] += 1
+
+                    obs_count = self.thinking_stats['observations_since_last_action']
+
+                    if gate_decision.decision == 'SEND':
+                        # Gate allows - use NN's confidence-based skip decision
+                        nn_threshold = self.nn_config.spawn_gating.confidence_threshold
+                        nn_skip = confidence < nn_threshold
+                        should_skip = nn_skip  # NN decides whether to skip
+                        gate_blocked = False
+                        self.thinking_stats['gate_passes'] += 1
+                        self.thinking_stats['observations_since_last_action'] = 0
+
+                        if gate_decision.reason == 'confidence_override':
+                            self.thinking_stats['confidence_overrides'] += 1
+
+                        # Record spawn for exploration tracking
+                        self.simulation_gate.record_spawn(spawn_chunk)
+
+                        # Structured logging
+                        if self.gate_logger:
+                            self.gate_logger.log_decision(
+                                decision='SEND',
+                                reason=gate_decision.reason,
+                                spawn_chunk=spawn_chunk,
+                                spawn_type=spawn_type,
+                                expected_reward=gate_decision.expected_reward,
+                                nn_confidence=confidence,
+                                components=gate_decision.components,
+                                observation_count=obs_count,
+                                territory_id=territory_id
+                            )
+                    else:
+                        should_skip = True
+                        gate_blocked = True  # Gate blocks this decision
+                        self.thinking_stats['observations_since_last_action'] += 1
+                        gate_reason = gate_decision.reason
+
+                        # Structured logging
+                        if self.gate_logger:
+                            self.gate_logger.log_decision(
+                                decision='WAIT',
+                                reason=gate_decision.reason,
+                                spawn_chunk=spawn_chunk,
+                                spawn_type=spawn_type,
+                                expected_reward=gate_decision.expected_reward,
+                                nn_confidence=confidence,
+                                components=gate_decision.components,
+                                observation_count=obs_count + 1,
+                                territory_id=territory_id
+                            )
+
+                            # Check for deadlock risk
+                            wait_streak = self.simulation_gate.get_wait_streak()
+                            time_since = self.simulation_gate.get_time_since_last_action()
+                            self.gate_logger.log_wait_streak_warning(wait_streak, time_since)
+
+                        # Train NN with simulation feedback (negative reward)
+                        if gate_decision.expected_reward != float('-inf'):
+                            sim_reward = gate_decision.expected_reward * 0.3  # 30% weight for sim feedback
+                            train_result = self.nn_model.train_with_reward(
+                                features,
+                                spawn_chunk,
+                                spawn_type,
+                                sim_reward
+                            )
+                            if self.gate_logger:
+                                self.gate_logger.log_training_feedback(
+                                    feedback_type='simulation',
+                                    reward=sim_reward,
+                                    loss=train_result.get('loss', 0),
+                                    spawn_chunk=spawn_chunk,
+                                    spawn_type=spawn_type
+                                )
+
+                            # Record simulation training step to dashboard
+                            try:
+                                dashboard = get_dashboard_metrics()
+                                dashboard.record_training_step(
+                                    loss=train_result.get('loss', 0),
+                                    reward=sim_reward,
+                                    is_simulation=True
+                                )
+                            except Exception as e:
+                                logger.warning(f"Failed to record sim training to dashboard: {e}")
                 else:
-                    logger.info(f"[Observation] Spawn decision: chunk={spawn_decision['spawnChunk']}, "
-                               f"type={spawn_decision['spawnType']}, confidence={confidence:.3f}")
+                    # Fallback to old confidence threshold if no simulation gate
+                    threshold = self.nn_config.spawn_gating.confidence_threshold
+                    exploration_rate = self.nn_config.spawn_gating.exploration_rate
+                    should_skip = confidence < threshold
+                    gate_blocked = False  # No gate, so not blocked by gate
+
+                    # Exploration: occasionally spawn despite low confidence
+                    import random
+                    if should_skip and random.random() < exploration_rate:
+                        should_skip = False
+                        logger.info(f"[Observation] Exploration override: spawning despite low confidence {confidence:.3f}")
+
+                    if should_skip:
+                        logger.info(f"[Observation] Spawn SKIPPED: confidence {confidence:.3f} < threshold {threshold}")
+                    else:
+                        logger.info(f"[Observation] Spawn decision: chunk={spawn_chunk}, "
+                                   f"type={spawn_type}, confidence={confidence:.3f}")
 
                 # Store for next reward calculation
                 self.prev_observations[territory_id] = observation
@@ -921,15 +1090,44 @@ class MessageHandler:
                     'skipped': should_skip
                 }
 
+                # If gate blocked the decision, send no_action
+                if gate_blocked:
+                    response_data = {
+                        "territoryId": territory_id,
+                        "reason": gate_decision.reason if gate_decision else "low_confidence",
+                        "confidence": confidence
+                    }
+                    # Add gate-specific info for debugging
+                    if gate_decision:
+                        expected_reward = gate_decision.expected_reward
+                        response_data["expectedReward"] = None if expected_reward == float('-inf') else expected_reward
+                        response_data["gateReason"] = gate_decision.reason
+
+                    return {
+                        "type": "no_action",
+                        "timestamp": asyncio.get_event_loop().time(),
+                        "data": response_data
+                    }
+
+                # Gate allows - send spawn decision with NN's skip value
                 response_data = {
                     "spawnChunk": spawn_decision["spawnChunk"],
                     "spawnType": spawn_decision["spawnType"],
                     "confidence": confidence,
                     "typeConfidence": spawn_decision["typeConfidence"],
                     "territoryId": territory_id,
-                    "skip": should_skip,
-                    "confidenceThreshold": threshold
+                    "skip": should_skip  # NN's decision based on confidence
                 }
+
+                # Add gate-specific info
+                if gate_decision:
+                    response_data["gateDecision"] = gate_decision.decision
+                    response_data["gateReason"] = gate_decision.reason
+                    # Convert -inf to None for JSON serialization
+                    expected_reward = gate_decision.expected_reward
+                    response_data["expectedReward"] = None if expected_reward == float('-inf') else expected_reward
+                else:
+                    response_data["confidenceThreshold"] = self.nn_config.spawn_gating.confidence_threshold
 
                 # Include reward info if available
                 if reward_info:
@@ -953,5 +1151,66 @@ class MessageHandler:
             logger.error(f"[Observation] Error processing observation: {e}")
             return self._create_error_response(
                 f"Failed to process observation: {str(e)}",
+                error_code="PROCESSING_ERROR"
+            )
+
+    def _build_simulation_observation(self, observation: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Build observation dict for simulation gate evaluation.
+
+        Converts frontend observation format to simulation gate format.
+        """
+        # Extract protector chunk IDs
+        protectors = observation.get('protectors', [])
+        protector_chunks = [p.get('chunkId', -1) for p in protectors if isinstance(p, dict)]
+
+        # Extract worker chunk IDs (both present and mining)
+        workers_present = observation.get('workersPresent', [])
+        workers_mining = observation.get('miningWorkers', [])
+        all_workers = workers_present + workers_mining
+        worker_chunks = list(set(w.get('chunkId', -1) for w in all_workers if isinstance(w, dict)))
+
+        # Get hive chunk
+        hive_chunk = observation.get('hiveChunk', 0)
+
+        # Get Queen energy
+        queen_energy_data = observation.get('queenEnergy', {})
+        queen_energy = queen_energy_data.get('current', 50) if isinstance(queen_energy_data, dict) else 50
+
+        return {
+            'protector_chunks': protector_chunks,
+            'worker_chunks': worker_chunks,
+            'hive_chunk': hive_chunk,
+            'queen_energy': queen_energy
+        }
+
+    async def _handle_gate_stats_request(self, message: Dict[str, Any], client_id: str) -> Dict[str, Any]:
+        """
+        Handle request for simulation gate statistics.
+
+        Returns comprehensive metrics about gate behavior.
+        """
+        try:
+            if not self.simulation_gate:
+                return self._create_error_response(
+                    "Simulation gate not available",
+                    error_code="GATE_NOT_AVAILABLE"
+                )
+
+            stats = self.simulation_gate.get_statistics()
+
+            # Add thinking loop stats
+            stats['thinking_loop'] = self.thinking_stats.copy()
+
+            return {
+                "type": "gate_stats_response",
+                "timestamp": asyncio.get_event_loop().time(),
+                "data": stats
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting gate statistics: {e}")
+            return self._create_error_response(
+                f"Failed to get gate statistics: {str(e)}",
                 error_code="PROCESSING_ERROR"
             )
