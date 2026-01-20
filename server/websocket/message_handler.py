@@ -23,6 +23,16 @@ from ai_engine.config import get_config
 from ai_engine.simulation import SimulationGate, SimulationGateConfig, get_gate_logger
 from ai_engine.simulation.dashboard_metrics import get_dashboard_metrics
 
+# New continuous training module (gate as cost function)
+from ai_engine.training import (
+    Experience as TrainingExperience,
+    ExperienceReplayBuffer,
+    ContinuousTrainingConfig,
+    ContinuousTrainer as BackgroundTrainer,
+)
+from ai_engine.training.config import ContinuousTrainingConfig
+from pathlib import Path
+
 logger = logging.getLogger(__name__)
 
 
@@ -42,6 +52,7 @@ class MessageHandler:
             "learning_progress_request": self._handle_learning_progress_request,
             "observation_data": self._handle_chunk_observation_data,
             "training_status_request": self._handle_training_status_request,
+            "background_training_stats_request": self._handle_background_training_stats_request,
             "ping": self._handle_ping,
             "health_check": self._handle_health_check,
             "reconnect": self._handle_reconnect,
@@ -125,7 +136,55 @@ class MessageHandler:
             'gate_passes': 0,
             'confidence_overrides': 0
         }
+
+        # Initialize new continuous training (gate as cost function)
+        self._init_background_training()
     
+    def _init_background_training(self) -> None:
+        """Initialize background training with experience replay buffer."""
+        self.replay_buffer = None
+        self.background_trainer = None
+
+        try:
+            # Load config
+            config_path = Path(__file__).parent.parent / "ai_engine" / "configs" / "continuous_training.yaml"
+            training_config = ContinuousTrainingConfig.from_yaml(config_path)
+
+            if not training_config.enabled:
+                logger.info("[BackgroundTraining] Disabled by config")
+                return
+
+            if not self.nn_model:
+                logger.warning("[BackgroundTraining] NN model not available, skipping")
+                return
+
+            # Create replay buffer
+            self.replay_buffer = ExperienceReplayBuffer(
+                capacity=training_config.buffer_capacity,
+                lock_timeout=training_config.lock_timeout
+            )
+
+            # Create background trainer
+            self.background_trainer = BackgroundTrainer(
+                model=self.nn_model,
+                buffer=self.replay_buffer,
+                config=training_config
+            )
+
+            # Start background training thread
+            self.background_trainer.start()
+
+            logger.info(
+                f"[BackgroundTraining] Initialized with "
+                f"buffer_capacity={training_config.buffer_capacity}, "
+                f"training_interval={training_config.training_interval}s"
+            )
+
+        except Exception as e:
+            logger.warning(f"[BackgroundTraining] Failed to initialize: {e}")
+            self.replay_buffer = None
+            self.background_trainer = None
+
     def _initialize_schemas(self) -> Dict[str, Dict]:
         """Initialize JSON schemas for message validation"""
         return {
@@ -896,7 +955,16 @@ class MessageHandler:
                     logger.info(f"[Observation] Reward calculated: {reward_info['reward']:.3f}, "
                                f"components={reward_info.get('components', {})}")
 
-                    # Train model with reward if we have a previous decision
+                    # Update pending reward in replay buffer (for SEND actions only)
+                    if self.replay_buffer and prev_decision and prev_decision.get('was_executed'):
+                        updated_exp = self.replay_buffer.update_pending_reward(
+                            territory_id,
+                            reward_info['reward']
+                        )
+                        if updated_exp:
+                            logger.info(f"[BackgroundTraining] Updated pending reward: {reward_info['reward']:.3f}")
+
+                    # Train model with reward if we have a previous decision (legacy training)
                     if prev_decision and reward_info['reward'] != 0:
                         prev_features = self.feature_extractor.extract(prev_obs)
                         train_result = self.nn_model.train_with_reward(
@@ -1083,11 +1151,44 @@ class MessageHandler:
                         logger.info(f"[Observation] Spawn decision: chunk={spawn_chunk}, "
                                    f"type={spawn_type}, confidence={confidence:.3f}")
 
+                # Add experience to replay buffer for background training
+                if self.replay_buffer and gate_decision:
+                    # Calculate gate_signal = R_expected - threshold
+                    # gate_signal > 0 means SEND, <= 0 means WAIT
+                    expected_reward = gate_decision.expected_reward
+                    if expected_reward != float('-inf'):
+                        gate_signal = expected_reward - self.simulation_gate.config.reward_threshold
+                        was_executed = gate_decision.decision == 'SEND'
+
+                        try:
+                            experience = TrainingExperience(
+                                observation=features,
+                                spawn_chunk=spawn_chunk,
+                                spawn_type=spawn_type,
+                                nn_confidence=confidence,
+                                gate_signal=gate_signal,
+                                R_expected=expected_reward,
+                                was_executed=was_executed,
+                                actual_reward=None,  # Will be updated on next observation for SEND
+                                territory_id=territory_id,
+                                model_version=self.background_trainer.model_version if self.background_trainer else 0
+                            )
+                            self.replay_buffer.add(experience)
+
+                            action_str = "SEND" if was_executed else "WAIT"
+                            logger.info(
+                                f"[BackgroundTraining] Added {action_str} experience: "
+                                f"gate_signal={gate_signal:.3f}, chunk={spawn_chunk}"
+                            )
+                        except Exception as e:
+                            logger.warning(f"[BackgroundTraining] Failed to add experience: {e}")
+
                 # Store for next reward calculation
                 self.prev_observations[territory_id] = observation
                 self.prev_decisions[territory_id] = {
                     **spawn_decision,
-                    'skipped': should_skip
+                    'skipped': should_skip,
+                    'was_executed': gate_decision.decision == 'SEND' if gate_decision else not should_skip
                 }
 
                 # If gate blocked the decision, send no_action
@@ -1212,5 +1313,45 @@ class MessageHandler:
             logger.error(f"Error getting gate statistics: {e}")
             return self._create_error_response(
                 f"Failed to get gate statistics: {str(e)}",
+                error_code="PROCESSING_ERROR"
+            )
+
+    async def _handle_background_training_stats_request(
+        self, message: Dict[str, Any], client_id: str
+    ) -> Dict[str, Any]:
+        """
+        Handle request for background training statistics.
+
+        Returns metrics from the continuous training loop (gate as cost function).
+        """
+        try:
+            if not self.background_trainer:
+                return {
+                    "type": "background_training_stats_response",
+                    "timestamp": asyncio.get_event_loop().time(),
+                    "data": {
+                        "status": "not_available",
+                        "message": "Background training not initialized"
+                    }
+                }
+
+            metrics = self.background_trainer.get_metrics()
+
+            return {
+                "type": "background_training_stats_response",
+                "timestamp": asyncio.get_event_loop().time(),
+                "data": {
+                    "status": "active" if self.background_trainer.is_running else "stopped",
+                    "model_version": metrics["model_version"],
+                    "is_running": metrics["is_running"],
+                    "buffer": metrics["buffer"],
+                    "training": metrics["training"]
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting background training statistics: {e}")
+            return self._create_error_response(
+                f"Failed to get background training statistics: {str(e)}",
                 error_code="PROCESSING_ERROR"
             )

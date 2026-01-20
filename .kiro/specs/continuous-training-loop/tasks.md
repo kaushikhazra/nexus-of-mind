@@ -9,20 +9,20 @@ Implement a continuous training system that decouples NN training from inference
 ## Dependencies
 
 - Simulation-Gated Inference (complete)
-- PyTorch for model training
+- TensorFlow for model training
 - Threading for background training
 
 ## Tasks
 
 ### Phase 1: Experience Replay Buffer
 
-- [ ] 1. Create experience module structure
-  - [ ] 1.1 Create directory structure
+- [x] 1. Create experience module structure
+  - [x] 1.1 Create directory structure
     - Directory: `server/ai_engine/training/`
     - Files: `__init__.py`, `experience.py`, `buffer.py`, `config.py`
     - _Requirements: 1.1_
 
-  - [ ] 1.2 Create Experience dataclass
+  - [x] 1.2 Create Experience dataclass
     - File: `server/ai_engine/training/experience.py`
     - Fields: observation, spawn_chunk, spawn_type, nn_confidence
     - Gate fields: gate_signal (float), R_expected (float)
@@ -32,41 +32,41 @@ Implement a continuous training system that decouples NN training from inference
     - Properties: is_send, is_wait, has_actual_reward
     - _Requirements: 1.1_
 
-- [ ] 2. Implement ExperienceReplayBuffer
-  - [ ] 2.1 Create buffer class
+- [x] 2. Implement ExperienceReplayBuffer
+  - [x] 2.1 Create buffer class
     - File: `server/ai_engine/training/buffer.py`
     - Fixed capacity with deque
     - Thread-safe with Lock
     - _Requirements: 1.2, 1.5_
 
-  - [ ] 2.2 Implement add() method
+  - [x] 2.2 Implement add() method
     - WAIT actions: add directly to buffer
     - SEND actions without reward: store as pending
     - SEND actions with reward: add to buffer
     - _Requirements: 1.3_
 
-  - [ ] 2.3 Implement update_pending_reward() method
+  - [x] 2.3 Implement update_pending_reward() method
     - Update pending SEND experience with actual reward
     - Move to main buffer
     - _Requirements: 1.3_
 
-  - [ ] 2.4 Implement sample() method
+  - [x] 2.4 Implement sample() method
     - Random batch sampling
     - Include both SEND and WAIT experiences
     - _Requirements: 1.4_
 
-  - [ ] 2.5 Add buffer statistics
+  - [x] 2.5 Add buffer statistics
     - Size, send_count, wait_count, pending_count
     - Thread-safe getter
     - _Requirements: 8.2_
 
-- [ ] 3. Add unit tests for buffer
-  - [ ] 3.1 Test basic operations
+- [x] 3. Add unit tests for buffer
+  - [x] 3.1 Test basic operations
     - File: `server/tests/test_continuous_training.py`
     - Test add (SEND and WAIT), sample, update_pending_reward
     - _Requirements: 1.2-1.5_
 
-  - [ ] 3.2 Test thread safety
+  - [x] 3.2 Test thread safety
     - Concurrent add from multiple threads
     - Concurrent sample during add
     - Lock timeout behavior
@@ -74,65 +74,65 @@ Implement a continuous training system that decouples NN training from inference
 
 ### Phase 2: Continuous Trainer
 
-- [ ] 4. Create ContinuousTrainer class
-  - [ ] 4.1 Create trainer module
+- [x] 4. Create ContinuousTrainer class
+  - [x] 4.1 Create trainer module
     - File: `server/ai_engine/training/trainer.py`
     - Initialize with model, buffer, config
     - NO gate reference (gate_signal stored in experience)
     - _Requirements: 2.1_
 
-  - [ ] 4.2 Implement training loop
+  - [x] 4.2 Implement training loop
     - Background thread with daemon=True
     - Sleep for training_interval
     - Sample batch → Calculate rewards → Train
     - _Requirements: 2.2_
 
-  - [ ] 4.3 Implement start/stop methods
+  - [x] 4.3 Implement start/stop methods
     - start() - spawn thread
     - stop() - graceful shutdown with timeout
     - _Requirements: 2.4_
 
-  - [ ] 4.4 Implement get_model_for_inference()
+  - [x] 4.4 Implement get_model_for_inference()
     - Return model reference (thread-safe)
     - _Requirements: 2.3_
 
-- [ ] 5. Implement model versioning
-  - [ ] 5.1 Add version counter
+- [x] 5. Implement model versioning
+  - [x] 5.1 Add version counter
     - Increment on each training step
     - Thread-safe access
     - _Requirements: 3.1, 3.2_
 
-  - [ ] 5.2 Log version with training
+  - [x] 5.2 Log version with training
     - Include version in training logs
     - Track which version made each decision
     - _Requirements: 3.3_
 
-- [ ] 6. Implement training reward calculation
-  - [ ] 6.1 Calculate reward for SEND actions
+- [x] 6. Implement training reward calculation
+  - [x] 6.1 Calculate reward for SEND actions
     - If actual_reward available: `gate_weight × gate_signal + actual_weight × actual_reward`
     - If pending: use gate_signal only
     - _Requirements: 5.1_
 
-  - [ ] 6.2 Calculate reward for WAIT actions
+  - [x] 6.2 Calculate reward for WAIT actions
     - Use gate_signal directly (negative = penalty)
     - _Requirements: 5.1_
 
-  - [ ] 6.3 Track average gate_signal in metrics
+  - [x] 6.3 Track average gate_signal in metrics
     - Rolling average of gate_signal per batch
     - _Requirements: 8.1_
 
-- [ ] 7. Add trainer tests
-  - [ ] 7.1 Test training loop
+- [x] 7. Add trainer tests
+  - [x] 7.1 Test training loop
     - Verify training steps execute
     - Verify batch sampling
     - _Requirements: 2.2_
 
-  - [ ] 7.2 Test thread lifecycle
+  - [x] 7.2 Test thread lifecycle
     - Start, stop, restart
     - Graceful shutdown
     - _Requirements: 2.4, 7.2_
 
-  - [ ] 7.3 Test reward calculation
+  - [x] 7.3 Test reward calculation
     - SEND with actual_reward
     - SEND pending (no actual_reward)
     - WAIT (negative gate_signal)
@@ -140,8 +140,8 @@ Implement a continuous training system that decouples NN training from inference
 
 ### Phase 3: Configuration
 
-- [ ] 8. Create configuration
-  - [ ] 8.1 Create ContinuousTrainingConfig
+- [x] 8. Create configuration
+  - [x] 8.1 Create ContinuousTrainingConfig
     - File: `server/ai_engine/training/config.py`
     - training_interval, batch_size, min_batch_size
     - buffer_capacity, lock_timeout
@@ -150,12 +150,12 @@ Implement a continuous training system that decouples NN training from inference
     - enabled flag
     - _Requirements: 6.1_
 
-  - [ ] 8.2 Create YAML config file
+  - [x] 8.2 Create YAML config file
     - File: `server/ai_engine/configs/continuous_training.yaml`
     - All parameters documented
     - _Requirements: 6.2_
 
-  - [ ] 8.3 Implement config loader
+  - [x] 8.3 Implement config loader
     - Load from YAML
     - Validate on load
     - Fall back to defaults
@@ -163,23 +163,28 @@ Implement a continuous training system that decouples NN training from inference
 
 ### Phase 4: Integration
 
-- [ ] 9. Integrate with message handler
-  - [ ] 9.1 Initialize training components
-    - Create buffer and trainer in __init__
+- [x] 9. Integrate with message handler
+  - [x] 9.1 Initialize training components
+    - Create buffer and trainer in _init_background_training()
     - Start trainer on startup
     - _Requirements: 9.1_
 
-  - [ ] 9.2 Update observation handling
+  - [x] 9.2 Update observation handling
     - Extract gate_signal from gate result
     - Determine was_executed from gate_signal > 0
     - Create experience and add to buffer
     - Update pending SEND rewards on observation
     - _Requirements: 9.2_
 
-  - [ ] 9.3 Add enable/disable support
+  - [x] 9.3 Add enable/disable support
     - Check config.enabled flag
     - Fall back to current behavior when disabled
     - _Requirements: 9.4_
+
+  - [x] 9.4 Add background_training_stats_request handler
+    - New message type for background training metrics
+    - Returns buffer stats, training stats, model version
+    - _Requirements: 8.4_
 
 - [ ] 10. Add integration tests
   - [ ] 10.1 Test full pipeline
@@ -202,15 +207,15 @@ Implement a continuous training system that decouples NN training from inference
 
 ### Phase 5: Metrics and Observability
 
-- [ ] 11. Implement training metrics
-  - [ ] 11.1 Create TrainingMetrics class
+- [x] 11. Implement training metrics
+  - [x] 11.1 Create TrainingMetrics class
     - File: `server/ai_engine/training/metrics.py`
     - Rolling averages for loss, batch size, time, gate_signal
     - Lifetime counters
     - _Requirements: 8.1_
 
-  - [ ] 11.2 Add metrics API endpoint
-    - GET /api/training/stats
+  - [x] 11.2 Add metrics API endpoint
+    - background_training_stats_request message type
     - Return JSON with all metrics
     - _Requirements: 8.4_
 
@@ -260,15 +265,15 @@ Implement a continuous training system that decouples NN training from inference
 
 ## Completion Criteria
 
-1. [ ] Experience replay buffer stores SEND and WAIT experiences correctly
-2. [ ] Background training runs every 1 second without blocking inference
-3. [ ] Model version increments with each training step
-4. [ ] SEND pending rewards are updated when observations arrive
-5. [ ] WAIT experiences use gate_signal directly as penalty
-6. [ ] Training reward = gate_weight × gate_signal + actual_weight × actual_reward (for SEND)
-7. [ ] All operations are thread-safe
-8. [ ] Metrics are exposed via API and dashboard
-9. [ ] Performance meets requirements
+1. [x] Experience replay buffer stores SEND and WAIT experiences correctly
+2. [x] Background training runs every 1 second without blocking inference
+3. [x] Model version increments with each training step
+4. [x] SEND pending rewards are updated when observations arrive
+5. [x] WAIT experiences use gate_signal directly as penalty
+6. [x] Training reward = gate_weight × gate_signal + actual_weight × actual_reward (for SEND)
+7. [x] All operations are thread-safe
+8. [x] Metrics are exposed via API
+9. [ ] Performance meets requirements (pending profiling)
 
 ## Rollback Plan
 
