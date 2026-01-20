@@ -82,9 +82,9 @@ class SimulationCostFunction:
             spawn_chunk, protector_chunks, self.config
         )
 
-        # 2. Worker disruption
+        # 2. Worker disruption (based on spawn type and game mechanics)
         disruption = calculate_worker_disruption(
-            spawn_chunk, worker_chunks, survival, self.config
+            spawn_chunk, spawn_type, worker_chunks, protector_chunks, self.config
         )
 
         # 3. Location penalty

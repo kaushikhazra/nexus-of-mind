@@ -21,6 +21,7 @@ from ai_engine.nn_model import NNModel
 from ai_engine.reward_calculator import RewardCalculator
 from ai_engine.config import get_config
 from ai_engine.simulation import SimulationGate, SimulationGateConfig, get_gate_logger
+from ai_engine.simulation.dashboard_metrics import get_dashboard_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -870,6 +871,18 @@ class MessageHandler:
                            f"protectors={len(protectors)}, queenE={queen_energy.get('current', 0)}, "
                            f"playerE={player_energy.get('end', 0)}, minerals={player_minerals.get('end', 0)}")
 
+                # Update dashboard game state
+                try:
+                    dashboard = get_dashboard_metrics()
+                    dashboard.update_game_state({
+                        'queen_energy': queen_energy.get('current', 0),
+                        'workers_visible': len(workers_present) + len(workers_mining),
+                        'protectors_visible': len(protectors),
+                        'territory_id': territory_id
+                    })
+                except Exception as e:
+                    logger.warning(f"Failed to update dashboard game state: {e}")
+
                 # Calculate reward and train if we have previous observation
                 reward_info = None
                 if territory_id in self.prev_observations and self.reward_calculator:
@@ -894,6 +907,17 @@ class MessageHandler:
                         )
                         logger.info(f"[Observation] NN TRAINING: reward={reward_info['reward']:.3f}, "
                                    f"loss={train_result.get('loss', 0):.4f}")
+
+                        # Record training step to dashboard
+                        try:
+                            dashboard = get_dashboard_metrics()
+                            dashboard.record_training_step(
+                                loss=train_result.get('loss', 0),
+                                reward=reward_info['reward'],
+                                is_simulation=False
+                            )
+                        except Exception as e:
+                            logger.warning(f"Failed to record training step to dashboard: {e}")
 
                         # Record actual reward in gate metrics
                         if self.simulation_gate:
@@ -945,11 +969,13 @@ class MessageHandler:
                     sim_observation = self._build_simulation_observation(observation)
 
                     # Evaluate through simulation gate
+                    # Pass full observation for dashboard recording
                     gate_decision = self.simulation_gate.evaluate(
                         sim_observation,
                         spawn_chunk,
                         spawn_type,
-                        confidence
+                        confidence,
+                        full_observation=observation
                     )
 
                     # Update thinking loop statistics
@@ -958,7 +984,11 @@ class MessageHandler:
                     obs_count = self.thinking_stats['observations_since_last_action']
 
                     if gate_decision.decision == 'SEND':
-                        should_skip = False
+                        # Gate allows - use NN's confidence-based skip decision
+                        nn_threshold = self.nn_config.spawn_gating.confidence_threshold
+                        nn_skip = confidence < nn_threshold
+                        should_skip = nn_skip  # NN decides whether to skip
+                        gate_blocked = False
                         self.thinking_stats['gate_passes'] += 1
                         self.thinking_stats['observations_since_last_action'] = 0
 
@@ -983,6 +1013,7 @@ class MessageHandler:
                             )
                     else:
                         should_skip = True
+                        gate_blocked = True  # Gate blocks this decision
                         self.thinking_stats['observations_since_last_action'] += 1
                         gate_reason = gate_decision.reason
 
@@ -1022,11 +1053,23 @@ class MessageHandler:
                                     spawn_chunk=spawn_chunk,
                                     spawn_type=spawn_type
                                 )
+
+                            # Record simulation training step to dashboard
+                            try:
+                                dashboard = get_dashboard_metrics()
+                                dashboard.record_training_step(
+                                    loss=train_result.get('loss', 0),
+                                    reward=sim_reward,
+                                    is_simulation=True
+                                )
+                            except Exception as e:
+                                logger.warning(f"Failed to record sim training to dashboard: {e}")
                 else:
                     # Fallback to old confidence threshold if no simulation gate
                     threshold = self.nn_config.spawn_gating.confidence_threshold
                     exploration_rate = self.nn_config.spawn_gating.exploration_rate
                     should_skip = confidence < threshold
+                    gate_blocked = False  # No gate, so not blocked by gate
 
                     # Exploration: occasionally spawn despite low confidence
                     import random
@@ -1047,13 +1090,33 @@ class MessageHandler:
                     'skipped': should_skip
                 }
 
+                # If gate blocked the decision, send no_action
+                if gate_blocked:
+                    response_data = {
+                        "territoryId": territory_id,
+                        "reason": gate_decision.reason if gate_decision else "low_confidence",
+                        "confidence": confidence
+                    }
+                    # Add gate-specific info for debugging
+                    if gate_decision:
+                        expected_reward = gate_decision.expected_reward
+                        response_data["expectedReward"] = None if expected_reward == float('-inf') else expected_reward
+                        response_data["gateReason"] = gate_decision.reason
+
+                    return {
+                        "type": "no_action",
+                        "timestamp": asyncio.get_event_loop().time(),
+                        "data": response_data
+                    }
+
+                # Gate allows - send spawn decision with NN's skip value
                 response_data = {
                     "spawnChunk": spawn_decision["spawnChunk"],
                     "spawnType": spawn_decision["spawnType"],
                     "confidence": confidence,
                     "typeConfidence": spawn_decision["typeConfidence"],
                     "territoryId": territory_id,
-                    "skip": should_skip
+                    "skip": should_skip  # NN's decision based on confidence
                 }
 
                 # Add gate-specific info

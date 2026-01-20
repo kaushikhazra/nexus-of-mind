@@ -153,28 +153,67 @@ where:
 
 ### 3.3 Worker Disruption Potential
 
-Estimate mining disruption caused.
+Estimate combat effectiveness based on reachable targets vs threats.
 
+**Key Game Mechanics:**
+- Energy Parasite: pursuit range 60 units, feeding range 3 units
+- Combat Parasite: pursuit range 75 units
+- Protector attack range: 12 units
+- Workers only flee when energy < 40% AND being fed upon (not proximity-based)
+
+**Energy Parasite Formula:**
 ```
-D_workers(c_s, O) = P_survival · ∑ᵢ disruption(c_s, wᵢ)
+D_energy(c_s, O) = (W_reachable - P_threatening) / W_total
 
 where:
-    disruption(c_s, wᵢ) = {
-        1.0                    if d(c_s, wᵢ) < R_flee
-        exp(-μ · (d - R_flee))  if d(c_s, wᵢ) ≥ R_flee
-        0.0                    if d(c_s, wᵢ) > R_ignore
-    }
+    W_reachable = workers within 60 units of spawn location
+    P_threatening = protectors within 12 units (can kill parasite)
+    W_total = total workers in the chunk
 
-    R_flee = worker flee radius
-    R_ignore = ignore threshold
-    μ = disruption decay rate
+Properties:
+    - Range: [-1.0, 1.0]
+    - Positive: more reachable workers than threatening protectors
+    - Negative: protectors outnumber targets (dangerous spawn)
+    - Zero: balanced or no targets
+```
+
+**Combat Parasite Formula:**
+```
+D_combat(c_s, O) = (W_reachable + P_reachable) / (W_total + P_total)
+
+where:
+    W_reachable = workers within 75 units of spawn location
+    P_reachable = protectors within 75 units (combat targets protectors too)
+    W_total = total workers in the chunk
+    P_total = total protectors in the chunk
+
+Properties:
+    - Range: [0.0, 1.0]
+    - Combat parasites treat protectors as valid targets, not threats
+    - Higher value = more total targets reachable
+```
+
+**Combined Disruption:**
+```
+D_workers(c_s, t_s, O) = {
+    D_energy(c_s, O)   if t_s = 'energy'
+    D_combat(c_s, O)   if t_s = 'combat'
+}
 ```
 
 **Matrix Form:**
 ```
-D_w = distance_matrix(c_s, worker_chunks)  // [1 x W] vector
-Δ = disruption_function(D_w, R_flee, R_ignore, μ)
-D_workers = P_survival · sum(Δ)
+// Energy parasite
+dist_to_workers = distance_matrix(spawn_pos, worker_positions)      // [1 x W]
+dist_to_protectors = distance_matrix(spawn_pos, protector_positions) // [1 x P]
+W_reachable = sum(dist_to_workers < 60.0)
+P_threatening = sum(dist_to_protectors < 12.0)
+D_energy = (W_reachable - P_threatening) / max(W_total, 1)
+
+// Combat parasite
+W_reachable = sum(dist_to_workers < 75.0)
+P_reachable = sum(dist_to_protectors < 75.0)
+D_combat = (W_reachable + P_reachable) / max(W_total + P_total, 1)
 ```
 
 ### 3.4 Spawn Location Penalty
@@ -231,7 +270,13 @@ Gate(A, O) = {
 }
 
 where:
-    θ = reward threshold (tunable, can decay over time)
+    θ = 0.6 (reward threshold)
+
+Rationale for θ = 0.6:
+    - Survival alone (~0.4) should NOT trigger spawn
+    - Requires meaningful disruption potential
+    - Prevents wasteful spawns when no player activity
+    - Creates bias toward action only with valid targets
 ```
 
 ---
@@ -301,11 +346,11 @@ def cost_function(observation: Tensor, action: Tensor) -> Tensor:
 ### The Problem
 What if no action ever yields positive reward? The NN would wait forever.
 
-### Chosen Strategies
+### Chosen Strategy
 
-> **Selected approaches: 5.2 Exploration Bonus + 5.4 Confidence-Based Override**
-> These complement each other - exploration bonus is additive (nudges toward unexplored),
-> while confidence override is multiplicative (lets trained NN break rules when sure).
+> **Selected approach: 5.2 Exploration Bonus**
+> The exploration bonus adds reward to unexplored chunks, preventing deadlock
+> while keeping the gate as the final authority on spawn decisions.
 
 ### All Options Considered
 
@@ -335,19 +380,20 @@ if observations_since_last_action > MAX_WAIT:
     execute best_available_action regardless of reward
 ```
 
-#### 5.4 Confidence-Based Override ✅ SELECTED
+#### 5.4 Confidence-Based Override ❌ REJECTED
 ```
 if NN_confidence > HIGH_THRESHOLD:
     bypass simulation gate (let NN take calculated risks)
 ```
-- Early training: NN uncertain, follows simulation strictly
-- Late training: NN learned patterns, can override when confident
-- Allows discovery of strategies the cost function might miss
+**Why rejected:** This defeats the purpose of the gate. The gate exists to
+evaluate game state and prevent wasteful spawns. If NN confidence can bypass
+the gate, then bad decisions (no targets, protectors nearby) would still
+execute just because the NN is confident. The gate must be the final authority.
 
-### Why These Two Work Together
-- **Early game**: Exploration bonus dominates (NN unsure, needs to explore)
-- **Late game**: Confidence override dominates (NN knows what it's doing)
-- Creates natural curriculum from exploration → exploitation
+### Why Exploration Bonus Works
+- Adds reward to unexplored chunks, eventually making them pass the threshold
+- Gate remains the authority - only spawns with positive expected reward execute
+- Prevents deadlock without compromising game state evaluation
 
 ---
 

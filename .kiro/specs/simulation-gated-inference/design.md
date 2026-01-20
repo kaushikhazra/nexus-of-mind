@@ -7,14 +7,14 @@ This document describes the technical implementation of the simulation-gated inf
 ## Architecture
 
 ```
-┌───────────────────────────────────────────────────────────────────────────┐
-│                              BACKEND (Python)                             │
-│                                                                           │
-│    ┌────────────────────────────────────────────────────────────────┐    │
-│    │                     THINKING LOOP                               │    │
-│    │                                                                 │    │
+┌──────────────────────────────────────────────────────────────────────────┐
+│                              BACKEND (Python)                            │
+│                                                                          │
+│    ┌────────────────────────────────────────────────────────────────     │
+│    │                     THINKING LOOP                              │    │
+│    │                                                                │    │
 │    │   ┌──────────┐      ┌────────────┐      ┌─────────────────┐    │    │
-│    │   │    NN    │─────▶│    Cost    │─────▶│   Reward > θ?   │    │    │
+│    │   │    NN    │────▶│    Cost    │─────▶│   Reward > θ?   │    │    │
 │    │   │ Inference│      │  Function  │      │                 │    │    │
 │    │   └──────────┘      │(Simulation)│      └────────┬────────┘    │    │
 │    │        ▲            └────────────┘               │             │    │
@@ -28,14 +28,14 @@ This document describes the technical implementation of the simulation-gated inf
 │    │                                  └────────┘            └─────┬─────┘│
 │    │                                                              │      │
 │    └──────────────────────────────────────────────────────────────┼──────┘
-│                                                                   │       │
-│                                          ┌────────────────────────┘       │
-│                                          ▼                                │
-│                               ┌─────────────────────┐                     │
-│                               │ Send to Frontend    │                     │
-│                               │ + Train on Real     │                     │
-│                               └──────────┬──────────┘                     │
-└──────────────────────────────────────────┼────────────────────────────────┘
+│                                                                   │      │
+│                                          ┌────────────────────────┘      │
+│                                          ▼                               │
+│                               ┌─────────────────────┐                    │
+│                               │ Send to Frontend    │                    │
+│                               │ + Train on Real     │                    │
+│                               └──────────┬──────────┘                    │
+└──────────────────────────────────────────┼───────────────────────────────┘
                                            │
                ▲                           ▼
   Observation  │                 ┌─────────────────────┐
@@ -43,8 +43,8 @@ This document describes the technical implementation of the simulation-gated inf
                │                 │  (Real Game)        │
                │                 └─────────────────────┘
 ┌──────────────┴────────────────────────────────────────────────────────────┐
-│                              FRONTEND                                      │
-└────────────────────────────────────────────────────────────────────────────┘
+│                              FRONTEND                                     │
+└───────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Mathematical Formulation
@@ -141,54 +141,97 @@ def calculate_survival_probability(
 
 ### 4. Worker Disruption Potential
 
-Estimate mining disruption caused by spawn:
+Estimate combat effectiveness based on reachable targets vs threats.
 
+**Key Game Mechanics:**
+- Energy Parasite: pursuit range 60 units, feeding range 3 units
+- Combat Parasite: pursuit range 75 units
+- Protector attack range: 12 units
+- Workers only flee when energy < 40% AND being fed upon (not proximity-based)
+
+**Energy Parasite Formula:**
 ```
-D_workers(c_s, O) = P_survival × Σᵢ disruption(c_s, wᵢ)
+D_energy(c_s, O) = (W_reachable - P_threatening) / W_total
 
-where disruption(c_s, wᵢ) = {
-    1.0                           if d(c_s, wᵢ) < R_flee
-    exp(-μ × (d(c_s, wᵢ) - R_flee))  if R_flee ≤ d < R_ignore
-    0.0                           if d(c_s, wᵢ) ≥ R_ignore
-}
+where:
+    W_reachable = workers within 60 units of spawn location
+    P_threatening = protectors within 12 units (can kill parasite)
+    W_total = total workers in the chunk
 
-Parameters:
-    R_flee = 3.0 chunks (worker flee range)
-    R_ignore = 10.0 chunks (beyond effect range)
-    μ = 0.3 (disruption decay rate)
+Properties:
+    Range: [-1.0, 1.0]
+    Positive: more reachable workers than threatening protectors
+    Negative: protectors outnumber targets (dangerous spawn)
+```
+
+**Combat Parasite Formula:**
+```
+D_combat(c_s, O) = (W_reachable + P_reachable) / (W_total + P_total)
+
+where:
+    W_reachable = workers within 75 units of spawn location
+    P_reachable = protectors within 75 units (combat targets protectors too)
+    W_total = total workers in chunk
+    P_total = total protectors in chunk
+
+Properties:
+    Range: [0.0, 1.0]
+    Combat parasites treat protectors as valid targets, not threats
 ```
 
 **PyTorch Implementation:**
 
 ```python
 def calculate_worker_disruption(
-    spawn_chunk: torch.Tensor,      # [B]
-    worker_chunks: torch.Tensor,    # [B, W]
-    survival_prob: torch.Tensor,    # [B]
+    spawn_chunk: int,
+    spawn_type: str,
+    worker_positions: List[Tuple[float, float]],
+    protector_positions: List[Tuple[float, float]],
     config: SimulationGateConfig
-) -> torch.Tensor:                  # [B]
+) -> float:
+    """
+    Calculate disruption based on parasite type.
 
-    # Calculate distances to all workers
-    spawn_coords = chunk_to_coords_batch(spawn_chunk)     # [B, 2]
-    worker_coords = chunk_to_coords_batch(worker_chunks)  # [B, W, 2]
+    Energy parasites: workers are targets, protectors are threats
+    Combat parasites: both workers and protectors are targets
+    """
+    spawn_pos = chunk_to_world_position(spawn_chunk)
 
-    diff = spawn_coords.unsqueeze(1) - worker_coords  # [B, W, 2]
-    distances = torch.norm(diff, dim=2)               # [B, W]
+    if spawn_type == 'energy':
+        # Energy parasite: pursuit range 60u, protector threat range 12u
+        workers_in_range = sum(
+            1 for w in worker_positions
+            if distance(spawn_pos, w) < config.energy_pursuit_range  # 60u
+        )
+        protectors_threatening = sum(
+            1 for p in protector_positions
+            if distance(spawn_pos, p) < config.protector_attack_range  # 12u
+        )
+        total_workers = len(worker_positions)
 
-    # Disruption calculation
-    in_flee_zone = distances < config.flee_range
-    in_effect_zone = (distances >= config.flee_range) & (distances < config.ignore_range)
+        if total_workers == 0:
+            return 0.0
 
-    disruption = torch.zeros_like(distances)
-    disruption[in_flee_zone] = 1.0
-    disruption[in_effect_zone] = torch.exp(
-        -config.disruption_decay * (distances[in_effect_zone] - config.flee_range)
-    )
+        # Can go negative when protectors > reachable workers
+        return (workers_in_range - protectors_threatening) / total_workers
 
-    # Sum disruption and scale by survival probability
-    total_disruption = torch.sum(disruption, dim=1) * survival_prob  # [B]
+    else:  # combat
+        # Combat parasite: pursuit range 75u, targets both workers AND protectors
+        workers_in_range = sum(
+            1 for w in worker_positions
+            if distance(spawn_pos, w) < config.combat_pursuit_range  # 75u
+        )
+        protectors_in_range = sum(
+            1 for p in protector_positions
+            if distance(spawn_pos, p) < config.combat_pursuit_range  # 75u
+        )
+        total_entities = len(worker_positions) + len(protector_positions)
 
-    return total_disruption
+        if total_entities == 0:
+            return 0.0
+
+        # Always positive or zero (both are valid targets)
+        return (workers_in_range + protectors_in_range) / total_entities
 ```
 
 ### 5. Spawn Location Penalty
@@ -400,16 +443,7 @@ class SimulationGate:
             observation, action, current_time
         )
 
-        # Check confidence override
-        if nn_confidence > self.config.confidence_threshold:
-            return GateDecision(
-                decision='SEND',
-                reason='confidence_override',
-                expected_reward=expected_reward.item(),
-                nn_confidence=nn_confidence
-            )
-
-        # Check reward threshold
+        # Gate is the final authority - check reward threshold
         if expected_reward > self.config.reward_threshold:
             return GateDecision(
                 decision='SEND',
@@ -495,10 +529,10 @@ class SimulationGateConfig:
     safe_range: float = 8.0          # Chunks - beyond threat
     threat_decay: float = 0.5        # Exponential decay rate
 
-    # Worker disruption parameters
-    flee_range: float = 3.0          # Chunks - worker flee zone
-    ignore_range: float = 10.0       # Chunks - beyond effect
-    disruption_decay: float = 0.3    # Exponential decay rate
+    # Worker disruption parameters (based on actual game mechanics)
+    energy_pursuit_range: float = 60.0   # Units - energy parasite pursuit range
+    combat_pursuit_range: float = 75.0   # Units - combat parasite pursuit range
+    protector_attack_range: float = 12.0 # Units - protector kill range
 
     # Location penalty parameters
     hive_proximity_weight: float = 0.3
@@ -513,15 +547,12 @@ class SimulationGateConfig:
     disruption_weight: float = 0.5
     location_weight: float = 0.1
 
-    # Gate threshold
-    reward_threshold: float = 0.0
+    # Gate threshold (0.6 prevents wasteful spawns when no targets)
+    reward_threshold: float = 0.6
 
     # Exploration bonus
     exploration_coefficient: float = 0.2
     exploration_max_time: float = 300.0  # 5 minutes
-
-    # Confidence override
-    confidence_threshold: float = 0.8
 ```
 
 ### Configuration File Location
@@ -589,8 +620,7 @@ server/ai_engine/
     "observations_since_last_action": 5,
     "time_since_last_action": 75.2,
     "gate_pass_rate": 0.20,
-    "average_expected_reward": -0.15,
-    "confidence_overrides": 0
+    "average_expected_reward": -0.15
   }
 }
 ```

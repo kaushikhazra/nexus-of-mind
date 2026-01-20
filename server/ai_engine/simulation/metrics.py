@@ -32,7 +32,6 @@ class GateMetrics:
     Tracks:
     - Gate pass rate over time
     - Average expected reward
-    - Confidence override rate
     - Component breakdowns
     """
 
@@ -50,7 +49,6 @@ class GateMetrics:
         self.total_evaluations = 0
         self.total_sends = 0
         self.total_waits = 0
-        self.total_confidence_overrides = 0
         self.total_insufficient_energy = 0
 
         # Time tracking
@@ -99,8 +97,6 @@ class GateMetrics:
         if decision == 'SEND':
             self.total_sends += 1
             self.last_action_time = now
-            if reason == 'confidence_override':
-                self.total_confidence_overrides += 1
         else:
             self.total_waits += 1
             if reason == 'insufficient_energy':
@@ -139,33 +135,6 @@ class GateMetrics:
         if self.total_evaluations == 0:
             return 0.0
         return self.total_sends / self.total_evaluations
-
-    def get_confidence_override_rate(self, window: Optional[int] = None) -> float:
-        """
-        Get rate of confidence overrides.
-
-        Args:
-            window: Number of recent samples (None for all samples in buffer)
-
-        Returns:
-            Override rate as fraction of SEND decisions
-        """
-        samples = list(self.samples)
-        if window:
-            samples = samples[-window:]
-
-        sends = [s for s in samples if s.decision == 'SEND']
-        if not sends:
-            return 0.0
-
-        overrides = sum(1 for s in sends if s.reason == 'confidence_override')
-        return overrides / len(sends)
-
-    def get_lifetime_confidence_override_rate(self) -> float:
-        """Get lifetime confidence override rate."""
-        if self.total_sends == 0:
-            return 0.0
-        return self.total_confidence_overrides / self.total_sends
 
     def get_average_expected_reward(self, window: Optional[int] = None) -> float:
         """
@@ -252,8 +221,6 @@ class GateMetrics:
                 'total_sends': self.total_sends,
                 'total_waits': self.total_waits,
                 'pass_rate': self.get_lifetime_pass_rate(),
-                'confidence_overrides': self.total_confidence_overrides,
-                'confidence_override_rate': self.get_lifetime_confidence_override_rate(),
                 'insufficient_energy_count': self.total_insufficient_energy,
                 'cumulative_expected_reward': self.cumulative_expected_reward,
                 'cumulative_actual_reward': self.cumulative_actual_reward,
@@ -262,7 +229,6 @@ class GateMetrics:
             'rolling': {
                 'window_size': len(self.samples),
                 'pass_rate': self.get_pass_rate(),
-                'confidence_override_rate': self.get_confidence_override_rate(),
                 'average_expected_reward': self.get_average_expected_reward(),
                 'average_components': self.get_average_components()
             },
@@ -278,7 +244,6 @@ class GateMetrics:
         self.total_evaluations = 0
         self.total_sends = 0
         self.total_waits = 0
-        self.total_confidence_overrides = 0
         self.total_insufficient_energy = 0
         self.start_time = time.time()
         self.last_action_time = None

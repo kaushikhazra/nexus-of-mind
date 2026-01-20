@@ -120,31 +120,66 @@ class TestSurvivalProbability:
 
 
 class TestWorkerDisruption:
-    """Test worker disruption calculation."""
+    """Test worker disruption calculation with new game-mechanics-based formula."""
 
-    def test_no_workers(self):
+    def test_no_workers_energy(self):
+        """Energy parasite with no workers returns 0."""
         config = SimulationGateConfig()
-        disruption = calculate_worker_disruption(50, [], 1.0, config)
+        disruption = calculate_worker_disruption(50, 'energy', [], [], config)
         assert disruption == 0.0
 
-    def test_close_worker(self):
+    def test_no_workers_combat(self):
+        """Combat parasite with no workers or protectors returns 0."""
         config = SimulationGateConfig()
-        # Worker at adjacent chunk, full survival
-        disruption = calculate_worker_disruption(50, [51], 1.0, config)
-        assert disruption > 0.5
+        disruption = calculate_worker_disruption(50, 'combat', [], [], config)
+        assert disruption == 0.0
 
-    def test_far_worker(self):
+    def test_energy_close_worker(self):
+        """Energy parasite near worker (within pursuit range) gets positive disruption."""
         config = SimulationGateConfig()
-        # Worker very far
-        disruption = calculate_worker_disruption(50, [200], 1.0, config)
-        assert disruption < 0.1
+        # Worker at adjacent chunk, no protectors
+        disruption = calculate_worker_disruption(50, 'energy', [51], [], config)
+        assert disruption > 0  # Should be positive with no protectors
 
-    def test_survival_scaling(self):
+    def test_energy_with_threatening_protector(self):
+        """Energy parasite with protector in attack range gets negative disruption."""
         config = SimulationGateConfig()
-        # Same worker distance, different survival
-        disruption_full = calculate_worker_disruption(50, [51], 1.0, config)
-        disruption_half = calculate_worker_disruption(50, [51], 0.5, config)
-        assert abs(disruption_half - disruption_full * 0.5) < 0.01
+        # Worker at adjacent chunk, protector very close (in attack range)
+        disruption = calculate_worker_disruption(50, 'energy', [51], [50], config)
+        # With protector at same chunk, disruption should be negative or zero
+        assert disruption <= 0
+
+    def test_energy_protector_far_no_threat(self):
+        """Protector far away doesn't threaten energy parasite."""
+        config = SimulationGateConfig()
+        # Worker nearby, protector far (outside attack range)
+        disruption = calculate_worker_disruption(50, 'energy', [51], [200], config)
+        # Far protector = no threat, should be positive
+        assert disruption > 0
+
+    def test_combat_targets_both(self):
+        """Combat parasite counts both workers and protectors as targets."""
+        config = SimulationGateConfig()
+        # Both workers and protectors nearby
+        disruption = calculate_worker_disruption(50, 'combat', [51], [52], config)
+        # Combat treats both as targets, should be positive
+        assert disruption > 0
+
+    def test_combat_only_protectors(self):
+        """Combat parasite with only protectors nearby still gets positive disruption."""
+        config = SimulationGateConfig()
+        # Only protectors, no workers
+        disruption = calculate_worker_disruption(50, 'combat', [], [51, 52], config)
+        # Combat targets protectors, should be positive
+        assert disruption > 0
+
+    def test_energy_far_worker(self):
+        """Workers outside pursuit range don't contribute to disruption."""
+        config = SimulationGateConfig()
+        # Worker very far (outside energy pursuit range of 6 chunks)
+        disruption = calculate_worker_disruption(50, 'energy', [200], [], config)
+        # Far worker = not reachable, disruption should be 0
+        assert disruption == 0.0
 
 
 class TestLocationPenalty:
@@ -289,19 +324,6 @@ class TestGateMetrics:
         assert metrics.get_lifetime_pass_rate() == 0.6
         assert metrics.get_pass_rate() == 0.6
 
-    def test_confidence_override_rate(self):
-        from ai_engine.simulation.metrics import GateMetrics
-
-        metrics = GateMetrics(window_size=10)
-
-        # 2 confidence overrides, 2 positive rewards
-        metrics.record_evaluation('SEND', 'confidence_override', 0.5, 0.9, {})
-        metrics.record_evaluation('SEND', 'confidence_override', 0.5, 0.95, {})
-        metrics.record_evaluation('SEND', 'positive_reward', 0.8, 0.5, {})
-        metrics.record_evaluation('SEND', 'positive_reward', 0.7, 0.4, {})
-
-        assert metrics.get_lifetime_confidence_override_rate() == 0.5
-
     def test_wait_streak(self):
         from ai_engine.simulation.metrics import GateMetrics
 
@@ -406,21 +428,23 @@ class TestSimulationGate:
         # Should likely send since no protectors and near worker
         assert decision.decision in ['SEND', 'WAIT']
 
-    def test_confidence_override(self):
+    def test_gate_is_authority(self):
+        """Test that gate blocks bad decisions regardless of NN confidence."""
         config = SimulationGateConfig()
         gate = SimulationGate(config)
 
         observation = {
-            'protector_chunks': [50],  # Protector nearby
-            'worker_chunks': [],
+            'protector_chunks': [50],  # Protector nearby - dangerous
+            'worker_chunks': [],       # No targets
             'hive_chunk': 0,
             'queen_energy': 100
         }
 
-        # High confidence should override
+        # Even high confidence should NOT override gate when reward is low
         decision = gate.evaluate(observation, 51, 'energy', 0.95)
-        assert decision.decision == 'SEND'
-        assert decision.reason == 'confidence_override'
+        # Gate should block because: no workers, protector nearby, low reward
+        assert decision.decision == 'WAIT'
+        assert decision.reason == 'negative_reward'
 
     def test_gate_disabled(self):
         config = SimulationGateConfig(gate_enabled=False)

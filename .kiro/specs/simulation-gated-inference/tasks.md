@@ -113,11 +113,11 @@ Implement a predictive cost function that evaluates NN spawn decisions before ex
     - Return GateDecision(decision, reason, expected_reward, confidence)
     - _Requirements: 5.1-5.5_
 
-  - [x] 7.2 Implement confidence override logic
-    - Check if nn_confidence > confidence_threshold
-    - Bypass reward check if override triggered
-    - Log override events
-    - _Requirements: 8.1-8.5_
+  - [x] ~~7.2 Implement confidence override logic~~ REMOVED
+    - **Status:** REMOVED - Confidence override contradicts gate purpose
+    - **Reason:** Gate must be the final authority. Allowing NN confidence to bypass
+      the gate defeats its purpose of evaluating game state.
+    - ~~_Requirements: 8.1-8.5_~~ (Requirement 8 was also removed)
 
   - [x] 7.3 Create GateDecision dataclass
     - Fields: decision ('SEND' | 'WAIT'), reason, expected_reward, nn_confidence
@@ -163,7 +163,7 @@ Implement a predictive cost function that evaluates NN spawn decisions before ex
   - [x] 9.3 Add metrics collection
     - Gate pass rate over time
     - Average expected reward
-    - Confidence override rate
+    - Wait streak tracking
     - _Requirements: 11.3_
 
 ### Phase 6: Configuration and Testing
@@ -225,7 +225,7 @@ Implement a predictive cost function that evaluates NN spawn decisions before ex
 2. [x] Simulation gate correctly blocks negative reward actions
 3. [x] Thinking loop provides continuous training feedback
 4. [x] Exploration bonus prevents deadlock
-5. [x] Confidence override allows calculated risks
+5. [x] ~~Confidence override~~ Gate is final authority (confidence override removed)
 6. [x] All parameters configurable via YAML
 7. [x] Logging provides full observability
 8. [x] Performance meets requirements (< 10ms on GPU)

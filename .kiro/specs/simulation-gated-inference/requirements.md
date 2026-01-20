@@ -23,7 +23,6 @@ This specification defines a predictive cost function system that evaluates Neur
 - **Survival Probability**: Estimated chance a spawned parasite survives the observation window
 - **Threat Factor**: Danger level from a protector at given distance
 - **Exploration Bonus**: Reward boost for trying unexplored spawn locations
-- **Confidence Override**: Bypass mechanism when NN has high certainty
 
 ## Requirements
 
@@ -161,24 +160,15 @@ This specification defines a predictive cost function system that evaluates Neur
    - Low ε later (exploit learned patterns)
 6. THE chunks never spawned in SHALL receive maximum bonus
 
-### Requirement 8: Deadlock Prevention - Confidence Override
+### ~~Requirement 8: Deadlock Prevention - Confidence Override~~ REMOVED
 
-**User Story:** As the Queen AI, I need to bypass the simulation gate when I'm highly confident so that I can take calculated risks and discover new strategies.
+**Status:** REJECTED - This requirement contradicts the purpose of the gate.
 
-#### Acceptance Criteria
-
-1. THE System SHALL allow gate bypass when NN confidence exceeds threshold:
-   ```
-   if max(chunk_probabilities) > confidence_threshold:
-       bypass simulation gate
-   ```
-2. THE confidence_threshold SHALL default to 0.8 (80% certainty)
-3. THE System SHALL log confidence overrides with:
-   - NN confidence value
-   - Expected reward (would have been blocked)
-   - Actual outcome after execution
-4. THE confidence override SHALL still record actual reward for training
-5. THE confidence threshold SHALL be configurable
+**Reason for removal:** The simulation gate exists to evaluate game state and
+prevent wasteful spawns. Allowing NN confidence to bypass the gate defeats this
+purpose entirely. If the gate says "no targets, protectors nearby" but NN is
+confident, the spawn would still be wasteful. The gate must be the final
+authority. Deadlock is prevented by exploration bonus (Requirement 7) instead.
 
 ### Requirement 9: Training Integration
 

@@ -22,10 +22,15 @@ class SimulationGateConfig:
     safe_range: float = 8.0          # Chunks - beyond threat
     threat_decay: float = 0.5        # Exponential decay rate (λ)
 
-    # Worker disruption parameters
-    flee_range: float = 3.0          # Chunks - worker flee zone
-    ignore_range: float = 10.0       # Chunks - beyond effect
-    disruption_decay: float = 0.3    # Exponential decay rate (μ)
+    # Worker disruption parameters (based on actual game mechanics)
+    # Converted to chunk distances (assuming ~10 game units per chunk)
+    energy_pursuit_range: float = 6.0    # Chunks - energy parasite pursuit (60 game units)
+    combat_pursuit_range: float = 7.5    # Chunks - combat parasite pursuit (75 game units)
+    protector_attack_range: float = 1.2  # Chunks - protector attack range (12 game units)
+    # Legacy parameters (deprecated, kept for backward compatibility)
+    flee_range: float = 3.0          # Chunks - DEPRECATED
+    ignore_range: float = 10.0       # Chunks - DEPRECATED
+    disruption_decay: float = 0.3    # DEPRECATED
 
     # Location penalty parameters
     hive_proximity_weight: float = 0.3   # α - penalty for distance from hive (IDLE)
@@ -41,14 +46,11 @@ class SimulationGateConfig:
     location_weight: float = 0.1     # w₃
 
     # Gate threshold
-    reward_threshold: float = 0.0    # θ - only positive rewards pass
+    reward_threshold: float = 0.6    # θ - prevents wasteful spawns when no targets
 
     # Exploration bonus (deadlock prevention)
     exploration_coefficient: float = 0.2  # ε
     exploration_max_time: float = 300.0   # 5 minutes max bonus
-
-    # Confidence override (deadlock prevention)
-    confidence_threshold: float = 0.8  # NN confidence to bypass gate
 
     # Grid parameters
     chunks_per_axis: int = 20        # 20x20 grid
@@ -68,12 +70,12 @@ class SimulationGateConfig:
         if self.threat_decay <= 0:
             errors.append("threat_decay must be positive")
 
-        if self.flee_range < 0:
-            errors.append("flee_range must be non-negative")
-        if self.ignore_range <= self.flee_range:
-            errors.append("ignore_range must be greater than flee_range")
-        if self.disruption_decay <= 0:
-            errors.append("disruption_decay must be positive")
+        if self.energy_pursuit_range <= 0:
+            errors.append("energy_pursuit_range must be positive")
+        if self.combat_pursuit_range <= 0:
+            errors.append("combat_pursuit_range must be positive")
+        if self.protector_attack_range <= 0:
+            errors.append("protector_attack_range must be positive")
 
         if not (0 <= self.hive_proximity_weight <= 1):
             errors.append("hive_proximity_weight must be between 0 and 1")
@@ -83,9 +85,6 @@ class SimulationGateConfig:
         weights_sum = self.survival_weight + self.disruption_weight + self.location_weight
         if abs(weights_sum - 1.0) > 0.01:
             errors.append(f"Combined weights should sum to 1.0, got {weights_sum}")
-
-        if not (0 <= self.confidence_threshold <= 1):
-            errors.append("confidence_threshold must be between 0 and 1")
 
         if errors:
             for error in errors:
@@ -125,9 +124,9 @@ class SimulationGateConfig:
             'kill_range': self.kill_range,
             'safe_range': self.safe_range,
             'threat_decay': self.threat_decay,
-            'flee_range': self.flee_range,
-            'ignore_range': self.ignore_range,
-            'disruption_decay': self.disruption_decay,
+            'energy_pursuit_range': self.energy_pursuit_range,
+            'combat_pursuit_range': self.combat_pursuit_range,
+            'protector_attack_range': self.protector_attack_range,
             'hive_proximity_weight': self.hive_proximity_weight,
             'worker_proximity_weight': self.worker_proximity_weight,
             'energy_parasite_cost': self.energy_parasite_cost,

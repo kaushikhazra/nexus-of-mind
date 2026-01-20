@@ -83,31 +83,27 @@ class TestFullPipeline:
         assert decision.reason == 'insufficient_energy'
         assert decision.expected_reward == float('-inf')
 
-    def test_confidence_override_in_danger(self):
-        """Test that high confidence overrides danger assessment."""
+    def test_gate_blocks_dangerous_regardless_of_confidence(self):
+        """Test that gate blocks dangerous spawns regardless of NN confidence."""
         config = SimulationGateConfig()
         gate = SimulationGate(config)
 
-        # Dangerous situation
+        # Dangerous situation - protectors nearby, far from worker
         observation = {
             'protector_chunks': [48, 49, 50],  # Multiple nearby protectors
-            'worker_chunks': [100],
+            'worker_chunks': [100],            # Worker far away
             'hive_chunk': 0,
             'queen_energy': 100
         }
 
         # Low confidence should be blocked
         decision_low = gate.evaluate(observation, 51, 'energy', 0.1)
-        # High confidence should override
+        # High confidence should ALSO be blocked (gate is authority)
         decision_high = gate.evaluate(observation, 51, 'energy', 0.95)
 
-        # Low confidence blocked due to danger
-        if decision_low.components['survival'] < 0.3:
-            assert decision_low.decision == 'WAIT' or decision_low.reason == 'confidence_override'
-
-        # High confidence always passes
-        assert decision_high.decision == 'SEND'
-        assert decision_high.reason == 'confidence_override'
+        # Both should be blocked due to danger (low survival, low reward)
+        assert decision_low.decision == 'WAIT'
+        assert decision_high.decision == 'WAIT'  # Gate is authority, not NN confidence
 
     def test_exploration_bonus_prevents_deadlock(self):
         """Test that exploration bonus increases over time for unvisited chunks."""
