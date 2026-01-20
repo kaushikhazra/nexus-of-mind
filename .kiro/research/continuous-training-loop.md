@@ -27,10 +27,13 @@ This creates several issues:
 1. **Experience Replay Buffer** - Store experiences for batch sampling
 2. **Background Training Thread** - Train every 1 second on batched samples
 3. **Model Versioning** - Inference uses latest stable model version
-4. **Gate Integration** - Both training and inference outputs evaluated by simulation gate
+4. **Gate Validation** - Gate validates both inference AND training
+   - Inference: Gate evaluates each decision (existing behavior)
+   - Training: Gate re-validates sampled experiences to ensure alignment
 
-### Key Design Principle
-Training and inference run in **separate threads**, never blocking each other.
+### Key Design Principles
+1. Training and inference run in **separate threads**, never blocking each other.
+2. **Gate is the validator** - ensures model doesn't drift from game dynamics.
 
 ---
 
@@ -68,9 +71,18 @@ Training and inference run in **separate threads**, never blocking each other.
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
 │  │ 1. Sample batch (N experiences) from replay buffer                   │   │
 │  │ 2. Filter: only experiences with rewards (not pending)               │   │
-│  │ 3. Train model on batch                                              │   │
-│  │ 4. Produce new model version                                         │   │
-│  │ 5. Atomically swap model for inference thread                        │   │
+│  │ 3. GATE VALIDATES each experience:                                   │   │
+│  │    ┌─────────────────────────────────────────────────────────────┐   │   │
+│  │    │ For each exp in batch:                                      │   │   │
+│  │    │   validation = gate.evaluate(exp.observation, exp.action)   │   │   │
+│  │    │   if gate agrees with original decision:                    │   │   │
+│  │    │     → Use weighted (actual + validation) reward             │   │   │
+│  │    │   else (gate disagrees):                                    │   │   │
+│  │    │     → Apply disagreement penalty OR skip experience         │   │   │
+│  │    └─────────────────────────────────────────────────────────────┘   │   │
+│  │ 4. Train model on validated batch                                    │   │
+│  │ 5. Produce new model version                                         │   │
+│  │ 6. Log gate agreement rate                                           │   │
 │  └──────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │
 │  Model Versioning:                                                          │
@@ -81,6 +93,9 @@ Training and inference run in **separate threads**, never blocking each other.
 │                                            ▲                                │
 │                                            │                                │
 │                               Inference uses latest                         │
+│                                                                             │
+│  Gate Agreement Metric: Tracks how often gate still agrees with past        │
+│  decisions - indicates model drift if agreement drops                       │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 

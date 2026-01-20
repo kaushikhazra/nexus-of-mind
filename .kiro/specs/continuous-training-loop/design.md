@@ -48,14 +48,29 @@ This document describes the technical design for decoupling NN training from inf
 │  │      sleep(training_interval)                                        │   │
 │  │      batch = buffer.sample(batch_size)                               │   │
 │  │      if len(batch) >= min_batch_size:                                │   │
-│  │          loss = model.train(batch)                                   │   │
+│  │          ┌─────────────────────────────────────────────────────┐     │   │
+│  │          │  GATE VALIDATION (for each experience in batch)     │     │   │
+│  │          │                                                     │     │   │
+│  │          │  For each exp:                                      │     │   │
+│  │          │    gate_result = gate.evaluate(exp.observation,     │     │   │
+│  │          │                                exp.action)          │     │   │
+│  │          │    validation_reward = gate_result.expected_reward  │     │   │
+│  │          │                                                     │     │   │
+│  │          │  Training signal combines:                          │     │   │
+│  │          │    - Original actual_reward (from game)             │     │   │
+│  │          │    - Gate validation_reward (current evaluation)    │     │   │
+│  │          │    - Consistency bonus (if gate agrees with orig)   │     │   │
+│  │          └─────────────────────────────────────────────────────┘     │   │
+│  │          loss = model.train(validated_batch)                         │   │
 │  │          model_version += 1                                          │   │
-│  │          log_metrics(loss, batch_size, version)                      │   │
+│  │          log_metrics(loss, batch_size, version, gate_agreement)      │   │
 │  │                                                                      │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │
 │  Model: ────────────────────────────────────────────────────────────────   │
 │         │ v1 │ v2 │ v3 │ v4 │ v5 │ ... │ vN │◄── Latest (used by inference)│
+│                                                                             │
+│  Gate validates training: ensures model doesn't drift from game dynamics   │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -73,17 +88,25 @@ class Experience:
     """
     Single experience for replay buffer.
 
-    Stores all information needed to train the NN on this decision.
+    Stores all information needed to train the NN on this decision,
+    INCLUDING raw observation data for gate re-validation during training.
     """
-    # State
+    # State - normalized features for NN
     observation: np.ndarray          # [28] normalized features
+
+    # State - raw data for gate re-validation
+    # These are needed so the gate can re-evaluate the decision
+    protector_chunks: List[int]      # Protector positions at decision time
+    worker_chunks: List[int]         # Worker positions at decision time
+    hive_chunk: int                  # Hive position
+    queen_energy: float              # Queen energy at decision time
 
     # Action
     spawn_chunk: int                 # 0-399
     spawn_type: str                  # 'energy' or 'combat'
     nn_confidence: float             # NN's confidence in decision
 
-    # Gate evaluation
+    # Gate evaluation (at decision time)
     gate_decision: str               # 'SEND' or 'WAIT'
     expected_reward: float           # From simulation cost function
     gate_components: dict            # Breakdown (survival, disruption, etc.)
@@ -272,16 +295,24 @@ class ContinuousTrainer:
 
     Runs in a daemon thread, training the model every interval
     on batches sampled from the replay buffer.
+
+    KEY FEATURE: Gate Validation
+    The simulation gate validates each experience during training:
+    - Re-evaluates action against current game dynamics understanding
+    - Provides consistency signal (does gate still agree?)
+    - Adjusts training weight based on validation
     """
 
     def __init__(
         self,
         model: 'QueenNN',
         buffer: ExperienceReplayBuffer,
+        gate: 'SimulationGate',  # Gate for training validation
         config: 'ContinuousTrainingConfig'
     ):
         self.model = model
         self.buffer = buffer
+        self.gate = gate  # Used to validate experiences during training
         self.config = config
 
         # Threading
@@ -347,7 +378,7 @@ class ContinuousTrainer:
         logger.info("[Training] Training loop stopped")
 
     def _training_step(self) -> None:
-        """Execute single training step."""
+        """Execute single training step with gate validation."""
         step_start = time.time()
 
         # Sample batch from buffer
@@ -357,20 +388,57 @@ class ContinuousTrainer:
             logger.debug(f"[Training] Insufficient samples: {len(batch)} < {self.config.min_batch_size}")
             return
 
-        # Prepare training data
+        # === GATE VALIDATION ===
+        # Re-evaluate each experience through the gate
+        # This ensures training aligns with current game dynamics
+        validated_batch = []
+        gate_agreements = 0
+
+        for exp in batch:
+            # Build observation dict for gate
+            sim_obs = self._build_gate_observation(exp)
+
+            # Gate validates the action
+            validation = self.gate.evaluate(
+                observation=sim_obs,
+                spawn_chunk=exp.spawn_chunk,
+                spawn_type=exp.spawn_type,
+                nn_confidence=exp.nn_confidence
+            )
+
+            # Calculate validated reward
+            validated_reward = self._calculate_validated_reward(
+                exp, validation
+            )
+
+            # Track gate agreement
+            if validation.decision == exp.gate_decision:
+                gate_agreements += 1
+
+            validated_batch.append({
+                'observation': exp.observation,
+                'action': (exp.spawn_chunk, exp.spawn_type),
+                'reward': validated_reward,
+                'validation_reward': validation.expected_reward,
+                'original_reward': exp.actual_reward,
+                'gate_agrees': validation.decision == exp.gate_decision
+            })
+
+        gate_agreement_rate = gate_agreements / len(batch)
+
+        # Prepare training tensors
         observations = torch.stack([
-            torch.tensor(e.observation, dtype=torch.float32)
-            for e in batch
+            torch.tensor(v['observation'], dtype=torch.float32)
+            for v in validated_batch
         ])
 
         actions = torch.tensor([
-            [e.spawn_chunk, 0 if e.spawn_type == 'energy' else 1]
-            for e in batch
+            [v['action'][0], 0 if v['action'][1] == 'energy' else 1]
+            for v in validated_batch
         ], dtype=torch.long)
 
         rewards = torch.tensor([
-            self._calculate_training_reward(e)
-            for e in batch
+            v['reward'] for v in validated_batch
         ], dtype=torch.float32)
 
         # Train model
@@ -383,34 +451,80 @@ class ContinuousTrainer:
         self._metrics.record_step(
             loss=loss,
             batch_size=len(batch),
-            step_time_ms=step_time
+            step_time_ms=step_time,
+            gate_agreement_rate=gate_agreement_rate
         )
 
         logger.info(
             f"[Training] v{self._model_version}: loss={loss:.4f}, "
-            f"batch={len(batch)}, time={step_time:.1f}ms"
+            f"batch={len(batch)}, gate_agree={gate_agreement_rate:.1%}, "
+            f"time={step_time:.1f}ms"
         )
 
-    def _calculate_training_reward(self, experience: Experience) -> float:
+    def _build_gate_observation(self, experience: Experience) -> dict:
         """
-        Calculate reward for training.
+        Build observation dict for gate validation.
 
-        Combines simulation and actual rewards with configurable weights.
-        Applies multiplier for WAIT experiences.
+        Reconstructs the observation format expected by SimulationGate
+        from the stored experience data.
         """
-        if experience.gate_decision == 'WAIT':
-            # WAIT - use expected_reward with penalty
-            return experience.expected_reward * self.config.wait_reward_multiplier
+        # Experience stores raw observation data needed for gate
+        return {
+            'protector_chunks': experience.protector_chunks,
+            'worker_chunks': experience.worker_chunks,
+            'hive_chunk': experience.hive_chunk,
+            'queen_energy': experience.queen_energy
+        }
 
-        if experience.actual_reward is None:
-            # SEND but no actual reward yet (shouldn't happen in training)
-            return experience.expected_reward
+    def _calculate_validated_reward(
+        self,
+        experience: Experience,
+        validation: 'GateDecision'
+    ) -> float:
+        """
+        Calculate training reward with gate validation.
 
-        # SEND with actual reward - weighted combination
-        return (
-            self.config.simulation_reward_weight * experience.expected_reward +
-            self.config.actual_reward_weight * experience.actual_reward
-        )
+        Combines:
+        1. Original actual_reward from game
+        2. Current gate validation_reward
+        3. Consistency bonus/penalty based on gate agreement
+
+        This ensures:
+        - Good experiences (gate agrees, positive reward) get high weight
+        - Drifted experiences (gate disagrees) get reduced weight
+        - Model stays aligned with game dynamics
+        """
+        # Base reward from game outcome
+        if experience.actual_reward is not None:
+            actual = experience.actual_reward
+        else:
+            actual = experience.expected_reward
+
+        # Current gate evaluation
+        validation_reward = validation.expected_reward
+
+        # Check gate agreement
+        gate_agrees = (validation.decision == experience.gate_decision)
+
+        if gate_agrees:
+            # Gate still agrees - weight towards actual outcome
+            # Trust the game result more when gate confirms
+            return (
+                self.config.actual_reward_weight * actual +
+                self.config.simulation_reward_weight * validation_reward
+            )
+        else:
+            # Gate disagrees - this experience may be outdated
+            # or the model has drifted from game dynamics
+            #
+            # Options:
+            # 1. Reduce weight (implemented below)
+            # 2. Use gate's current evaluation
+            # 3. Skip experience entirely
+
+            # Use gate's current evaluation with penalty
+            disagreement_penalty = self.config.gate_disagreement_penalty  # default: 0.5
+            return validation_reward * disagreement_penalty
 
     def get_model_for_inference(self) -> 'QueenNN':
         """
@@ -447,35 +561,46 @@ import time
 
 @dataclass
 class TrainingMetrics:
-    """Metrics for continuous training."""
+    """Metrics for continuous training with gate validation."""
 
     # Rolling windows
     window_size: int = 100
     loss_history: deque = field(default_factory=lambda: deque(maxlen=100))
     batch_size_history: deque = field(default_factory=lambda: deque(maxlen=100))
     step_time_history: deque = field(default_factory=lambda: deque(maxlen=100))
+    gate_agreement_history: deque = field(default_factory=lambda: deque(maxlen=100))
 
     # Lifetime counters
     total_steps: int = 0
     total_samples_trained: int = 0
+    total_gate_agreements: int = 0
+    total_gate_disagreements: int = 0
     start_time: float = field(default_factory=time.time)
 
     def record_step(
         self,
         loss: float,
         batch_size: int,
-        step_time_ms: float
+        step_time_ms: float,
+        gate_agreement_rate: float = 1.0
     ) -> None:
         """Record metrics for a training step."""
         self.loss_history.append(loss)
         self.batch_size_history.append(batch_size)
         self.step_time_history.append(step_time_ms)
+        self.gate_agreement_history.append(gate_agreement_rate)
         self.total_steps += 1
         self.total_samples_trained += batch_size
+
+        # Track agreement counts
+        agreements = int(gate_agreement_rate * batch_size)
+        self.total_gate_agreements += agreements
+        self.total_gate_disagreements += (batch_size - agreements)
 
     def get_stats(self) -> dict:
         """Get current statistics."""
         uptime = time.time() - self.start_time
+        total_validated = self.total_gate_agreements + self.total_gate_disagreements
 
         return {
             'total_steps': self.total_steps,
@@ -484,6 +609,8 @@ class TrainingMetrics:
             'average_loss': sum(self.loss_history) / len(self.loss_history) if self.loss_history else 0,
             'average_batch_size': sum(self.batch_size_history) / len(self.batch_size_history) if self.batch_size_history else 0,
             'average_step_time_ms': sum(self.step_time_history) / len(self.step_time_history) if self.step_time_history else 0,
+            'average_gate_agreement': sum(self.gate_agreement_history) / len(self.gate_agreement_history) if self.gate_agreement_history else 1.0,
+            'lifetime_gate_agreement': self.total_gate_agreements / total_validated if total_validated > 0 else 1.0,
             'uptime_seconds': uptime
         }
 ```
@@ -495,7 +622,7 @@ from dataclasses import dataclass
 
 @dataclass
 class ContinuousTrainingConfig:
-    """Configuration for continuous training loop."""
+    """Configuration for continuous training loop with gate validation."""
 
     # Training loop
     training_interval: float = 1.0      # Seconds between training steps
@@ -510,6 +637,11 @@ class ContinuousTrainingConfig:
     simulation_reward_weight: float = 0.3   # Weight for expected_reward
     actual_reward_weight: float = 0.7       # Weight for actual_reward
     wait_reward_multiplier: float = 0.5     # Penalty for WAIT experiences
+
+    # Gate validation during training
+    gate_validation_enabled: bool = True    # Validate experiences through gate
+    gate_disagreement_penalty: float = 0.5  # Reduce reward when gate disagrees
+    skip_disagreed_experiences: bool = False  # Skip training on disagreed experiences
 
     # Feature flags
     enabled: bool = True                # Master switch

@@ -140,7 +140,7 @@ This specification defines a continuous training system that decouples NN traini
    - simulation_weight default: 0.3
    - actual_weight default: 0.7
 
-### Requirement 5: Gate Integration
+### Requirement 5: Gate Integration (Inference)
 
 **User Story:** As the Queen AI, I need gate decisions included in training so that I learn to make better decisions.
 
@@ -157,6 +157,44 @@ This specification defines a continuous training system that decouples NN traini
 3. THE gate SHALL remain the final authority:
    - All inference outputs evaluated by gate (unchanged)
    - Training does not bypass gate evaluation
+
+### Requirement 5.1: Gate Validation During Training
+
+**User Story:** As the Queen AI, I need the gate to validate my training data so that I don't learn from outdated or incorrect experiences.
+
+**Problem Statement:**
+- Experiences in the buffer may become stale as game dynamics evolve
+- Model may drift from game dynamics without feedback
+- Need continuous validation to ensure training aligns with current understanding
+
+#### Acceptance Criteria
+
+1. THE System SHALL re-evaluate each sampled experience through the gate:
+   - Pass stored observation data to gate
+   - Get current expected_reward from gate
+   - Compare gate decision with original decision
+
+2. THE System SHALL track gate agreement:
+   - `gate_agrees = (current_decision == original_decision)`
+   - Log gate agreement rate per training step
+   - Track lifetime gate agreement percentage
+
+3. THE System SHALL adjust training reward based on validation:
+   - When gate agrees: Use weighted combination of actual and validation rewards
+   - When gate disagrees: Apply disagreement_penalty (default: 0.5)
+   - Option to skip disagreed experiences entirely
+
+4. THE Experience dataclass SHALL store raw observation data:
+   - `protector_chunks`: List of protector chunk IDs
+   - `worker_chunks`: List of worker chunk IDs
+   - `hive_chunk`: Hive position
+   - `queen_energy`: Energy at decision time
+   - These enable gate re-validation
+
+5. THE metrics SHALL track gate validation statistics:
+   - `average_gate_agreement`: Rolling average (last 100 steps)
+   - `lifetime_gate_agreement`: All-time agreement rate
+   - `gate_disagreements`: Count of disagreed experiences
 
 ### Requirement 6: Configuration
 
@@ -180,9 +218,14 @@ This specification defines a continuous training system that decouples NN traini
        simulation_reward_weight: float = 0.3
        actual_reward_weight: float = 0.7
 
-       # Gate integration
+       # Gate integration (inference)
        train_on_wait: bool = True
        wait_reward_multiplier: float = 0.5
+
+       # Gate validation (training)
+       gate_validation_enabled: bool = True
+       gate_disagreement_penalty: float = 0.5
+       skip_disagreed_experiences: bool = False
 
        # Feature flags
        enabled: bool = True

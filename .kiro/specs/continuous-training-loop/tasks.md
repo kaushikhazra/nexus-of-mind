@@ -22,9 +22,10 @@ Implement a continuous training system that decouples NN training from inference
 
   - [ ] 1.2 Create Experience dataclass
     - File: `server/ai_engine/training/experience.py`
-    - Fields: observation, action, gate_decision, rewards, metadata
+    - Fields: observation (features), action, gate_decision, rewards, metadata
+    - Raw observation data for gate validation: protector_chunks, worker_chunks, hive_chunk, queen_energy
     - Properties: is_completed, effective_reward
-    - _Requirements: 1.1_
+    - _Requirements: 1.1, 5.1.4_
 
 - [ ] 2. Implement ExperienceReplayBuffer
   - [ ] 2.1 Create buffer class
@@ -70,14 +71,15 @@ Implement a continuous training system that decouples NN training from inference
 - [ ] 4. Create ContinuousTrainer class
   - [ ] 4.1 Create trainer module
     - File: `server/ai_engine/training/trainer.py`
-    - Initialize with model, buffer, config
+    - Initialize with model, buffer, gate, config
+    - Gate used for training validation
     - _Requirements: 2.1_
 
-  - [ ] 4.2 Implement training loop
+  - [ ] 4.2 Implement training loop with gate validation
     - Background thread with daemon=True
     - Sleep for training_interval
-    - Sample batch and train
-    - _Requirements: 2.2_
+    - Sample batch → Gate validates → Train
+    - _Requirements: 2.2, 5.1_
 
   - [ ] 4.3 Implement start/stop methods
     - start() - spawn thread
@@ -99,13 +101,20 @@ Implement a continuous training system that decouples NN training from inference
     - Track which version made each decision
     - _Requirements: 3.3_
 
-- [ ] 6. Implement reward calculation
-  - [ ] 6.1 Calculate training reward
-    - Combine simulation and actual rewards
-    - Apply WAIT multiplier
-    - _Requirements: 4.3, 5.2_
+- [ ] 6. Implement reward calculation with gate validation
+  - [ ] 6.1 Implement gate validation for batch
+    - Re-evaluate each experience through gate
+    - Track gate agreement rate
+    - Log disagreements
+    - _Requirements: 5.1.1, 5.1.2_
 
-  - [ ] 6.2 Handle WAIT experiences
+  - [ ] 6.2 Calculate validated training reward
+    - When gate agrees: weighted combination of actual + validation
+    - When gate disagrees: apply disagreement_penalty
+    - Option to skip disagreed experiences
+    - _Requirements: 5.1.3_
+
+  - [ ] 6.3 Handle WAIT experiences
     - Include in training if config.train_on_wait
     - Use expected_reward with multiplier
     - _Requirements: 5.2_
