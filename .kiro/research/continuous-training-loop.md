@@ -27,13 +27,25 @@ This creates several issues:
 1. **Experience Replay Buffer** - Store experiences for batch sampling
 2. **Background Training Thread** - Train every 1 second on batched samples
 3. **Model Versioning** - Inference uses latest stable model version
-4. **Gate Validation** - Gate validates both inference AND training
-   - Inference: Gate evaluates each decision (existing behavior)
-   - Training: Gate re-validates sampled experiences to ensure alignment
+4. **Gate AS Cost Function** - Gate provides the training signal directly
 
-### Key Design Principles
-1. Training and inference run in **separate threads**, never blocking each other.
-2. **Gate is the validator** - ensures model doesn't drift from game dynamics.
+### Key Design Principle: Gate IS the Cost Function
+
+The simulation gate is not just a validator - **it IS the cost function for training**.
+
+```
+Gate Output = R_expected - threshold
+
+where:
+  R_expected = w₁×P_survival + w₂×D_disruption + w₃×L_location + exploration_bonus
+  threshold = 0.6
+
+Result:
+  > 0  →  Good action (SEND at inference time)
+  ≤ 0  →  Bad action (WAIT at inference time)
+```
+
+The NN learns to maximize this signal. When the gate output is negative, that IS the feedback telling the NN "this was a bad decision."
 
 ---
 
@@ -43,26 +55,39 @@ This creates several issues:
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           INFERENCE THREAD (Main)                           │
 │                                                                             │
-│  Observation ──► Feature Extract ──► NN Inference ──► Simulation Gate      │
-│      │                                (latest model)        │               │
-│      │                                                      │               │
-│      │                                            ┌─────────┴─────────┐     │
-│      │                                            │                   │     │
-│      ▼                                            ▼                   ▼     │
-│  ┌────────────────────────────────────────┐   [SEND]              [WAIT]   │
-│  │     EXPERIENCE REPLAY BUFFER           │      │                   │     │
-│  │  ┌─────────────────────────────────┐   │      │                   │     │
-│  │  │ (obs, action, gate_decision,    │◄──┼──────┴───────────────────┘     │
-│  │  │  reward_pending, timestamp)     │   │                                │
-│  │  └─────────────────────────────────┘   │                                │
-│  │                                        │                                │
-│  │  When next observation arrives:        │                                │
-│  │  - Calculate reward for pending exp    │                                │
-│  │  - Update experience with real reward  │                                │
-│  └────────────────────────────────────────┘                                │
+│  Observation ──► Feature Extract ──► NN Inference ──► Gate                 │
+│      │                                (latest model)    │                   │
+│      │                                                  │                   │
+│      │                                                  ▼                   │
+│      │                                    ┌─────────────────────────┐       │
+│      │                                    │  gate_signal =          │       │
+│      │                                    │  R_expected - 0.6       │       │
+│      │                                    └────────────┬────────────┘       │
+│      │                                                 │                    │
+│      │                                    ┌────────────┴────────────┐       │
+│      │                                    │                         │       │
+│      │                                    ▼                         ▼       │
+│      │                            gate_signal > 0           gate_signal ≤ 0 │
+│      │                                [SEND]                    [WAIT]      │
+│      │                                    │                         │       │
+│      ▼                                    │                         │       │
+│  ┌────────────────────────────────────────┴─────────────────────────┘       │
+│  │     EXPERIENCE REPLAY BUFFER                                      │       │
+│  │  ┌──────────────────────────────────────────────────────────┐     │       │
+│  │  │ Experience:                                               │     │       │
+│  │  │   - observation (28 features)                            │     │       │
+│  │  │   - action (chunk, type)                                 │     │       │
+│  │  │   - gate_signal (R_expected - 0.6) ← TRAINING SIGNAL     │     │       │
+│  │  │   - actual_reward (from game, pending initially)         │     │       │
+│  │  │   - timestamp, territory_id                              │     │       │
+│  │  └──────────────────────────────────────────────────────────┘     │       │
+│  │                                                                    │       │
+│  │  Note: ALL experiences go to buffer (SEND and WAIT)               │       │
+│  │  The gate_signal IS the training feedback                         │       │
+│  └────────────────────────────────────────────────────────────────────┘       │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
-                                    │ Thread-safe queue
+                                    │ Thread-safe buffer access
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         TRAINING THREAD (Background)                        │
@@ -70,203 +95,255 @@ This creates several issues:
 │  Every 1 second:                                                            │
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
 │  │ 1. Sample batch (N experiences) from replay buffer                   │   │
-│  │ 2. Filter: only experiences with rewards (not pending)               │   │
-│  │ 3. GATE VALIDATES each experience:                                   │   │
+│  │                                                                      │   │
+│  │ 2. For each experience, calculate training reward:                   │   │
 │  │    ┌─────────────────────────────────────────────────────────────┐   │   │
-│  │    │ For each exp in batch:                                      │   │   │
-│  │    │   validation = gate.evaluate(exp.observation, exp.action)   │   │   │
-│  │    │   if gate agrees with original decision:                    │   │   │
-│  │    │     → Use weighted (actual + validation) reward             │   │   │
-│  │    │   else (gate disagrees):                                    │   │   │
-│  │    │     → Apply disagreement penalty OR skip experience         │   │   │
+│  │    │                                                             │   │   │
+│  │    │  training_reward = combine(gate_signal, actual_reward)      │   │   │
+│  │    │                                                             │   │   │
+│  │    │  where:                                                     │   │   │
+│  │    │    gate_signal = R_expected - 0.6  (already computed)       │   │   │
+│  │    │    actual_reward = from game (if action was SEND)           │   │   │
+│  │    │                                                             │   │   │
+│  │    │  If SEND (gate_signal > 0):                                 │   │   │
+│  │    │    training_reward = α×gate_signal + β×actual_reward        │   │   │
+│  │    │                                                             │   │   │
+│  │    │  If WAIT (gate_signal ≤ 0):                                 │   │   │
+│  │    │    training_reward = gate_signal  (direct feedback)         │   │   │
+│  │    │    ← This IS the penalty. NN learns "don't do this"         │   │   │
+│  │    │                                                             │   │   │
 │  │    └─────────────────────────────────────────────────────────────┘   │   │
-│  │ 4. Train model on validated batch                                    │   │
-│  │ 5. Produce new model version                                         │   │
-│  │ 6. Log gate agreement rate                                           │   │
+│  │                                                                      │   │
+│  │ 3. Train model: minimize loss(predicted_action, training_reward)     │   │
+│  │                                                                      │   │
+│  │ 4. Produce new model version                                         │   │
+│  │                                                                      │   │
 │  └──────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │
 │  Model Versioning:                                                          │
 │  ┌────────────┐    ┌────────────┐    ┌────────────┐                        │
 │  │ Version N  │ ─► │ Version N+1│ ─► │ Version N+2│  ...                   │
-│  │ (training) │    │ (training) │    │ (active)   │                        │
 │  └────────────┘    └────────────┘    └────────────┘                        │
 │                                            ▲                                │
 │                                            │                                │
 │                               Inference uses latest                         │
-│                                                                             │
-│  Gate Agreement Metric: Tracks how often gate still agrees with past        │
-│  decisions - indicates model drift if agreement drops                       │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 3. Components
+## 3. Gate as Cost Function
 
-### 3.1 Experience Replay Buffer
+### 3.1 The Core Insight
 
-**Purpose:** Store experiences for batch sampling and delayed reward assignment.
+The simulation gate computes expected reward based on game dynamics. This computation:
+
+```
+R_expected = V_capacity × (w₁×P_survival + w₂×D_disruption + w₃×L_location) + exploration_bonus
+```
+
+This value represents "how good is this action according to game dynamics."
+
+The **gate signal** is:
+```
+gate_signal = R_expected - threshold
+           = R_expected - 0.6
+```
+
+This signal tells the NN:
+- **Positive**: Action is good, do more of this
+- **Negative**: Action is bad, don't do this
+- **Magnitude**: How good or bad
+
+### 3.2 Why This Works
+
+The NN's goal is to learn:
+> "Given observation O, what action A maximizes expected reward?"
+
+The gate signal directly answers this:
+- If NN proposes action A and gate_signal is +0.3, that's positive feedback
+- If NN proposes action A and gate_signal is -0.4, that's negative feedback
+
+The NN learns to propose actions that result in positive gate signals.
+
+### 3.3 Gate Output Interface
+
+The gate should always return the numeric signal:
+
+```python
+class SimulationGate:
+    def evaluate(self, observation, spawn_chunk, spawn_type, nn_confidence) -> GateResult:
+        # Calculate expected reward
+        R_expected = self.cost_function.calculate(observation, spawn_chunk, spawn_type)
+
+        # Gate signal = expected reward minus threshold
+        gate_signal = R_expected - self.config.reward_threshold  # threshold = 0.6
+
+        return GateResult(
+            gate_signal=gate_signal,      # The training signal (numeric)
+            R_expected=R_expected,        # Raw expected reward
+            components={...}              # Breakdown for debugging
+        )
+```
+
+At **inference time**, we check:
+```python
+if gate_result.gate_signal > 0:
+    # SEND - execute the action
+else:
+    # WAIT - block the action
+```
+
+At **training time**, we use `gate_signal` directly as feedback.
+
+---
+
+## 4. Experience Structure
 
 ```python
 @dataclass
 class Experience:
     """Single experience in replay buffer."""
-    observation: np.ndarray      # 28 normalized features
-    action: Tuple[int, str]      # (spawn_chunk, spawn_type)
-    gate_decision: str           # 'SEND' or 'WAIT'
-    expected_reward: float       # From simulation gate
-    actual_reward: Optional[float]  # From real game (None if pending)
-    timestamp: float             # When experience was created
-    territory_id: str            # For multi-territory support
 
-class ExperienceReplayBuffer:
-    """Thread-safe experience replay buffer with priority sampling."""
+    # State (for NN input)
+    observation: np.ndarray           # 28 normalized features
 
-    def __init__(self, capacity: int = 10000):
-        self.capacity = capacity
-        self.buffer: deque = deque(maxlen=capacity)
-        self.pending: Dict[str, Experience] = {}  # territory_id -> pending exp
-        self.lock = threading.Lock()
+    # Action (NN output)
+    spawn_chunk: int                  # 0-399
+    spawn_type: str                   # 'energy' or 'combat'
+    nn_confidence: float              # NN's confidence
 
-    def add(self, experience: Experience) -> None:
-        """Add experience to buffer (thread-safe)."""
+    # Gate evaluation (THE training signal)
+    gate_signal: float                # R_expected - 0.6 (can be negative!)
+    R_expected: float                 # Raw expected reward (for logging)
+    gate_components: dict             # Breakdown (survival, disruption, etc.)
 
-    def sample(self, batch_size: int) -> List[Experience]:
-        """Sample batch of completed experiences (thread-safe)."""
+    # Game outcome (only for SEND actions)
+    actual_reward: Optional[float]    # From reward_calculator, None for WAIT
+    was_executed: bool                # True if SEND, False if WAIT
 
-    def update_pending_reward(self, territory_id: str, reward: float) -> None:
-        """Update pending experience with actual reward."""
+    # Metadata
+    timestamp: float
+    territory_id: str
+    model_version: int
 ```
 
-**Key Design Decisions:**
-1. **Fixed capacity** - FIFO eviction when full (10,000 default)
-2. **Pending experiences** - Track experiences waiting for reward
-3. **Thread-safe** - Lock for concurrent access from both threads
-4. **Completed only** - Sampling only returns experiences with rewards
+**Key Points:**
+- `gate_signal` is the primary training signal
+- `actual_reward` only exists for SEND actions (where action was executed)
+- WAIT actions still provide training signal via `gate_signal`
 
-### 3.2 Background Training Thread
+---
 
-**Purpose:** Continuously train model on batched experiences.
-
-```python
-class ContinuousTrainer:
-    """Background training thread that produces new model versions."""
-
-    def __init__(
-        self,
-        model: QueenNN,
-        buffer: ExperienceReplayBuffer,
-        config: TrainingConfig
-    ):
-        self.model = model
-        self.buffer = buffer
-        self.config = config
-        self.running = False
-        self.thread: Optional[threading.Thread] = None
-        self.model_version = 0
-        self.model_lock = threading.Lock()
-
-    def start(self) -> None:
-        """Start background training thread."""
-        self.running = True
-        self.thread = threading.Thread(target=self._training_loop, daemon=True)
-        self.thread.start()
-
-    def stop(self) -> None:
-        """Stop background training thread."""
-        self.running = False
-        if self.thread:
-            self.thread.join(timeout=5.0)
-
-    def _training_loop(self) -> None:
-        """Main training loop - runs every interval."""
-        while self.running:
-            start_time = time.time()
-
-            # Sample batch from buffer
-            batch = self.buffer.sample(self.config.batch_size)
-
-            if len(batch) >= self.config.min_batch_size:
-                # Train on batch
-                loss = self._train_batch(batch)
-
-                # Increment version
-                with self.model_lock:
-                    self.model_version += 1
-
-                logger.info(f"[Training] Version {self.model_version}, "
-                           f"loss={loss:.4f}, batch_size={len(batch)}")
-
-            # Sleep for remaining interval
-            elapsed = time.time() - start_time
-            sleep_time = max(0, self.config.training_interval - elapsed)
-            time.sleep(sleep_time)
-
-    def get_model_for_inference(self) -> QueenNN:
-        """Get latest model for inference (thread-safe)."""
-        with self.model_lock:
-            return self.model  # Return reference (PyTorch models are thread-safe for inference)
-```
-
-### 3.3 Model Versioning
-
-**Approach:** PyTorch models are thread-safe for inference. Training and inference can use the same model object safely because:
-1. Inference only reads weights (no gradients)
-2. Training updates weights atomically
-3. Python GIL provides additional safety
-
-**Alternative (if needed):** Double-buffering with model copies:
-- Train on copy A
-- Inference uses copy B
-- Swap atomically when training completes
-
-### 3.4 Reward Handling
-
-**Challenge:** Rewards are only known 15 seconds later when next observation arrives.
-
-**Solution:**
-1. When inference runs, create experience with `actual_reward=None`
-2. Store as "pending" experience for that territory
-3. When next observation arrives:
-   - Calculate reward based on prev/current observation
-   - Update pending experience with actual reward
-   - Move to main buffer
+## 5. Training Reward Calculation
 
 ```python
-def on_observation(self, observation: Dict, territory_id: str) -> None:
-    # 1. Update pending experience with reward
-    if territory_id in self.buffer.pending:
-        reward = self.reward_calculator.calculate(
-            self.prev_observations[territory_id],
-            observation,
-            self.prev_decisions[territory_id]
+def calculate_training_reward(experience: Experience, config: TrainingConfig) -> float:
+    """
+    Calculate reward for training the NN.
+
+    Gate signal IS the feedback. If gate said "bad action" (negative signal),
+    that's the penalty. NN learns from it.
+    """
+
+    if experience.was_executed:
+        # SEND action - combine gate signal with actual game outcome
+        # gate_signal is positive (otherwise wouldn't have been sent)
+        # actual_reward tells us what really happened
+        return (
+            config.gate_weight * experience.gate_signal +
+            config.actual_weight * experience.actual_reward
         )
-        self.buffer.update_pending_reward(territory_id, reward)
+    else:
+        # WAIT action - gate signal IS the feedback
+        # It's negative (that's why we waited)
+        # This teaches NN: "this action would have been bad"
+        return experience.gate_signal
+```
 
-    # 2. Run inference with latest model
-    model = self.trainer.get_model_for_inference()
-    features = self.feature_extractor.extract(observation)
-    action = model.infer(features)
+### 5.1 Example Scenarios
 
-    # 3. Evaluate through gate
-    gate_decision = self.gate.evaluate(observation, action, confidence)
+**Scenario 1: Good action, good outcome**
+```
+gate_signal = +0.25 (R_expected=0.85, threshold=0.6)
+was_executed = True (SEND)
+actual_reward = +0.8 (parasite survived, disrupted workers)
 
-    # 4. Create new pending experience
-    experience = Experience(
-        observation=features,
-        action=action,
-        gate_decision=gate_decision.decision,
-        expected_reward=gate_decision.expected_reward,
-        actual_reward=None,  # Pending
-        timestamp=time.time(),
-        territory_id=territory_id
-    )
-    self.buffer.add_pending(experience)
+training_reward = 0.3×(+0.25) + 0.7×(+0.8) = +0.635
+→ Strong positive reinforcement
+```
+
+**Scenario 2: Good action, bad outcome**
+```
+gate_signal = +0.15 (R_expected=0.75, threshold=0.6)
+was_executed = True (SEND)
+actual_reward = -0.3 (parasite died immediately)
+
+training_reward = 0.3×(+0.15) + 0.7×(-0.3) = -0.165
+→ Slight negative - gate was optimistic but game corrected
+```
+
+**Scenario 3: Bad action (blocked)**
+```
+gate_signal = -0.35 (R_expected=0.25, threshold=0.6)
+was_executed = False (WAIT)
+actual_reward = None (not executed)
+
+training_reward = -0.35
+→ Negative reinforcement - NN learns "don't do this"
+```
+
+**Scenario 4: Very bad action (blocked)**
+```
+gate_signal = -0.55 (R_expected=0.05, threshold=0.6)
+was_executed = False (WAIT)
+actual_reward = None
+
+training_reward = -0.55
+→ Strong negative - NN learns "really don't do this"
 ```
 
 ---
 
-## 4. Configuration
+## 6. Training Thread
+
+```python
+class ContinuousTrainer:
+    """Background training thread."""
+
+    def __init__(self, model, buffer, gate, config):
+        self.model = model
+        self.buffer = buffer
+        self.gate = gate  # For re-evaluating if needed
+        self.config = config
+
+    def _training_loop(self):
+        while self.running:
+            # Sample batch
+            batch = self.buffer.sample(self.config.batch_size)
+
+            if len(batch) >= self.config.min_batch_size:
+                # Calculate training rewards
+                rewards = [
+                    self._calculate_training_reward(exp)
+                    for exp in batch
+                ]
+
+                # Prepare tensors
+                observations = torch.stack([exp.observation for exp in batch])
+                actions = torch.tensor([[exp.spawn_chunk, exp.spawn_type] for exp in batch])
+                rewards = torch.tensor(rewards)
+
+                # Train
+                loss = self.model.train_batch(observations, actions, rewards)
+                self.model_version += 1
+
+            time.sleep(self.config.training_interval)
+```
+
+---
+
+## 7. Configuration
 
 ```python
 @dataclass
@@ -278,153 +355,94 @@ class ContinuousTrainingConfig:
 
     # Replay buffer
     buffer_capacity: int = 10000        # Max experiences stored
-    priority_sampling: bool = False     # Use priority-based sampling
 
-    # Reward weighting
-    simulation_reward_weight: float = 0.3   # Weight for gate's expected reward
-    actual_reward_weight: float = 0.7       # Weight for real game reward
+    # Reward weighting (for SEND actions only)
+    gate_weight: float = 0.3            # Weight for gate_signal
+    actual_weight: float = 0.7          # Weight for actual_reward
 
-    # Learning rate scheduling
-    initial_lr: float = 0.001
-    lr_decay: float = 0.99              # Decay per 100 training steps
-    min_lr: float = 0.0001
+    # Learning rate
+    learning_rate: float = 0.001
 
-    # Gate integration
-    train_on_wait: bool = True          # Include WAIT experiences in training
-    wait_reward_multiplier: float = 0.5 # Reduce reward for WAIT (penalize blocked actions)
+    # Gate threshold (must match gate config)
+    reward_threshold: float = 0.6
+
+    # Feature flags
+    enabled: bool = True
 ```
 
 ---
 
-## 5. Thread Safety Analysis
+## 8. Flow Summary
 
-### Shared Resources
-1. **NN Model** - Read by inference, written by training
-2. **Replay Buffer** - Written by inference, read by training
-3. **Configuration** - Read by both
+### Inference Flow (every 15 seconds)
+```
+1. Observation arrives
+2. Extract features (28 values)
+3. NN infers action (chunk, type, confidence)
+4. Gate evaluates: gate_signal = R_expected - 0.6
+5. If gate_signal > 0:
+     → SEND action to frontend
+     → Create experience with was_executed=True
+   Else:
+     → WAIT (don't send)
+     → Create experience with was_executed=False
+6. Add experience to buffer (with gate_signal as training signal)
+```
 
-### Synchronization Strategy
-1. **Model**: PyTorch handles thread-safety for inference vs training
-2. **Buffer**: Use `threading.Lock()` for all operations
-3. **Config**: Immutable after initialization (no lock needed)
-
-### Potential Issues & Mitigations
-1. **Training too slow** - Skip training step if still processing previous
-2. **Buffer contention** - Use lock-free queue for adding experiences
-3. **Model divergence** - Monitor loss, reset if NaN
-
----
-
-## 6. Metrics & Observability
-
-```python
-@dataclass
-class TrainingMetrics:
-    # Training loop
-    training_steps: int = 0
-    total_batches_trained: int = 0
-    average_batch_size: float = 0.0
-    average_loss: float = 0.0
-
-    # Buffer stats
-    buffer_size: int = 0
-    pending_experiences: int = 0
-    experiences_with_rewards: int = 0
-
-    # Model versioning
-    current_model_version: int = 0
-    training_steps_per_second: float = 0.0
-
-    # Timing
-    average_training_time_ms: float = 0.0
-    training_utilization: float = 0.0  # % of interval spent training
+### Training Flow (every 1 second)
+```
+1. Sample batch from buffer
+2. For each experience:
+     If was_executed:
+       training_reward = α×gate_signal + β×actual_reward
+     Else:
+       training_reward = gate_signal  (negative, that's the penalty)
+3. Train NN on (observations, actions, training_rewards)
+4. Increment model version
 ```
 
 ---
 
-## 7. Integration Points
+## 9. Benefits of This Design
 
-### 7.1 Message Handler Changes
-- Add `ContinuousTrainer` instance
-- Use `trainer.get_model_for_inference()` instead of direct model access
-- Add/update experiences in replay buffer
-
-### 7.2 Dashboard Integration
-- New section for training metrics
-- Real-time buffer size visualization
-- Training loss graph over time
-- Model version indicator
-
-### 7.3 Gate Integration
-- Gate evaluates all inference outputs (unchanged)
-- WAIT experiences included in training with reduced weight
-- Expected reward from gate stored in experience
+1. **Clean separation** - Gate is cost function, not validator
+2. **Numeric signal** - NN gets gradients, not boolean
+3. **All experiences train** - WAIT experiences provide negative signal
+4. **Alignment** - NN naturally learns to maximize gate approval
+5. **Simplicity** - No "SEND/WAIT" in training, just numbers
 
 ---
 
-## 8. Benefits
+## 10. Implementation Notes
 
-1. **Faster learning** - Model improves every second, not every 15 seconds
-2. **Stable training** - Batch training reduces variance
-3. **Experience replay** - Learn from past experiences multiple times
-4. **Non-blocking** - Training doesn't delay inference responses
-5. **Better GPU utilization** - Continuous training keeps GPU busy
-6. **Curriculum learning** - Can prioritize certain experiences
+### Gate Changes
+- Gate should return `gate_signal` (R_expected - threshold)
+- SEND/WAIT decision is just `gate_signal > 0` check at inference time
+- Remove any concept of "gate decision" from training path
 
----
+### Experience Changes
+- Store `gate_signal` not "gate_decision"
+- `was_executed: bool` replaces "SEND/WAIT"
+- Always store experience regardless of execution
 
-## 9. Risks & Mitigations
-
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Training thread crashes | No model updates | Watchdog + auto-restart |
-| Memory growth | OOM | Fixed-size buffer with FIFO eviction |
-| Model divergence | Bad decisions | Loss monitoring + checkpoint rollback |
-| Thread deadlock | System hang | Timeout on all lock acquisitions |
-| Stale experiences | Poor learning | Timestamp-based expiration |
+### Training Changes
+- Use `gate_signal` directly as feedback
+- WAIT experiences: training_reward = gate_signal (negative)
+- SEND experiences: combine gate_signal with actual_reward
 
 ---
 
-## 10. Open Questions
+## 11. Open Questions
 
-1. **Priority sampling** - Should we prioritize high-reward or rare experiences?
-2. **Experience expiration** - Should old experiences be discarded?
-3. **Multi-territory** - How to handle multiple Queens with different game states?
-4. **Checkpoint frequency** - How often to save model checkpoints?
-
----
-
-## 11. Implementation Phases
-
-### Phase 1: Experience Replay Buffer
-- Create Experience dataclass
-- Implement thread-safe buffer
-- Add pending experience handling
-- Unit tests
-
-### Phase 2: Background Training Thread
-- Create ContinuousTrainer class
-- Implement training loop
-- Add model versioning
-- Thread safety tests
-
-### Phase 3: Integration
-- Update message handler
-- Wire up buffer and trainer
-- Add metrics collection
-- Integration tests
-
-### Phase 4: Dashboard & Observability
-- Add training metrics to dashboard
-- Buffer visualization
-- Loss graphs
-- Model version indicator
+1. **Buffer priority** - Should we sample proportional to |gate_signal|?
+2. **Threshold changes** - What if we tune threshold during training?
+3. **Multi-objective** - Can we train NN to output expected_reward directly?
 
 ---
 
 ## 12. References
 
-- Current training: `server/ai_engine/nn_model.py`
+- Current gate: `server/ai_engine/simulation/gate.py`
+- Cost function: `server/ai_engine/simulation/cost_function.py`
+- NN model: `server/ai_engine/nn_model.py`
 - Reward calculator: `server/ai_engine/reward_calculator.py`
-- Message handler: `server/websocket/message_handler.py`
-- Simulation gate: `server/ai_engine/simulation/gate.py`

@@ -4,6 +4,8 @@
 
 Implement a continuous training system that decouples NN training from inference. Training runs in a background thread, producing new model versions every second, while inference uses the latest model.
 
+**Core Principle:** Gate IS the cost function. The gate returns `gate_signal = R_expected - 0.6` (numeric). This signal IS the training feedback - no re-evaluation during training.
+
 ## Dependencies
 
 - Simulation-Gated Inference (complete)
@@ -22,10 +24,13 @@ Implement a continuous training system that decouples NN training from inference
 
   - [ ] 1.2 Create Experience dataclass
     - File: `server/ai_engine/training/experience.py`
-    - Fields: observation (features), action, gate_decision, rewards, metadata
-    - Raw observation data for gate validation: protector_chunks, worker_chunks, hive_chunk, queen_energy
-    - Properties: is_completed, effective_reward
-    - _Requirements: 1.1, 5.1.4_
+    - Fields: observation, spawn_chunk, spawn_type, nn_confidence
+    - Gate fields: gate_signal (float), R_expected (float)
+    - Execution: was_executed (bool)
+    - Outcome: actual_reward (Optional[float], None for WAIT)
+    - Metadata: timestamp, territory_id, model_version
+    - Properties: is_send, is_wait, has_actual_reward
+    - _Requirements: 1.1_
 
 - [ ] 2. Implement ExperienceReplayBuffer
   - [ ] 2.1 Create buffer class
@@ -35,29 +40,30 @@ Implement a continuous training system that decouples NN training from inference
     - _Requirements: 1.2, 1.5_
 
   - [ ] 2.2 Implement add() method
-    - Add completed experience to buffer
-    - Track pending experience by territory
-    - _Requirements: 1.2, 1.3_
+    - WAIT actions: add directly to buffer
+    - SEND actions without reward: store as pending
+    - SEND actions with reward: add to buffer
+    - _Requirements: 1.3_
 
   - [ ] 2.3 Implement update_pending_reward() method
-    - Update pending experience with actual reward
+    - Update pending SEND experience with actual reward
     - Move to main buffer
     - _Requirements: 1.3_
 
   - [ ] 2.4 Implement sample() method
     - Random batch sampling
-    - Filter to completed experiences only
+    - Include both SEND and WAIT experiences
     - _Requirements: 1.4_
 
   - [ ] 2.5 Add buffer statistics
-    - Size, pending count, utilization
+    - Size, send_count, wait_count, pending_count
     - Thread-safe getter
     - _Requirements: 8.2_
 
 - [ ] 3. Add unit tests for buffer
   - [ ] 3.1 Test basic operations
     - File: `server/tests/test_continuous_training.py`
-    - Test add, sample, update_pending_reward
+    - Test add (SEND and WAIT), sample, update_pending_reward
     - _Requirements: 1.2-1.5_
 
   - [ ] 3.2 Test thread safety
@@ -71,15 +77,15 @@ Implement a continuous training system that decouples NN training from inference
 - [ ] 4. Create ContinuousTrainer class
   - [ ] 4.1 Create trainer module
     - File: `server/ai_engine/training/trainer.py`
-    - Initialize with model, buffer, gate, config
-    - Gate used for training validation
+    - Initialize with model, buffer, config
+    - NO gate reference (gate_signal stored in experience)
     - _Requirements: 2.1_
 
-  - [ ] 4.2 Implement training loop with gate validation
+  - [ ] 4.2 Implement training loop
     - Background thread with daemon=True
     - Sleep for training_interval
-    - Sample batch → Gate validates → Train
-    - _Requirements: 2.2, 5.1_
+    - Sample batch → Calculate rewards → Train
+    - _Requirements: 2.2_
 
   - [ ] 4.3 Implement start/stop methods
     - start() - spawn thread
@@ -101,23 +107,19 @@ Implement a continuous training system that decouples NN training from inference
     - Track which version made each decision
     - _Requirements: 3.3_
 
-- [ ] 6. Implement reward calculation with gate validation
-  - [ ] 6.1 Implement gate validation for batch
-    - Re-evaluate each experience through gate
-    - Track gate agreement rate
-    - Log disagreements
-    - _Requirements: 5.1.1, 5.1.2_
+- [ ] 6. Implement training reward calculation
+  - [ ] 6.1 Calculate reward for SEND actions
+    - If actual_reward available: `gate_weight × gate_signal + actual_weight × actual_reward`
+    - If pending: use gate_signal only
+    - _Requirements: 5.1_
 
-  - [ ] 6.2 Calculate validated training reward
-    - When gate agrees: weighted combination of actual + validation
-    - When gate disagrees: apply disagreement_penalty
-    - Option to skip disagreed experiences
-    - _Requirements: 5.1.3_
+  - [ ] 6.2 Calculate reward for WAIT actions
+    - Use gate_signal directly (negative = penalty)
+    - _Requirements: 5.1_
 
-  - [ ] 6.3 Handle WAIT experiences
-    - Include in training if config.train_on_wait
-    - Use expected_reward with multiplier
-    - _Requirements: 5.2_
+  - [ ] 6.3 Track average gate_signal in metrics
+    - Rolling average of gate_signal per batch
+    - _Requirements: 8.1_
 
 - [ ] 7. Add trainer tests
   - [ ] 7.1 Test training loop
@@ -130,13 +132,22 @@ Implement a continuous training system that decouples NN training from inference
     - Graceful shutdown
     - _Requirements: 2.4, 7.2_
 
+  - [ ] 7.3 Test reward calculation
+    - SEND with actual_reward
+    - SEND pending (no actual_reward)
+    - WAIT (negative gate_signal)
+    - _Requirements: 5.1_
+
 ### Phase 3: Configuration
 
 - [ ] 8. Create configuration
   - [ ] 8.1 Create ContinuousTrainingConfig
     - File: `server/ai_engine/training/config.py`
-    - All parameters with defaults
-    - Validation method
+    - training_interval, batch_size, min_batch_size
+    - buffer_capacity, lock_timeout
+    - gate_weight, actual_weight
+    - learning_rate, reward_threshold
+    - enabled flag
     - _Requirements: 6.1_
 
   - [ ] 8.2 Create YAML config file
@@ -159,35 +170,42 @@ Implement a continuous training system that decouples NN training from inference
     - _Requirements: 9.1_
 
   - [ ] 9.2 Update observation handling
-    - Update pending rewards on observation
-    - Use trainer.get_model_for_inference()
-    - Add experiences to buffer
+    - Extract gate_signal from gate result
+    - Determine was_executed from gate_signal > 0
+    - Create experience and add to buffer
+    - Update pending SEND rewards on observation
     - _Requirements: 9.2_
 
   - [ ] 9.3 Add enable/disable support
     - Check config.enabled flag
     - Fall back to current behavior when disabled
-    - _Requirements: 9.3_
+    - _Requirements: 9.4_
 
 - [ ] 10. Add integration tests
   - [ ] 10.1 Test full pipeline
     - File: `server/tests/test_training_integration.py`
     - Mock observations through training
     - Verify model updates
-    - _Requirements: 9.1-9.3_
+    - _Requirements: 9.1-9.4_
 
   - [ ] 10.2 Test pending reward flow
-    - Create pending experience
+    - Create pending SEND experience
     - Update with reward on next observation
-    - Verify experience in buffer
+    - Verify experience in buffer with reward
     - _Requirements: 4.1, 4.2_
+
+  - [ ] 10.3 Test WAIT experience flow
+    - Create WAIT experience (negative gate_signal)
+    - Verify added directly to buffer
+    - Verify sampled for training
+    - _Requirements: 5.1_
 
 ### Phase 5: Metrics and Observability
 
 - [ ] 11. Implement training metrics
   - [ ] 11.1 Create TrainingMetrics class
     - File: `server/ai_engine/training/metrics.py`
-    - Rolling averages for loss, batch size, time
+    - Rolling averages for loss, batch size, time, gate_signal
     - Lifetime counters
     - _Requirements: 8.1_
 
@@ -201,11 +219,13 @@ Implement a continuous training system that decouples NN training from inference
     - Model version indicator
     - Training loss graph
     - Steps per second
+    - Average gate_signal
     - _Requirements: 8.1, 8.3_
 
   - [ ] 12.2 Add buffer visualization
     - Buffer size gauge
-    - Pending vs completed counts
+    - SEND vs WAIT counts
+    - Pending count
     - Utilization percentage
     - _Requirements: 8.2_
 
@@ -240,14 +260,15 @@ Implement a continuous training system that decouples NN training from inference
 
 ## Completion Criteria
 
-1. [ ] Experience replay buffer stores and samples experiences correctly
+1. [ ] Experience replay buffer stores SEND and WAIT experiences correctly
 2. [ ] Background training runs every 1 second without blocking inference
 3. [ ] Model version increments with each training step
-4. [ ] Pending rewards are updated when observations arrive
-5. [ ] WAIT experiences are included in training with penalty
-6. [ ] All operations are thread-safe
-7. [ ] Metrics are exposed via API and dashboard
-8. [ ] Performance meets requirements
+4. [ ] SEND pending rewards are updated when observations arrive
+5. [ ] WAIT experiences use gate_signal directly as penalty
+6. [ ] Training reward = gate_weight × gate_signal + actual_weight × actual_reward (for SEND)
+7. [ ] All operations are thread-safe
+8. [ ] Metrics are exposed via API and dashboard
+9. [ ] Performance meets requirements
 
 ## Rollback Plan
 

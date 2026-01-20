@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This specification defines a continuous training system that decouples NN training from inference. Training runs in a background thread, producing new model versions every second, while inference uses the latest model to respond to observations. Both training and inference remain gated by the simulation gate.
+This specification defines a continuous training system that decouples NN training from inference. Training runs in a background thread, producing new model versions every second, while inference uses the latest model to respond to observations.
 
 **Key Innovation:**
 - Training and inference run in separate threads
@@ -10,16 +10,29 @@ This specification defines a continuous training system that decouples NN traini
 - Model improves every second instead of every 15 seconds
 - Non-blocking: training never delays inference
 
-**Building on Simulation-Gated Inference:**
-- Gate evaluates all inference outputs (unchanged)
-- Experiences include gate decisions for training signal
-- WAIT experiences provide negative training signal
+**Core Design Principle: Gate IS the Cost Function**
+
+The simulation gate is not just a validator - it IS the cost function for training:
+```
+gate_signal = R_expected - threshold
+
+where:
+  R_expected = w1×P_survival + w2×D_disruption + w3×L_location + exploration_bonus
+  threshold = 0.6
+
+Result:
+  > 0  →  Good action (SEND at inference time)
+  ≤ 0  →  Bad action (WAIT at inference time)
+```
+
+The NN learns to maximize this numeric signal. The gate_signal at inference time is ground truth - it reflects actual game dynamics at that moment.
 
 ## Glossary
 
-- **Experience**: A tuple of (observation, action, gate_decision, reward) representing one decision
+- **Experience**: A tuple of (observation, action, gate_signal, was_executed, actual_reward) representing one decision
+- **Gate Signal**: Numeric value (R_expected - 0.6) that serves as training feedback
 - **Replay Buffer**: Fixed-size storage for experiences, enabling batch sampling
-- **Pending Experience**: An experience waiting for its reward (known at next observation)
+- **Pending Experience**: An experience waiting for its actual_reward (known at next observation, only for SEND actions)
 - **Model Version**: Incrementing counter for each training step
 - **Training Interval**: Time between training steps (default: 1 second)
 
@@ -38,31 +51,36 @@ This specification defines a continuous training system that decouples NN traini
 
 1. THE System SHALL implement an Experience dataclass containing:
    - `observation`: 28 normalized feature values
-   - `action`: (spawn_chunk, spawn_type) tuple
-   - `gate_decision`: 'SEND' or 'WAIT'
-   - `expected_reward`: float from simulation gate
-   - `actual_reward`: Optional[float] (None if pending)
+   - `spawn_chunk`: int (0-399)
+   - `spawn_type`: str ('energy' or 'combat')
+   - `nn_confidence`: float (NN's confidence in the action)
+   - `gate_signal`: float (R_expected - 0.6, can be negative)
+   - `R_expected`: float (raw expected reward for logging)
+   - `was_executed`: bool (True if SEND, False if WAIT)
+   - `actual_reward`: Optional[float] (from game, None for WAIT actions)
    - `timestamp`: float (creation time)
    - `territory_id`: str (for multi-territory support)
+   - `model_version`: int (which model version made this decision)
 
 2. THE System SHALL implement ExperienceReplayBuffer with:
    - Fixed capacity (default: 10,000 experiences)
    - FIFO eviction when capacity exceeded
    - Thread-safe operations using locks
 
-3. THE buffer SHALL track pending experiences:
-   - Store experience with `actual_reward=None` when inference runs
-   - Update with actual reward when next observation arrives
+3. THE buffer SHALL store ALL experiences:
+   - Both SEND (was_executed=True) and WAIT (was_executed=False) actions
+   - WAIT actions have actual_reward=None (never updated)
+   - SEND actions start with actual_reward=None, updated when next observation arrives
 
 4. THE buffer SHALL provide batch sampling:
-   - Sample N random completed experiences
-   - Only return experiences with `actual_reward is not None`
-   - Return empty list if insufficient completed experiences
+   - Sample N random experiences
+   - Include both SEND and WAIT experiences
+   - Return empty list if insufficient experiences
 
 5. THE buffer operations SHALL be thread-safe:
    - `add()` - called from inference thread
    - `sample()` - called from training thread
-   - `update_pending_reward()` - called from inference thread
+   - `update_pending_reward()` - called from inference thread (for SEND only)
 
 ### Requirement 2: Background Training Thread
 
@@ -78,6 +96,7 @@ This specification defines a continuous training system that decouples NN traini
 2. THE training loop SHALL execute every training_interval (default: 1 second):
    - Sample batch from replay buffer
    - Skip training if batch_size < min_batch_size
+   - Calculate training rewards from gate_signal (see Requirement 5)
    - Train model on batch
    - Increment model version
    - Log training metrics
@@ -117,84 +136,58 @@ This specification defines a continuous training system that decouples NN traini
 **User Story:** As the Queen AI, I need to handle delayed rewards so that I can learn from real game outcomes.
 
 **Problem Statement:**
-- Rewards are only known 15 seconds later (at next observation)
+- Actual rewards are only known 15 seconds later (at next observation)
+- Only SEND actions have actual rewards (WAIT actions have no game outcome)
 - Need to associate rewards with correct experiences
 
 #### Acceptance Criteria
 
-1. THE System SHALL handle pending experiences:
+1. THE System SHALL handle pending experiences for SEND actions:
    - Create experience with `actual_reward=None` at inference time
    - Store territory_id to track pending experience
    - Only one pending experience per territory
 
 2. THE System SHALL update rewards when observation arrives:
    - Calculate reward using reward_calculator
-   - Update pending experience's `actual_reward`
-   - Move experience to main buffer
+   - Update pending SEND experience's `actual_reward`
+   - WAIT experiences are never updated (no game outcome)
 
-3. THE System SHALL combine simulation and actual rewards:
-   ```
-   effective_reward = (simulation_weight × expected_reward) +
-                      (actual_weight × actual_reward)
-   ```
-   - simulation_weight default: 0.3
-   - actual_weight default: 0.7
+3. THE System SHALL NOT block training on pending rewards:
+   - Experiences with actual_reward=None can still be sampled
+   - Training reward calculation handles None actual_reward
 
-### Requirement 5: Gate Integration (Inference)
+### Requirement 5: Training Reward Calculation (Gate as Cost Function)
 
-**User Story:** As the Queen AI, I need gate decisions included in training so that I learn to make better decisions.
+**User Story:** As the Queen AI, I need the gate signal to guide my learning so that I make better decisions.
+
+**Core Principle:** The gate_signal IS the training feedback. No separate validation needed.
 
 #### Acceptance Criteria
 
-1. THE System SHALL store gate decision in experience:
-   - 'SEND' - action was executed
-   - 'WAIT' - action was blocked
+1. THE System SHALL calculate training reward based on execution status:
+   ```python
+   if was_executed:  # SEND action
+       if actual_reward is not None:
+           training_reward = gate_weight × gate_signal + actual_weight × actual_reward
+       else:
+           training_reward = gate_signal  # Pending, use gate signal only
+   else:  # WAIT action
+       training_reward = gate_signal  # Negative value IS the penalty
+   ```
 
-2. THE System SHALL include WAIT experiences in training:
-   - Use expected_reward as training signal (no actual reward)
-   - Apply wait_reward_multiplier (default: 0.5) to reduce weight
+2. THE gate_signal SHALL serve as direct feedback:
+   - Positive gate_signal = good action (NN should do more of this)
+   - Negative gate_signal = bad action (NN should avoid this)
+   - Magnitude indicates how good or bad
 
-3. THE gate SHALL remain the final authority:
-   - All inference outputs evaluated by gate (unchanged)
-   - Training does not bypass gate evaluation
+3. THE System SHALL NOT re-evaluate experiences:
+   - gate_signal at inference time is ground truth
+   - Re-evaluation would drift from actual game dynamics
+   - No gate validation during training
 
-### Requirement 5.1: Gate Validation During Training
-
-**User Story:** As the Queen AI, I need the gate to validate my training data so that I don't learn from outdated or incorrect experiences.
-
-**Problem Statement:**
-- Experiences in the buffer may become stale as game dynamics evolve
-- Model may drift from game dynamics without feedback
-- Need continuous validation to ensure training aligns with current understanding
-
-#### Acceptance Criteria
-
-1. THE System SHALL re-evaluate each sampled experience through the gate:
-   - Pass stored observation data to gate
-   - Get current expected_reward from gate
-   - Compare gate decision with original decision
-
-2. THE System SHALL track gate agreement:
-   - `gate_agrees = (current_decision == original_decision)`
-   - Log gate agreement rate per training step
-   - Track lifetime gate agreement percentage
-
-3. THE System SHALL adjust training reward based on validation:
-   - When gate agrees: Use weighted combination of actual and validation rewards
-   - When gate disagrees: Apply disagreement_penalty (default: 0.5)
-   - Option to skip disagreed experiences entirely
-
-4. THE Experience dataclass SHALL store raw observation data:
-   - `protector_chunks`: List of protector chunk IDs
-   - `worker_chunks`: List of worker chunk IDs
-   - `hive_chunk`: Hive position
-   - `queen_energy`: Energy at decision time
-   - These enable gate re-validation
-
-5. THE metrics SHALL track gate validation statistics:
-   - `average_gate_agreement`: Rolling average (last 100 steps)
-   - `lifetime_gate_agreement`: All-time agreement rate
-   - `gate_disagreements`: Count of disagreed experiences
+4. THE configuration SHALL define reward weights:
+   - `gate_weight`: float (default: 0.3) - weight for gate_signal in SEND actions
+   - `actual_weight`: float (default: 0.7) - weight for actual_reward in SEND actions
 
 ### Requirement 6: Configuration
 
@@ -207,25 +200,22 @@ This specification defines a continuous training system that decouples NN traini
    @dataclass
    class ContinuousTrainingConfig:
        # Training loop
-       training_interval: float = 1.0
-       batch_size: int = 32
-       min_batch_size: int = 8
+       training_interval: float = 1.0      # Train every 1 second
+       batch_size: int = 32                # Samples per training step
+       min_batch_size: int = 8             # Minimum samples to train
 
        # Replay buffer
-       buffer_capacity: int = 10000
+       buffer_capacity: int = 10000        # Max experiences stored
 
-       # Reward weighting
-       simulation_reward_weight: float = 0.3
-       actual_reward_weight: float = 0.7
+       # Reward weighting (for SEND actions with actual_reward)
+       gate_weight: float = 0.3            # Weight for gate_signal
+       actual_weight: float = 0.7          # Weight for actual_reward
 
-       # Gate integration (inference)
-       train_on_wait: bool = True
-       wait_reward_multiplier: float = 0.5
+       # Learning rate
+       learning_rate: float = 0.001
 
-       # Gate validation (training)
-       gate_validation_enabled: bool = True
-       gate_disagreement_penalty: float = 0.5
-       skip_disagreed_experiences: bool = False
+       # Gate threshold (must match gate config)
+       reward_threshold: float = 0.6
 
        # Feature flags
        enabled: bool = True
@@ -266,11 +256,13 @@ This specification defines a continuous training system that decouples NN traini
    - `average_loss`: Rolling average loss
    - `average_batch_size`: Rolling average batch size
    - `training_time_ms`: Time per training step
+   - `average_gate_signal`: Rolling average of gate_signal in batch
 
 2. THE System SHALL track buffer metrics:
    - `buffer_size`: Current number of experiences
-   - `pending_count`: Experiences waiting for rewards
-   - `completed_count`: Experiences with rewards
+   - `send_count`: Experiences with was_executed=True
+   - `wait_count`: Experiences with was_executed=False
+   - `pending_count`: SEND experiences awaiting actual_reward
 
 3. THE System SHALL track model metrics:
    - `model_version`: Current version number
@@ -291,12 +283,17 @@ This specification defines a continuous training system that decouples NN traini
    - Use `trainer.get_model_for_inference()` for inference
    - Add experiences to replay buffer
 
-2. THE message handler SHALL update pending rewards:
-   - When observation arrives, check for pending experience
-   - Calculate reward and update buffer
+2. THE message handler SHALL create experiences at inference time:
+   - Extract gate_signal from gate evaluation
+   - Determine was_executed from gate_signal > 0
+   - Store experience immediately (SEND and WAIT)
+
+3. THE message handler SHALL update pending rewards:
+   - When observation arrives, check for pending SEND experience
+   - Calculate actual_reward and update buffer
    - Then proceed with new inference
 
-3. THE System SHALL support enable/disable:
+4. THE System SHALL support enable/disable:
    - Config flag to enable/disable continuous training
    - Fall back to current behavior when disabled
 
