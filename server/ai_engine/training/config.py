@@ -18,7 +18,7 @@ class ContinuousTrainingConfig:
     # Training loop
     training_interval: float = 1.0  # Seconds between training steps
     batch_size: int = 32  # Target batch size
-    min_batch_size: int = 8  # Minimum samples to train
+    min_batch_size: int = 1  # Minimum samples to train (low for dynamic responsiveness)
 
     # Replay buffer
     buffer_capacity: int = 10000  # Max experiences stored

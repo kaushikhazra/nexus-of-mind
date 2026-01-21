@@ -1105,33 +1105,36 @@ class MessageHandler:
                             self.gate_logger.log_wait_streak_warning(wait_streak, time_since)
 
                         # Train NN with simulation feedback (negative reward)
-                        if gate_decision.expected_reward != float('-inf'):
+                        # Handle -inf (insufficient energy) - use fixed negative reward
+                        if gate_decision.expected_reward == float('-inf'):
+                            sim_reward = -0.3  # Fixed negative for "can't afford" (30% of -1.0)
+                        else:
                             sim_reward = gate_decision.expected_reward * 0.3  # 30% weight for sim feedback
-                            train_result = self.nn_model.train_with_reward(
-                                features,
-                                spawn_chunk,
-                                spawn_type,
-                                sim_reward
+                        train_result = self.nn_model.train_with_reward(
+                            features,
+                            spawn_chunk,
+                            spawn_type,
+                            sim_reward
+                        )
+                        if self.gate_logger:
+                            self.gate_logger.log_training_feedback(
+                                feedback_type='simulation',
+                                reward=sim_reward,
+                                loss=train_result.get('loss', 0),
+                                spawn_chunk=spawn_chunk,
+                                spawn_type=spawn_type
                             )
-                            if self.gate_logger:
-                                self.gate_logger.log_training_feedback(
-                                    feedback_type='simulation',
-                                    reward=sim_reward,
-                                    loss=train_result.get('loss', 0),
-                                    spawn_chunk=spawn_chunk,
-                                    spawn_type=spawn_type
-                                )
 
-                            # Record simulation training step to dashboard
-                            try:
-                                dashboard = get_dashboard_metrics()
-                                dashboard.record_training_step(
-                                    loss=train_result.get('loss', 0),
-                                    reward=sim_reward,
-                                    is_simulation=True
-                                )
-                            except Exception as e:
-                                logger.warning(f"Failed to record sim training to dashboard: {e}")
+                        # Record simulation training step to dashboard
+                        try:
+                            dashboard = get_dashboard_metrics()
+                            dashboard.record_training_step(
+                                loss=train_result.get('loss', 0),
+                                reward=sim_reward,
+                                is_simulation=True
+                            )
+                        except Exception as e:
+                            logger.warning(f"Failed to record sim training to dashboard: {e}")
                 else:
                     # Fallback to old confidence threshold if no simulation gate
                     threshold = self.nn_config.spawn_gating.confidence_threshold
@@ -1152,36 +1155,51 @@ class MessageHandler:
                                    f"type={spawn_type}, confidence={confidence:.3f}")
 
                 # Add experience to replay buffer for background training
-                if self.replay_buffer and gate_decision:
+                # ALL experiences go to buffer - observation is ground truth from game
+                if self.replay_buffer is None:
+                    logger.warning("[BackgroundTraining] replay_buffer is None - not initialized!")
+                elif gate_decision is None:
+                    logger.warning("[BackgroundTraining] gate_decision is None - experiences not being stored!")
+
+                if self.replay_buffer is not None and gate_decision is not None:
                     # Calculate gate_signal = R_expected - threshold
                     # gate_signal > 0 means SEND, <= 0 means WAIT
                     expected_reward = gate_decision.expected_reward
-                    if expected_reward != float('-inf'):
+                    logger.debug(f"[BackgroundTraining] expected_reward={expected_reward}")
+
+                    # Handle -inf (insufficient energy) - use fixed negative signal
+                    # NN learns: "proposing spawns when energy is low = bad"
+                    if expected_reward == float('-inf'):
+                        gate_signal = -1.0  # Strong negative signal for "can't afford"
+                        r_expected_for_storage = -1.0  # Store meaningful value, not -inf
+                    else:
                         gate_signal = expected_reward - self.simulation_gate.config.reward_threshold
-                        was_executed = gate_decision.decision == 'SEND'
+                        r_expected_for_storage = expected_reward
 
-                        try:
-                            experience = TrainingExperience(
-                                observation=features,
-                                spawn_chunk=spawn_chunk,
-                                spawn_type=spawn_type,
-                                nn_confidence=confidence,
-                                gate_signal=gate_signal,
-                                R_expected=expected_reward,
-                                was_executed=was_executed,
-                                actual_reward=None,  # Will be updated on next observation for SEND
-                                territory_id=territory_id,
-                                model_version=self.background_trainer.model_version if self.background_trainer else 0
-                            )
-                            self.replay_buffer.add(experience)
+                    was_executed = gate_decision.decision == 'SEND'
 
-                            action_str = "SEND" if was_executed else "WAIT"
-                            logger.info(
-                                f"[BackgroundTraining] Added {action_str} experience: "
-                                f"gate_signal={gate_signal:.3f}, chunk={spawn_chunk}"
-                            )
-                        except Exception as e:
-                            logger.warning(f"[BackgroundTraining] Failed to add experience: {e}")
+                    try:
+                        experience = TrainingExperience(
+                            observation=features,
+                            spawn_chunk=spawn_chunk,
+                            spawn_type=spawn_type,
+                            nn_confidence=confidence,
+                            gate_signal=gate_signal,
+                            R_expected=r_expected_for_storage,
+                            was_executed=was_executed,
+                            actual_reward=None,  # Will be updated on next observation for SEND
+                            territory_id=territory_id,
+                            model_version=self.background_trainer.model_version if self.background_trainer else 0
+                        )
+                        self.replay_buffer.add(experience)
+
+                        action_str = "SEND" if was_executed else "WAIT"
+                        logger.info(
+                            f"[BackgroundTraining] Added {action_str} experience: "
+                            f"gate_signal={gate_signal:.3f}, chunk={spawn_chunk}"
+                        )
+                    except Exception as e:
+                        logger.warning(f"[BackgroundTraining] Failed to add experience: {e}")
 
                 # Store for next reward calculation
                 self.prev_observations[territory_id] = observation

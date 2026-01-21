@@ -15,6 +15,7 @@ from .buffer import ExperienceReplayBuffer
 from .config import ContinuousTrainingConfig
 from .experience import Experience
 from .metrics import TrainingMetrics
+from ..simulation.dashboard_metrics import get_dashboard_metrics
 
 if TYPE_CHECKING:
     from ..nn_model import NNModel
@@ -50,6 +51,8 @@ class ContinuousTrainer:
 
         # Versioning
         self._model_version = 0
+        self._last_save_version = 0
+        self._save_interval = 50  # Save every 50 versions
 
         # Metrics
         self._metrics = TrainingMetrics()
@@ -74,7 +77,7 @@ class ContinuousTrainer:
         )
 
     def stop(self, timeout: float = 5.0) -> None:
-        """Stop background training thread."""
+        """Stop background training thread and save model."""
         if not self._running:
             return
 
@@ -83,6 +86,9 @@ class ContinuousTrainer:
             self._thread.join(timeout=timeout)
             if self._thread.is_alive():
                 logger.warning("[Training] Thread did not stop gracefully")
+
+        # Save model on shutdown
+        self._save_model()
         logger.info("[Training] Stopped background trainer")
 
     def _training_loop(self) -> None:
@@ -121,9 +127,11 @@ class ContinuousTrainer:
         batch = self.buffer.sample(self.config.batch_size)
 
         if len(batch) < self.config.min_batch_size:
-            logger.debug(
-                f"[Training] Insufficient samples: {len(batch)} < {self.config.min_batch_size}"
-            )
+            # Only log when there's some data but not enough (avoid flooding when empty)
+            if len(batch) > 0:
+                logger.debug(
+                    f"[Training] Skipped: buffer has {len(batch)} samples, need {self.config.min_batch_size}"
+                )
             return
 
         # Train on each experience in batch
@@ -147,6 +155,10 @@ class ContinuousTrainer:
 
             self._model_version += 1
 
+            # Periodic save
+            if self._model_version - self._last_save_version >= self._save_interval:
+                self._save_model()
+
         avg_loss = total_loss / len(batch)
 
         # Update metrics
@@ -163,6 +175,19 @@ class ContinuousTrainer:
             f"batch={len(batch)}, avg_signal={avg_gate_signal:.3f}, "
             f"time={step_time:.1f}ms"
         )
+
+        # Record to dashboard for UI visualization
+        try:
+            dashboard = get_dashboard_metrics()
+            dashboard.record_training_step(
+                loss=avg_loss,
+                reward=avg_gate_signal,
+                is_simulation=True,  # Background training uses gate signals
+                model_version=self._model_version,
+                buffer_size=len(self.buffer)
+            )
+        except Exception as e:
+            logger.debug(f"Failed to record to dashboard: {e}")
 
     def _calculate_training_reward(self, experience: Experience) -> float:
         """
@@ -254,3 +279,12 @@ class ContinuousTrainer:
             "model_version": self._model_version,
             "is_running": self._running,
         }
+
+    def _save_model(self) -> None:
+        """Save model weights to disk."""
+        try:
+            if self.model.save_model():
+                self._last_save_version = self._model_version
+                logger.info(f"[Training] Model saved at version {self._model_version}")
+        except Exception as e:
+            logger.error(f"[Training] Failed to save model: {e}")

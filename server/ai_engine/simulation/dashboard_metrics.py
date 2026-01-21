@@ -70,10 +70,14 @@ class DashboardMetrics:
         self.last_action_time: float = time.time()
 
         # Training tracking
-        self.loss_history: Deque[float] = deque(maxlen=100)
-        self.simulation_rewards: Deque[float] = deque(maxlen=50)
-        self.real_rewards: Deque[float] = deque(maxlen=50)
+        self.loss_history: Deque[float] = deque(maxlen=1000)
+        self.simulation_rewards: Deque[float] = deque(maxlen=500)
+        self.real_rewards: Deque[float] = deque(maxlen=500)
         self.total_training_steps: int = 0
+
+        # Background training tracking
+        self.model_version: int = 0
+        self.buffer_size: int = 0
 
         # Server info
         self.start_time: float = time.time()
@@ -204,7 +208,9 @@ class DashboardMetrics:
         self,
         loss: float,
         reward: float,
-        is_simulation: bool = False
+        is_simulation: bool = False,
+        model_version: Optional[int] = None,
+        buffer_size: Optional[int] = None
     ) -> None:
         """
         Record a training step.
@@ -213,6 +219,8 @@ class DashboardMetrics:
             loss: Training loss value
             reward: Reward signal used for training
             is_simulation: Whether this is simulation feedback vs real game feedback
+            model_version: Current model version (from background trainer)
+            buffer_size: Current replay buffer size
         """
         with self._data_lock:
             self.loss_history.append(loss)
@@ -221,6 +229,12 @@ class DashboardMetrics:
             else:
                 self.real_rewards.append(reward)
             self.total_training_steps += 1
+
+            # Update background training stats
+            if model_version is not None:
+                self.model_version = model_version
+            if buffer_size is not None:
+                self.buffer_size = buffer_size
 
     def update_game_state(self, game_state: Dict) -> None:
         """
@@ -320,7 +334,9 @@ class DashboardMetrics:
                     'real_rewards': [round(r, 3) for r in real_rewards],
                     'total_steps': self.total_training_steps,
                     'avg_loss': round(avg_loss, 4),
-                    'avg_reward': round(avg_reward, 3)
+                    'avg_reward': round(avg_reward, 3),
+                    'model_version': self.model_version,
+                    'buffer_size': self.buffer_size
                 },
                 'game_state': self.current_game_state.copy(),
                 'pipeline': self.last_pipeline
@@ -344,6 +360,8 @@ class DashboardMetrics:
             self.simulation_rewards.clear()
             self.real_rewards.clear()
             self.total_training_steps = 0
+            self.model_version = 0
+            self.buffer_size = 0
 
             self.start_time = time.time()
             self.current_game_state = {}
