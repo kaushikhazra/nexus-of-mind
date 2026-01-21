@@ -1,2 +1,103 @@
-node_modules
-node_modules
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Testing cache
+.pytest_cache/
+.hypothesis/
+.coverage
+htmlcov/
+.tox/
+.nox/
+playwright-report/
+test-results/
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Generated results and validation files
+*_results.json
+*_assessment_results.json
+validation_results.json
+comprehensive_validation.py
+neural_network_assessment.py
+
+# Model files (large binary files)
+models/
+*.keras
+*.h5
+*.pkl
+*.joblib
+
+# Data directories (generated/temporary data)
+data/
+data_backups/
+data/queen_memory/generation_*.json
+data/learning_quality/
+data/performance_baselines.json
+optimization_rollbacks.json
+optimization_snapshots/
+
+# Quantized models (generated)
+models/quantized/
+
+# Demo and validation scripts (temporary)
+server/demo_*.py
+server/validate_*.py
+server/*_SUMMARY.md
+server/*_IMPLEMENTATION.md
+
+# Generated documentation summaries
+FINAL_CHECKPOINT_SUMMARY.md
+
+# Outdated project management files
+proj-mgmt/
+
+# Test data
+server/data/
+
+# Claude Code CLI temporary files
+tmpclaude-*-cwd
+
+# SQLite databases
+*.db

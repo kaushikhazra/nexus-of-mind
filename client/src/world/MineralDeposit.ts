@@ -167,21 +167,27 @@ export class MineralDeposit {
         if (!this.mesh || !this.material) return;
 
         const percentage = this.remaining / this.capacity;
-        
+
         // Scale mesh based on remaining minerals
         const scale = Math.max(0.2, percentage); // Minimum 20% scale
-        this.mesh.scaling = new Vector3(scale, scale, scale);
+        this.mesh.scaling.set(scale, scale, scale);  // Mutate existing, no allocation
         
-        // Change material properties based on depletion
+        // Change material properties based on depletion (zero allocation - Fix 11)
         if (percentage < 0.2) {
             // Nearly depleted - darker, less emissive
-            this.material.emissiveColor = new Color3(0.1, 0.3, 0.5);
+            this.material.emissiveColor.r = 0.1;
+            this.material.emissiveColor.g = 0.3;
+            this.material.emissiveColor.b = 0.5;
         } else if (percentage < 0.5) {
             // Half depleted - medium glow
-            this.material.emissiveColor = new Color3(0.2, 0.5, 0.8);
+            this.material.emissiveColor.r = 0.2;
+            this.material.emissiveColor.g = 0.5;
+            this.material.emissiveColor.b = 0.8;
         } else {
             // Rich deposit - bright glow
-            this.material.emissiveColor = new Color3(0.3, 0.7, 1.0);
+            this.material.emissiveColor.r = 0.3;
+            this.material.emissiveColor.g = 0.7;
+            this.material.emissiveColor.b = 1.0;
         }
     }
 
@@ -275,10 +281,18 @@ export class MineralDeposit {
     }
 
     /**
-     * Get deposit position
+     * Get deposit position (returns clone for safe external use)
      */
     public getPosition(): Vector3 {
         return this.position.clone();
+    }
+
+    /**
+     * Get deposit position reference (zero allocation - DO NOT MODIFY)
+     * Use in hot paths where position is only read
+     */
+    public getPositionRef(): Vector3 {
+        return this.position;
     }
 
     /**

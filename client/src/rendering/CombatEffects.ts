@@ -48,6 +48,7 @@ export interface FloatingNumberConfig {
 export class CombatEffects {
     private scene: Scene;
     private activeEffects: Map<string, Mesh[]> = new Map();
+    private effectMaterials: Map<string, StandardMaterial[]> = new Map();  // Track cloned materials for disposal
     private particleSystems: Map<string, ParticleSystem> = new Map();
     private floatingNumbers: Map<string, any> = new Map();
     private effectCounter: number = 0;
@@ -59,9 +60,11 @@ export class CombatEffects {
 
     // UI for floating numbers
     private advancedTexture: AdvancedDynamicTexture | null = null;
+    private ownsUI: boolean = false;  // Track if we created the UI (for disposal)
 
-    constructor(scene: Scene) {
+    constructor(scene: Scene, sharedUI?: AdvancedDynamicTexture) {
         this.scene = scene;
+        this.advancedTexture = sharedUI || null;
         this.initialize();
     }
 
@@ -105,7 +108,20 @@ export class CombatEffects {
      * Setup UI for floating numbers
      */
     private setupUI(): void {
-        this.advancedTexture = AdvancedDynamicTexture.CreateFullscreenUI('combat_ui');
+        // UI will be set via setSharedUI() - don't create our own
+        // This avoids the race condition where we create and then immediately dispose
+    }
+
+    /**
+     * Set shared UI texture (for deferred initialization)
+     * If we created our own UI, dispose it and use the shared one
+     */
+    public setSharedUI(sharedUI: AdvancedDynamicTexture): void {
+        if (this.advancedTexture && this.ownsUI) {
+            this.advancedTexture.dispose();
+        }
+        this.advancedTexture = sharedUI;
+        this.ownsUI = false;
     }
 
     /**
@@ -118,13 +134,14 @@ export class CombatEffects {
         // Create beam line
         const beam = this.createBeamLine(config.startPosition, config.endPosition, config.width || 0.2);
         if (beam && this.beamMaterial) {
-            beam.material = this.beamMaterial.clone(`beam_material_${effectId}`);
-            
+            const clonedMaterial = this.beamMaterial.clone(`beam_material_${effectId}`);
+            beam.material = clonedMaterial;
+            this.trackMaterial(effectId, clonedMaterial);  // Track for disposal
+
             // Override color if specified
             if (config.color) {
-                const material = beam.material as StandardMaterial;
-                material.diffuseColor = config.color;
-                material.emissiveColor = config.color.scale(0.8);
+                clonedMaterial.diffuseColor = config.color;
+                clonedMaterial.emissiveColor = config.color.scale(0.8);
             }
 
             beam.renderingGroupId = 2; // Render on top of most objects
@@ -135,7 +152,7 @@ export class CombatEffects {
         }
 
         // Create beam impact effect at target
-        const impactEffect = this.createBeamImpact(config.endPosition);
+        const impactEffect = this.createBeamImpact(config.endPosition, effectId);
         if (impactEffect) {
             effects.push(impactEffect);
         }
@@ -186,7 +203,7 @@ export class CombatEffects {
     /**
      * Create beam impact effect
      */
-    private createBeamImpact(position: Vector3): Mesh | null {
+    private createBeamImpact(position: Vector3, effectId: string): Mesh | null {
         if (!this.scene || !this.hitEffectMaterial) return null;
 
         // Create small sphere for impact
@@ -196,7 +213,9 @@ export class CombatEffects {
         }, this.scene);
 
         impact.position = position.clone();
-        impact.material = this.hitEffectMaterial.clone('impact_material');
+        const clonedMaterial = this.hitEffectMaterial.clone('impact_material');
+        impact.material = clonedMaterial;
+        this.trackMaterial(effectId, clonedMaterial);  // Track for disposal
         impact.renderingGroupId = 2;
 
         // Add scaling animation
@@ -284,16 +303,16 @@ export class CombatEffects {
 
         // Create damage indicator based on type
         let damageIndicator: Mesh | null = null;
-        
+
         switch (config.effectType || 'hit') {
             case 'hit':
-                damageIndicator = this.createHitEffect(config.targetPosition);
+                damageIndicator = this.createHitEffect(config.targetPosition, effectId);
                 break;
             case 'critical':
-                damageIndicator = this.createCriticalHitEffect(config.targetPosition);
+                damageIndicator = this.createCriticalHitEffect(config.targetPosition, effectId);
                 break;
             case 'blocked':
-                damageIndicator = this.createBlockedEffect(config.targetPosition);
+                damageIndicator = this.createBlockedEffect(config.targetPosition, effectId);
                 break;
         }
 
@@ -322,7 +341,7 @@ export class CombatEffects {
     /**
      * Create hit effect
      */
-    private createHitEffect(position: Vector3): Mesh | null {
+    private createHitEffect(position: Vector3, effectId: string): Mesh | null {
         if (!this.scene || !this.hitEffectMaterial) return null;
 
         const hit = MeshBuilder.CreateSphere('hit_effect', {
@@ -332,7 +351,9 @@ export class CombatEffects {
 
         hit.position = position.clone();
         hit.position.y += 1; // Slightly above target
-        hit.material = this.hitEffectMaterial.clone('hit_material');
+        const clonedMaterial = this.hitEffectMaterial.clone('hit_material');
+        hit.material = clonedMaterial;
+        this.trackMaterial(effectId, clonedMaterial);  // Track for disposal
         hit.renderingGroupId = 2;
 
         // Add hit animation
@@ -344,7 +365,7 @@ export class CombatEffects {
     /**
      * Create critical hit effect
      */
-    private createCriticalHitEffect(position: Vector3): Mesh | null {
+    private createCriticalHitEffect(position: Vector3, effectId: string): Mesh | null {
         if (!this.scene) return null;
 
         const critical = MeshBuilder.CreateSphere('critical_hit', {
@@ -363,6 +384,7 @@ export class CombatEffects {
         criticalMaterial.disableLighting = true;
 
         critical.material = criticalMaterial;
+        this.trackMaterial(effectId, criticalMaterial);  // Track for disposal
         critical.renderingGroupId = 2;
 
         // Add critical animation (more dramatic)
@@ -374,7 +396,7 @@ export class CombatEffects {
     /**
      * Create blocked effect
      */
-    private createBlockedEffect(position: Vector3): Mesh | null {
+    private createBlockedEffect(position: Vector3, effectId: string): Mesh | null {
         if (!this.scene) return null;
 
         const blocked = MeshBuilder.CreateBox('blocked_effect', {
@@ -392,6 +414,7 @@ export class CombatEffects {
         blockedMaterial.disableLighting = true;
 
         blocked.material = blockedMaterial;
+        this.trackMaterial(effectId, blockedMaterial);  // Track for disposal
         blocked.renderingGroupId = 2;
 
         // Add blocked animation
@@ -588,7 +611,7 @@ export class CombatEffects {
         const effects: Mesh[] = [];
 
         // Create explosion effect
-        const explosion = this.createExplosion(config.position, config.targetSize, config.explosionType || 'medium');
+        const explosion = this.createExplosion(config.position, config.targetSize, config.explosionType || 'medium', effectId);
         if (explosion) {
             effects.push(explosion);
         }
@@ -614,7 +637,7 @@ export class CombatEffects {
     /**
      * Create explosion visual
      */
-    private createExplosion(position: Vector3, targetSize: number, explosionType: string): Mesh | null {
+    private createExplosion(position: Vector3, targetSize: number, explosionType: string, effectId: string): Mesh | null {
         if (!this.scene || !this.explosionMaterial) return null;
 
         let explosionSize = targetSize * 2;
@@ -630,7 +653,9 @@ export class CombatEffects {
         }, this.scene);
 
         explosion.position = position.clone();
-        explosion.material = this.explosionMaterial.clone('explosion_material');
+        const clonedMaterial = this.explosionMaterial.clone('explosion_material');
+        explosion.material = clonedMaterial;
+        this.trackMaterial(effectId, clonedMaterial);  // Track for disposal
         explosion.renderingGroupId = 2;
 
         // Add explosion animation
@@ -857,6 +882,15 @@ export class CombatEffects {
      * Remove effect by ID
      */
     public removeEffect(effectId: string): void {
+        // Dispose tracked materials FIRST (before mesh disposal)
+        const materials = this.effectMaterials.get(effectId);
+        if (materials) {
+            for (const material of materials) {
+                material.dispose();
+            }
+            this.effectMaterials.delete(effectId);
+        }
+
         // Remove mesh effects
         const effects = this.activeEffects.get(effectId);
         if (effects) {
@@ -896,9 +930,27 @@ export class CombatEffects {
     }
 
     /**
+     * Track a cloned material for later disposal
+     */
+    private trackMaterial(effectId: string, material: StandardMaterial): void {
+        if (!this.effectMaterials.has(effectId)) {
+            this.effectMaterials.set(effectId, []);
+        }
+        this.effectMaterials.get(effectId)!.push(material);
+    }
+
+    /**
      * Clear all active effects
      */
     public clearAllEffects(): void {
+        // Dispose all tracked materials FIRST
+        for (const [effectId, materials] of this.effectMaterials) {
+            for (const material of materials) {
+                material.dispose();
+            }
+        }
+        this.effectMaterials.clear();
+
         // Clear mesh effects
         for (const [effectId, effects] of this.activeEffects) {
             for (const effect of effects) {
@@ -951,10 +1003,10 @@ export class CombatEffects {
             this.explosionMaterial = null;
         }
 
-        // Dispose UI
-        if (this.advancedTexture) {
+        // Dispose UI only if we own it (created it ourselves)
+        if (this.advancedTexture && this.ownsUI) {
             this.advancedTexture.dispose();
-            this.advancedTexture = null;
         }
+        this.advancedTexture = null;
     }
 }

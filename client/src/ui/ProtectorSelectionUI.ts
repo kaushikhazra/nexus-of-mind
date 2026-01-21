@@ -15,6 +15,18 @@ export class ProtectorSelectionUI {
     private mouseX: number = 0;
     private mouseY: number = 0;
 
+    // Cached element references for targeted updates (Fix 14)
+    private energyValueEl: HTMLElement | null = null;
+    private energyBarFillEl: HTMLElement | null = null;
+    private healthValueEl: HTMLElement | null = null;
+    private healthBarFillEl: HTMLElement | null = null;
+    private statusValueEl: HTMLElement | null = null;
+    private attackValueEl: HTMLElement | null = null;
+    private rangeValueEl: HTMLElement | null = null;
+    private defenseValueEl: HTMLElement | null = null;
+    private shieldValueEl: HTMLElement | null = null;
+    private autoAttackEl: HTMLElement | null = null;
+
     constructor() {
         this.initialize();
     }
@@ -27,7 +39,7 @@ export class ProtectorSelectionUI {
     }
 
     /**
-     * Create the tooltip HTML element
+     * Create the tooltip HTML element with cached element references (Fix 14)
      */
     private createTooltipElement(): void {
         this.tooltipElement = document.createElement('div');
@@ -50,7 +62,73 @@ export class ProtectorSelectionUI {
             max-width: 220px;
         `;
 
+        // Build static structure once and cache dynamic elements
+        this.tooltipElement.innerHTML = `
+            <div style="font-size: 12px; font-weight: 700; text-align: center; margin-bottom: 10px; color: #00ffff; text-shadow: 0 0 8px rgba(0, 255, 255, 0.6);">
+                ◊ PROTECTOR ◊
+            </div>
+            <!-- Energy Bar -->
+            <div style="margin-bottom: 8px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                    <span style="color: #00ccff;">Energy:</span>
+                    <span id="psu-energy-value" style="font-weight: 600;">0 / 0</span>
+                </div>
+                <div style="background: rgba(0, 0, 0, 0.4); border-radius: 3px; height: 6px; overflow: hidden;">
+                    <div id="psu-energy-bar" style="height: 100%; width: 0%; transition: width 0.1s ease;"></div>
+                </div>
+            </div>
+            <!-- Health Bar -->
+            <div style="margin-bottom: 8px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                    <span style="color: #00ccff;">Health:</span>
+                    <span id="psu-health-value" style="font-weight: 600;">0 / 0</span>
+                </div>
+                <div style="background: rgba(0, 0, 0, 0.4); border-radius: 3px; height: 6px; overflow: hidden;">
+                    <div id="psu-health-bar" style="height: 100%; width: 0%; transition: width 0.1s ease;"></div>
+                </div>
+            </div>
+            <!-- Combat Stats -->
+            <div style="border-top: 1px solid rgba(0, 255, 255, 0.2); padding-top: 8px; margin-top: 4px;">
+                <div style="margin-bottom: 4px;">
+                    <span style="color: #00ccff;">Status:</span>
+                    <span id="psu-status-value" style="font-weight: 600;">IDLE</span>
+                </div>
+                <div style="margin-bottom: 4px;">
+                    <span style="color: #00ccff;">Attack:</span>
+                    <span id="psu-attack-value" style="color: #ffffff; font-weight: 600;">0 DMG</span>
+                </div>
+                <div style="margin-bottom: 4px;">
+                    <span style="color: #00ccff;">Range:</span>
+                    <span id="psu-range-value" style="color: #ffffff; font-weight: 600;">0 units</span>
+                </div>
+                <div style="margin-bottom: 4px;">
+                    <span style="color: #00ccff;">Defense:</span>
+                    <span id="psu-defense-value" style="color: #ffffff; font-weight: 600;">0</span>
+                </div>
+                <div style="margin-bottom: 4px;">
+                    <span style="color: #00ccff;">Shield:</span>
+                    <span id="psu-shield-value">INACTIVE</span>
+                </div>
+            </div>
+            <!-- Auto-Attack Status -->
+            <div id="psu-auto-attack" style="font-size: 10px; text-align: center; border-top: 1px solid rgba(0, 255, 255, 0.2); padding-top: 6px; margin-top: 6px;">
+                AUTO-ATTACK: DISABLED
+            </div>
+        `;
+
         document.body.appendChild(this.tooltipElement);
+
+        // Cache element references
+        this.energyValueEl = this.tooltipElement.querySelector('#psu-energy-value');
+        this.energyBarFillEl = this.tooltipElement.querySelector('#psu-energy-bar');
+        this.healthValueEl = this.tooltipElement.querySelector('#psu-health-value');
+        this.healthBarFillEl = this.tooltipElement.querySelector('#psu-health-bar');
+        this.statusValueEl = this.tooltipElement.querySelector('#psu-status-value');
+        this.attackValueEl = this.tooltipElement.querySelector('#psu-attack-value');
+        this.rangeValueEl = this.tooltipElement.querySelector('#psu-range-value');
+        this.defenseValueEl = this.tooltipElement.querySelector('#psu-defense-value');
+        this.shieldValueEl = this.tooltipElement.querySelector('#psu-shield-value');
+        this.autoAttackEl = this.tooltipElement.querySelector('#psu-auto-attack');
     }
 
     /**
@@ -162,7 +240,7 @@ export class ProtectorSelectionUI {
     }
 
     /**
-     * Update the tooltip content
+     * Update the tooltip content using targeted DOM updates (Fix 14)
      */
     private updateContent(): void {
         if (!this.tooltipElement || !this.currentProtector) return;
@@ -220,71 +298,58 @@ export class ProtectorSelectionUI {
                 break;
         }
 
-        // Shield status
-        const shieldStatus = stats.shieldActive
-            ? `<span style="color: #00ffff;">${stats.shieldStrength.toFixed(0)}/${stats.maxShieldStrength}</span>`
-            : '<span style="color: #666666;">INACTIVE</span>';
+        // Targeted updates using cached elements (no innerHTML rebuild)
+        if (this.energyValueEl) {
+            this.energyValueEl.textContent = `${currentEnergy.toFixed(1)} / ${maxEnergy.toFixed(0)}`;
+            this.energyValueEl.style.color = energyColor;
+        }
+        if (this.energyBarFillEl) {
+            this.energyBarFillEl.style.width = `${energyPercent}%`;
+            this.energyBarFillEl.style.background = energyColor;
+            this.energyBarFillEl.style.boxShadow = `0 0 6px ${energyColor}40`;
+        }
 
-        this.tooltipElement.innerHTML = `
-            <div style="font-size: 12px; font-weight: 700; text-align: center; margin-bottom: 10px; color: #00ffff; text-shadow: 0 0 8px rgba(0, 255, 255, 0.6);">
-                ◊ PROTECTOR ◊
-            </div>
+        if (this.healthValueEl) {
+            this.healthValueEl.textContent = `${currentHealth.toFixed(0)} / ${maxHealth}`;
+            this.healthValueEl.style.color = healthColor;
+        }
+        if (this.healthBarFillEl) {
+            this.healthBarFillEl.style.width = `${healthPercent}%`;
+            this.healthBarFillEl.style.background = healthColor;
+            this.healthBarFillEl.style.boxShadow = `0 0 6px ${healthColor}40`;
+        }
 
-            <!-- Energy Bar -->
-            <div style="margin-bottom: 8px;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-                    <span style="color: #00ccff;">Energy:</span>
-                    <span style="color: ${energyColor}; font-weight: 600;">${currentEnergy.toFixed(1)} / ${maxEnergy.toFixed(0)}</span>
-                </div>
-                <div style="background: rgba(0, 0, 0, 0.4); border-radius: 3px; height: 6px; overflow: hidden;">
-                    <div style="background: ${energyColor}; height: 100%; width: ${energyPercent}%; transition: width 0.1s ease; box-shadow: 0 0 6px ${energyColor}40;"></div>
-                </div>
-            </div>
+        if (this.statusValueEl) {
+            this.statusValueEl.textContent = stateText;
+            this.statusValueEl.style.color = stateColor;
+        }
 
-            <!-- Health Bar -->
-            <div style="margin-bottom: 8px;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-                    <span style="color: #00ccff;">Health:</span>
-                    <span style="color: ${healthColor}; font-weight: 600;">${currentHealth.toFixed(0)} / ${maxHealth}</span>
-                </div>
-                <div style="background: rgba(0, 0, 0, 0.4); border-radius: 3px; height: 6px; overflow: hidden;">
-                    <div style="background: ${healthColor}; height: 100%; width: ${healthPercent}%; transition: width 0.1s ease; box-shadow: 0 0 6px ${healthColor}40;"></div>
-                </div>
-            </div>
+        if (this.attackValueEl) {
+            this.attackValueEl.textContent = `${stats.attackDamage} DMG`;
+        }
 
-            <!-- Combat Stats -->
-            <div style="border-top: 1px solid rgba(0, 255, 255, 0.2); padding-top: 8px; margin-top: 4px;">
-                <div style="margin-bottom: 4px;">
-                    <span style="color: #00ccff;">Status:</span>
-                    <span style="color: ${stateColor}; font-weight: 600;">${stateText}</span>
-                </div>
+        if (this.rangeValueEl) {
+            this.rangeValueEl.textContent = `${stats.attackRange.toFixed(1)} units`;
+        }
 
-                <div style="margin-bottom: 4px;">
-                    <span style="color: #00ccff;">Attack:</span>
-                    <span style="color: #ffffff; font-weight: 600;">${stats.attackDamage} DMG</span>
-                </div>
+        if (this.defenseValueEl) {
+            this.defenseValueEl.textContent = `${stats.defenseRating}`;
+        }
 
-                <div style="margin-bottom: 4px;">
-                    <span style="color: #00ccff;">Range:</span>
-                    <span style="color: #ffffff; font-weight: 600;">${stats.attackRange.toFixed(1)} units</span>
-                </div>
+        if (this.shieldValueEl) {
+            if (stats.shieldActive) {
+                this.shieldValueEl.textContent = `${stats.shieldStrength.toFixed(0)}/${stats.maxShieldStrength}`;
+                this.shieldValueEl.style.color = '#00ffff';
+            } else {
+                this.shieldValueEl.textContent = 'INACTIVE';
+                this.shieldValueEl.style.color = '#666666';
+            }
+        }
 
-                <div style="margin-bottom: 4px;">
-                    <span style="color: #00ccff;">Defense:</span>
-                    <span style="color: #ffffff; font-weight: 600;">${stats.defenseRating}</span>
-                </div>
-
-                <div style="margin-bottom: 4px;">
-                    <span style="color: #00ccff;">Shield:</span>
-                    ${shieldStatus}
-                </div>
-            </div>
-
-            <!-- Auto-Attack Status -->
-            <div style="font-size: 10px; color: ${stats.autoAttackEnabled ? '#00ff00' : '#ff4444'}; text-align: center; border-top: 1px solid rgba(0, 255, 255, 0.2); padding-top: 6px; margin-top: 6px;">
-                AUTO-ATTACK: ${stats.autoAttackEnabled ? 'ENABLED' : 'DISABLED'}
-            </div>
-        `;
+        if (this.autoAttackEl) {
+            this.autoAttackEl.textContent = `AUTO-ATTACK: ${stats.autoAttackEnabled ? 'ENABLED' : 'DISABLED'}`;
+            this.autoAttackEl.style.color = stats.autoAttackEnabled ? '#00ff00' : '#ff4444';
+        }
     }
 
     /**

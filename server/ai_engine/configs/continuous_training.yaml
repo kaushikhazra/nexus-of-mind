@@ -1,0 +1,25 @@
+# Continuous Training Loop Configuration
+# Gate IS the cost function - gate_signal at inference is ground truth
+
+# Training loop
+training_interval: 1.0      # Seconds between training steps
+batch_size: 32              # Target batch size
+min_batch_size: 1           # Minimum samples to train (low for dynamic responsiveness)
+
+# Replay buffer
+buffer_capacity: 10000      # Max experiences stored
+lock_timeout: 5.0           # Seconds to wait for lock
+
+# Reward weighting (for SEND actions with actual_reward)
+# training_reward = gate_weight * gate_signal + actual_weight * actual_reward
+gate_weight: 0.3            # Weight for gate_signal
+actual_weight: 0.7          # Weight for actual_reward
+
+# Learning rate
+learning_rate: 0.001
+
+# Gate threshold (must match gate config)
+reward_threshold: 0.6
+
+# Feature flags
+enabled: true               # Master switch for continuous training

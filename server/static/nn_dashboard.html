@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NN Visualization Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-primary: #1e1e1e;
+            --bg-secondary: #2d2d2d;
+            --bg-tertiary: #3d3d3d;
+            --text-primary: #eee;
+            --text-secondary: #bbb;
+            --accent: #4a4a4a;
+            --success: #00c853;
+            --warning: #ffc107;
+            --danger: #ff5252;
+            --info: #00bcd4;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            padding: 16px;
+            min-height: 100vh;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--accent);
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .header h1 {
+            font-size: 22px;
+            font-weight: 600;
+        }
+
+        .header-info {
+            display: flex;
+            gap: 20px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .header-info strong {
+            color: var(--text-primary);
+        }
+
+        .refresh-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .countdown {
+            font-family: 'Courier New', monospace;
+            background: var(--accent);
+            padding: 4px 10px;
+            border-radius: 4px;
+            min-width: 28px;
+            text-align: center;
+        }
+
+        .btn {
+            background: var(--accent);
+            color: var(--text-primary);
+            border: none;
+            padding: 6px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: opacity 0.2s;
+        }
+
+        .btn:hover { opacity: 0.8; }
+
+        #lastUpdated {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+
+        #lastUpdated.error { color: var(--danger); }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+        }
+
+        @media (max-width: 1200px) {
+            .dashboard {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 800px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .section {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 14px;
+        }
+
+        .section h2 {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--accent);
+            color: #ccc;
+        }
+
+        .card {
+            background: var(--bg-primary);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .card:last-child { margin-bottom: 0; }
+
+        .card h3 {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .stat-card {
+            background: var(--bg-primary);
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 22px;
+            font-weight: bold;
+            color: var(--info);
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .heatmap-container {
+            width: 100%;
+            aspect-ratio: 1;
+            margin-bottom: 8px;
+        }
+
+        #chunkHeatmap {
+            width: 100%;
+            height: 100%;
+            border-radius: 4px;
+        }
+
+        .decisions-table {
+            width: 100%;
+            font-size: 12px;
+            border-collapse: collapse;
+        }
+
+        .decisions-table th,
+        .decisions-table td {
+            padding: 6px 8px;
+            text-align: left;
+            border-bottom: 1px solid var(--accent);
+        }
+
+        .decisions-table th {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .decisions-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .gauge-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .gauge-value {
+            font-size: 28px;
+            font-weight: bold;
+            margin-top: 8px;
+        }
+
+        .gauge-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .wait-streak {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            background: var(--bg-primary);
+            border-radius: 6px;
+        }
+
+        .wait-streak.warning {
+            background: rgba(255, 82, 82, 0.15);
+            border: 1px solid var(--danger);
+        }
+
+        .wait-streak-value {
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .wait-streak.warning .wait-streak-value {
+            color: var(--danger);
+        }
+
+        .chart-container {
+            height: 140px;
+            margin-bottom: 8px;
+        }
+
+        .chart-container.tall {
+            height: 180px;
+        }
+
+        .loading { opacity: 0.5; }
+
+        .type-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .type-badge.energy {
+            background: rgba(76, 175, 80, 0.3);
+            color: #81c784;
+        }
+
+        .type-badge.combat {
+            background: rgba(244, 67, 54, 0.3);
+            color: #e57373;
+        }
+
+        .sent-badge {
+            display: inline-block;
+            width: 18px;
+            text-align: center;
+        }
+
+        .sent-badge.yes { color: var(--success); }
+        .sent-badge.no { color: var(--danger); }
+
+        .time-info {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 6px;
+        }
+
+        /* Pipeline Visualization */
+        .pipeline-section {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 14px;
+            margin-bottom: 16px;
+        }
+
+        .pipeline-section h2 {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--accent);
+            color: #ccc;
+        }
+
+        .pipeline-container {
+            display: flex;
+            align-items: stretch;
+            gap: 6px;
+            overflow-x: auto;
+            padding-bottom: 8px;
+        }
+
+        .pipeline-stage {
+            flex: 1;
+            min-width: 130px;
+            max-width: 180px;
+            background: var(--bg-primary);
+            border-radius: 6px;
+            border: 2px solid var(--accent);
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .pipeline-stage.decision-send {
+            border-color: var(--success);
+            box-shadow: 0 0 12px rgba(0, 200, 83, 0.3);
+        }
+
+        .pipeline-stage.decision-wait {
+            border-color: var(--danger);
+            box-shadow: 0 0 12px rgba(255, 82, 82, 0.3);
+        }
+
+        .stage-header {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-align: center;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--accent);
+            letter-spacing: 0.5px;
+        }
+
+        .stage-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .stage-item {
+            font-size: 11px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stage-item .label {
+            color: var(--text-secondary);
+        }
+
+        .stage-item .value {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .stage-item small {
+            color: var(--text-secondary);
+            font-size: 9px;
+            margin-left: 4px;
+        }
+
+        .stage-formula {
+            font-size: 9px;
+            color: var(--text-secondary);
+            text-align: center;
+            margin-bottom: 6px;
+            font-family: monospace;
+        }
+
+        .stage-value-large {
+            font-size: 22px;
+            font-weight: bold;
+            text-align: center;
+            color: var(--info);
+        }
+
+        .stage-decision {
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            padding: 4px 0;
+        }
+
+        .stage-decision.send { color: var(--success); }
+        .stage-decision.wait { color: var(--danger); }
+
+        .stage-reason {
+            font-size: 10px;
+            text-align: center;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .pipeline-arrow {
+            display: flex;
+            align-items: center;
+            font-size: 20px;
+            color: var(--text-secondary);
+            padding: 0 2px;
+            flex-shrink: 0;
+        }
+
+        .rate-positive { color: var(--danger); }
+        .rate-negative { color: var(--success); }
+
+        @media (max-width: 900px) {
+            .pipeline-container {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            .pipeline-arrow {
+                display: none;
+            }
+            .pipeline-stage {
+                min-width: 140px;
+                max-width: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>NN Visualization Dashboard</h1>
+        <div class="header-info">
+            <span>Territory: <strong id="territoryId">-</strong></span>
+            <span>Uptime: <strong id="uptime">-</strong></span>
+            <div class="refresh-indicator">
+                <span>Next:</span>
+                <span class="countdown" id="countdown">15</span>
+                <button class="btn" onclick="refreshNow()">Refresh</button>
+                <button class="btn" onclick="exportData()">Export</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="lastUpdated">Last updated: Never</div>
+
+    <!-- Pipeline Visualization -->
+    <div class="pipeline-section">
+        <h2>Simulation Gate Pipeline</h2>
+        <div class="pipeline-container">
+            <!-- Stage 1: Observation -->
+            <div class="pipeline-stage" id="stage-observation">
+                <div class="stage-header">OBSERVATION</div>
+                <div class="stage-content">
+                    <div class="stage-item"><span class="label">Workers</span><span class="value" id="pipe-workers">-</span></div>
+                    <div class="stage-item"><span class="label">Protectors</span><span class="value" id="pipe-protectors">-</span></div>
+                    <div class="stage-item"><span class="label">Parasites</span><span class="value" id="pipe-parasites">-</span></div>
+                    <div class="stage-item"><span class="label">Q.Energy</span><span class="value" id="pipe-queen-energy">-</span></div>
+                    <div class="stage-item"><span class="label">P.Energy Δ</span><span class="value" id="pipe-energy-rate">-</span></div>
+                    <div class="stage-item"><span class="label">P.Mineral Δ</span><span class="value" id="pipe-mineral-rate">-</span></div>
+                </div>
+            </div>
+
+            <div class="pipeline-arrow">→</div>
+
+            <!-- Stage 2: NN Output -->
+            <div class="pipeline-stage" id="stage-nn-output">
+                <div class="stage-header">NN OUTPUT</div>
+                <div class="stage-content">
+                    <div class="stage-item"><span class="label">Chunk</span><span class="value" id="pipe-chunk">-</span></div>
+                    <div class="stage-item"><span class="label">Type</span><span class="value" id="pipe-type">-</span></div>
+                    <div class="stage-item"><span class="label">Confidence</span><span class="value" id="pipe-confidence">-</span></div>
+                    <div class="stage-item"><span class="label">Skip</span><span class="value" id="pipe-skip">-</span></div>
+                </div>
+            </div>
+
+            <div class="pipeline-arrow">→</div>
+
+            <!-- Stage 3: Gate Components -->
+            <div class="pipeline-stage" id="stage-components">
+                <div class="stage-header">GATE COMPONENTS</div>
+                <div class="stage-content">
+                    <div class="stage-item"><span class="label">Capacity</span><span class="value" id="pipe-capacity">-</span></div>
+                    <div class="stage-item"><span class="label">Survival</span><span class="value" id="pipe-survival">-</span><small>(w=0.4)</small></div>
+                    <div class="stage-item"><span class="label">Disruption</span><span class="value" id="pipe-disruption">-</span><small>(w=0.5)</small></div>
+                    <div class="stage-item"><span class="label">Location</span><span class="value" id="pipe-location">-</span><small>(w=0.1)</small></div>
+                    <div class="stage-item"><span class="label">Exploration</span><span class="value" id="pipe-exploration">-</span></div>
+                </div>
+            </div>
+
+            <div class="pipeline-arrow">→</div>
+
+            <!-- Stage 4: Combined Reward -->
+            <div class="pipeline-stage" id="stage-combined">
+                <div class="stage-header">COMBINED</div>
+                <div class="stage-content" style="justify-content: center;">
+                    <div class="stage-formula">R = V×(w₁S + w₂D + w₃L) + E</div>
+                    <div class="stage-value-large" id="pipe-expected-reward">-</div>
+                </div>
+            </div>
+
+            <div class="pipeline-arrow">→</div>
+
+            <!-- Stage 5: Decision -->
+            <div class="pipeline-stage" id="stage-decision">
+                <div class="stage-header">DECISION</div>
+                <div class="stage-content" style="justify-content: center;">
+                    <div class="stage-decision" id="pipe-decision">-</div>
+                    <div class="stage-reason" id="pipe-reason">-</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard">
+        <!-- NN Decisions Section -->
+        <div class="section">
+            <h2>NN Decisions</h2>
+
+            <div class="card">
+                <h3>Chunk Heatmap (20x20)</h3>
+                <div class="heatmap-container">
+                    <canvas id="chunkHeatmap"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Recent Decisions</h3>
+                <table class="decisions-table">
+                    <thead>
+                        <tr><th>Chunk</th><th>Type</th><th>Conf</th><th>Sent</th></tr>
+                    </thead>
+                    <tbody id="decisionsTable">
+                        <tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">No data</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="energyCount">0</div>
+                    <div class="stat-label">Energy Spawns</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="combatCount">0</div>
+                    <div class="stat-label">Combat Spawns</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Confidence Distribution</h3>
+                <div class="chart-container">
+                    <canvas id="confidenceChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gate Behavior Section -->
+        <div class="section">
+            <h2>Simulation Gate</h2>
+
+            <div class="card">
+                <div class="gauge-container">
+                    <canvas id="passRateGauge" width="160" height="100"></canvas>
+                    <div class="gauge-value" id="passRateValue">0%</div>
+                    <div class="gauge-label">Pass Rate</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Decision Reasons</h3>
+                <div class="chart-container">
+                    <canvas id="reasonsChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Component Contribution</h3>
+                <div class="chart-container">
+                    <canvas id="componentsChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Expected Reward History</h3>
+                <div class="chart-container">
+                    <canvas id="rewardHistoryChart"></canvas>
+                </div>
+            </div>
+
+            <div class="wait-streak" id="waitStreak">
+                <div>
+                    <div style="font-size: 12px; color: var(--text-secondary);">Wait Streak</div>
+                    <div class="wait-streak-value" id="waitStreakValue">0</div>
+                </div>
+                <div class="time-info">
+                    Time since action: <span id="timeSinceAction">0s</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Training Section -->
+        <div class="section">
+            <h2>Training Progress</h2>
+
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="modelVersion">0</div>
+                    <div class="stat-label">NN Version</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="bufferSize">0</div>
+                    <div class="stat-label">Buffer Size</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="avgLoss">-</div>
+                    <div class="stat-label">Avg Loss</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Loss Curve</h3>
+                <div class="chart-container tall">
+                    <canvas id="lossChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Reward History (Sim vs Real)</h3>
+                <div class="chart-container tall">
+                    <canvas id="rewardsChart"></canvas>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-value" id="avgReward">-</div>
+                <div class="stat-label">Average Reward</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Dashboard state
+        let dashboardData = null;
+        let refreshInterval = 15000;
+        let countdownValue = 15;
+        let countdownTimer = null;
+        let charts = {};
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeCharts();
+            fetchDashboardData();
+            startRefreshCycle();
+        });
+
+        function initializeCharts() {
+            const chartDefaults = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                }
+            };
+
+            // Confidence Histogram
+            charts.confidence = new Chart(
+                document.getElementById('confidenceChart').getContext('2d'),
+                {
+                    type: 'bar',
+                    data: {
+                        labels: ['0.0', '0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9'],
+                        datasets: [{
+                            label: 'Count',
+                            data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                            backgroundColor: 'rgba(0, 188, 212, 0.6)',
+                            borderColor: 'rgba(0, 188, 212, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        ...chartDefaults,
+                        scales: {
+                            y: { beginAtZero: true, ticks: { color: '#aaa' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                            x: { ticks: { color: '#aaa' }, grid: { display: false } }
+                        }
+                    }
+                }
+            );
+
+            // Decision Reasons Donut
+            charts.reasons = new Chart(
+                document.getElementById('reasonsChart').getContext('2d'),
+                {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Positive', 'Override', 'Negative', 'No Energy'],
+                        datasets: [{
+                            data: [0, 0, 0, 0],
+                            backgroundColor: ['#00c853', '#ffc107', '#ff5252', '#9e9e9e']
+                        }]
+                    },
+                    options: {
+                        ...chartDefaults,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'bottom',
+                                labels: { color: '#aaa', font: { size: 10 }, boxWidth: 12 }
+                            }
+                        }
+                    }
+                }
+            );
+
+            // Component Breakdown Bar
+            charts.components = new Chart(
+                document.getElementById('componentsChart').getContext('2d'),
+                {
+                    type: 'bar',
+                    data: {
+                        labels: ['Survival', 'Disruption', 'Location', 'Exploration'],
+                        datasets: [{
+                            label: 'Avg Value',
+                            data: [0, 0, 0, 0],
+                            backgroundColor: ['#4caf50', '#2196f3', '#ff9800', '#9c27b0']
+                        }]
+                    },
+                    options: {
+                        ...chartDefaults,
+                        indexAxis: 'y',
+                        scales: {
+                            x: { ticks: { color: '#aaa' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                            y: { ticks: { color: '#aaa' }, grid: { display: false } }
+                        }
+                    }
+                }
+            );
+
+            // Reward History Line
+            charts.rewardHistory = new Chart(
+                document.getElementById('rewardHistoryChart').getContext('2d'),
+                {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Expected Reward',
+                            data: [],
+                            borderColor: '#00bcd4',
+                            backgroundColor: 'rgba(0, 188, 212, 0.1)',
+                            tension: 0.3,
+                            fill: true,
+                            pointRadius: 0
+                        }]
+                    },
+                    options: {
+                        ...chartDefaults,
+                        scales: {
+                            y: { ticks: { color: '#aaa' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                            x: { display: false }
+                        }
+                    }
+                }
+            );
+
+            // Loss Curve
+            charts.loss = new Chart(
+                document.getElementById('lossChart').getContext('2d'),
+                {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Loss',
+                            data: [],
+                            borderColor: '#f44336',
+                            backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                            tension: 0.3,
+                            fill: true,
+                            pointRadius: 0
+                        }]
+                    },
+                    options: {
+                        ...chartDefaults,
+                        scales: {
+                            y: { ticks: { color: '#aaa' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                            x: { display: false }
+                        }
+                    }
+                }
+            );
+
+            // Rewards Comparison (Sim vs Real)
+            charts.rewards = new Chart(
+                document.getElementById('rewardsChart').getContext('2d'),
+                {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [
+                            {
+                                label: 'Simulation',
+                                data: [],
+                                borderColor: '#2196f3',
+                                tension: 0.3,
+                                fill: false,
+                                pointRadius: 0
+                            },
+                            {
+                                label: 'Real',
+                                data: [],
+                                borderColor: '#4caf50',
+                                tension: 0.3,
+                                fill: false,
+                                pointRadius: 0
+                            }
+                        ]
+                    },
+                    options: {
+                        ...chartDefaults,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'bottom',
+                                labels: { color: '#aaa', font: { size: 10 }, boxWidth: 12 }
+                            }
+                        },
+                        scales: {
+                            y: { ticks: { color: '#aaa' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                            x: { display: false }
+                        }
+                    }
+                }
+            );
+        }
+
+        async function fetchDashboardData() {
+            const container = document.querySelector('.dashboard');
+            container.classList.add('loading');
+
+            try {
+                const response = await fetch('/api/nn-dashboard');
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                dashboardData = await response.json();
+                updateDashboard(dashboardData);
+
+                document.getElementById('lastUpdated').textContent =
+                    `Last updated: ${new Date().toLocaleTimeString()}`;
+                document.getElementById('lastUpdated').classList.remove('error');
+            } catch (error) {
+                console.error('Failed to fetch dashboard data:', error);
+                document.getElementById('lastUpdated').textContent =
+                    `Connection lost - retrying... (${error.message})`;
+                document.getElementById('lastUpdated').classList.add('error');
+            } finally {
+                container.classList.remove('loading');
+            }
+        }
+
+        function updateDashboard(data) {
+            // Header info
+            document.getElementById('territoryId').textContent =
+                data.game_state?.territory_id || '-';
+            document.getElementById('uptime').textContent =
+                formatUptime(data.uptime_seconds);
+
+            // Pipeline Visualization
+            updatePipeline(data.pipeline);
+
+            // NN Decisions
+            updateHeatmap(data.nn_decisions.chunk_sent, data.nn_decisions.chunk_skipped);
+            updateDecisionsTable(data.nn_decisions.recent_decisions);
+            document.getElementById('energyCount').textContent =
+                data.nn_decisions.type_counts.energy || 0;
+            document.getElementById('combatCount').textContent =
+                data.nn_decisions.type_counts.combat || 0;
+
+            charts.confidence.data.datasets[0].data = data.nn_decisions.confidence_histogram;
+            charts.confidence.update('none');
+
+            // Gate Behavior
+            updatePassRateGauge(data.gate_behavior.pass_rate);
+
+            const reasons = data.gate_behavior.decision_reasons;
+            charts.reasons.data.datasets[0].data = [
+                reasons.positive_reward || 0,
+                reasons.confidence_override || 0,
+                reasons.negative_reward || 0,
+                reasons.insufficient_energy || 0
+            ];
+            charts.reasons.update('none');
+
+            const comp = data.gate_behavior.avg_components;
+            charts.components.data.datasets[0].data = [
+                comp.survival || 0,
+                comp.disruption || 0,
+                comp.location || 0,
+                comp.exploration || 0
+            ];
+            charts.components.update('none');
+
+            const rewardHist = data.gate_behavior.reward_history || [];
+            charts.rewardHistory.data.labels = rewardHist.map((_, i) => i);
+            charts.rewardHistory.data.datasets[0].data = rewardHist;
+            charts.rewardHistory.update('none');
+
+            updateWaitStreak(data.gate_behavior.wait_streak, data.gate_behavior.time_since_last_action);
+
+            // Training
+            document.getElementById('modelVersion').textContent = data.training.model_version || 0;
+            document.getElementById('bufferSize').textContent = data.training.buffer_size || 0;
+            document.getElementById('avgLoss').textContent =
+                formatDecimal(data.training.avg_loss, 4);
+            document.getElementById('avgReward').textContent =
+                formatDecimal(data.training.avg_reward, 4);
+
+            const lossHist = data.training.loss_history || [];
+            charts.loss.data.labels = lossHist.map((_, i) => i);
+            charts.loss.data.datasets[0].data = lossHist;
+            charts.loss.update('none');
+
+            const simRewards = data.training.simulation_rewards || [];
+            const realRewards = data.training.real_rewards || [];
+            const maxLen = Math.max(simRewards.length, realRewards.length, 1);
+            charts.rewards.data.labels = Array.from({ length: maxLen }, (_, i) => i);
+            charts.rewards.data.datasets[0].data = simRewards;
+            charts.rewards.data.datasets[1].data = realRewards;
+            charts.rewards.update('none');
+        }
+
+        function updateHeatmap(sentFrequencies, skippedFrequencies) {
+            const canvas = document.getElementById('chunkHeatmap');
+            const ctx = canvas.getContext('2d');
+            const gridSize = 20;
+
+            // Set canvas size based on container
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+
+            const cellWidth = canvas.width / gridSize;
+            const cellHeight = canvas.height / gridSize;
+
+            // Find max for color scaling (use max of both for consistent scaling)
+            const maxSent = Math.max(...(sentFrequencies || []), 1);
+            const maxSkipped = Math.max(...(skippedFrequencies || []), 1);
+            const maxFreq = Math.max(maxSent, maxSkipped);
+
+            // Clear canvas
+            ctx.fillStyle = '#1e1e1e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw grid
+            for (let z = 0; z < gridSize; z++) {
+                for (let x = 0; x < gridSize; x++) {
+                    const chunkId = z * gridSize + x;
+                    const sent = (sentFrequencies && sentFrequencies[chunkId]) || 0;
+                    const skipped = (skippedFrequencies && skippedFrequencies[chunkId]) || 0;
+
+                    if (sent > 0 || skipped > 0) {
+                        // Determine dominant color based on sent vs skipped ratio
+                        const total = sent + skipped;
+                        const sentRatio = sent / total;
+                        const intensity = total / maxFreq;
+
+                        if (sentRatio >= 0.5) {
+                            // More sent than skipped: Blue/Cyan gradient
+                            const r = Math.floor(intensity * 50);
+                            const g = Math.floor(intensity * 180 + 50);
+                            const b = Math.floor(intensity * 155 + 100);
+                            ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                        } else {
+                            // More skipped than sent: Red gradient
+                            const r = Math.floor(intensity * 155 + 100);
+                            const g = Math.floor(intensity * 50);
+                            const b = Math.floor(intensity * 50);
+                            ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                        }
+                    } else {
+                        ctx.fillStyle = '#2d2d2d';
+                    }
+
+                    ctx.fillRect(
+                        x * cellWidth + 0.5,
+                        z * cellHeight + 0.5,
+                        cellWidth - 1,
+                        cellHeight - 1
+                    );
+                }
+            }
+        }
+
+        function updateDecisionsTable(decisions) {
+            const tbody = document.getElementById('decisionsTable');
+
+            if (!decisions || decisions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">No data</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = decisions.slice().reverse().map(d => `
+                <tr>
+                    <td>${d.chunk}</td>
+                    <td><span class="type-badge ${d.type}">${d.type === 'energy' ? 'E' : 'C'}</span></td>
+                    <td>${formatDecimal(d.confidence, 4)}</td>
+                    <td><span class="sent-badge ${d.sent ? 'yes' : 'no'}">${d.sent ? '✓' : '✗'}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        function updatePassRateGauge(rate) {
+            const canvas = document.getElementById('passRateGauge');
+            const ctx = canvas.getContext('2d');
+            const percent = (rate || 0) * 100;
+
+            ctx.clearRect(0, 0, 160, 100);
+
+            const centerX = 80;
+            const centerY = 85;
+            const radius = 65;
+
+            // Background arc
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, Math.PI, 0, false);
+            ctx.lineWidth = 14;
+            ctx.strokeStyle = '#333';
+            ctx.stroke();
+
+            // Value arc
+            const color = percent < 30 ? '#ff5252' : percent < 60 ? '#ffc107' : '#00c853';
+            const endAngle = Math.PI + (Math.PI * (rate || 0));
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, Math.PI, endAngle, false);
+            ctx.lineWidth = 14;
+            ctx.strokeStyle = color;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+
+            const valueEl = document.getElementById('passRateValue');
+            valueEl.textContent = `${percent.toFixed(0)}%`;
+            valueEl.style.color = color;
+        }
+
+        function updateWaitStreak(streak, timeSince) {
+            const el = document.getElementById('waitStreak');
+            document.getElementById('waitStreakValue').textContent = streak || 0;
+            document.getElementById('timeSinceAction').textContent = formatDuration(timeSince || 0);
+
+            if (streak > 10) {
+                el.classList.add('warning');
+            } else {
+                el.classList.remove('warning');
+            }
+        }
+
+        function startRefreshCycle() {
+            countdownValue = refreshInterval / 1000;
+            updateCountdown();
+
+            countdownTimer = setInterval(() => {
+                countdownValue--;
+                updateCountdown();
+
+                if (countdownValue <= 0) {
+                    fetchDashboardData();
+                    countdownValue = refreshInterval / 1000;
+                }
+            }, 1000);
+        }
+
+        function updateCountdown() {
+            document.getElementById('countdown').textContent = countdownValue;
+        }
+
+        function refreshNow() {
+            countdownValue = refreshInterval / 1000;
+            fetchDashboardData();
+        }
+
+        function exportData() {
+            if (!dashboardData) {
+                alert('No data available to export');
+                return;
+            }
+
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            const filename = `nn-dashboard-${timestamp}.json`;
+            const blob = new Blob([JSON.stringify(dashboardData, null, 2)], { type: 'application/json' });
+
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        }
+
+        function formatUptime(seconds) {
+            if (!seconds) return '-';
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            return `${hours}h ${minutes}m`;
+        }
+
+        function formatDuration(seconds) {
+            if (!seconds) return '0s';
+            if (seconds < 60) return `${Math.round(seconds)}s`;
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.round(seconds % 60);
+            return `${mins}m ${secs}s`;
+        }
+
+        function updatePipeline(pipeline) {
+            if (!pipeline) {
+                // No pipeline data yet - show placeholder
+                return;
+            }
+
+            // Stage 1: Observation
+            const obs = pipeline.observation || {};
+            document.getElementById('pipe-workers').textContent = obs.workers_count ?? '-';
+            document.getElementById('pipe-protectors').textContent = obs.protectors_count ?? '-';
+            document.getElementById('pipe-parasites').textContent = obs.parasites_count ?? '-';
+            document.getElementById('pipe-queen-energy').textContent = formatDecimal(obs.queen_energy, 4);
+
+            const energyRateEl = document.getElementById('pipe-energy-rate');
+            energyRateEl.textContent = formatRate(obs.player_energy_rate);
+            energyRateEl.className = 'value ' + (obs.player_energy_rate > 0 ? 'rate-positive' : obs.player_energy_rate < 0 ? 'rate-negative' : '');
+
+            const mineralRateEl = document.getElementById('pipe-mineral-rate');
+            mineralRateEl.textContent = formatRate(obs.player_mineral_rate);
+            mineralRateEl.className = 'value ' + (obs.player_mineral_rate > 0 ? 'rate-positive' : obs.player_mineral_rate < 0 ? 'rate-negative' : '');
+
+            // Stage 2: NN Output
+            const nn = pipeline.nn_output || {};
+            document.getElementById('pipe-chunk').textContent = nn.chunk_id ?? '-';
+            document.getElementById('pipe-type').textContent = nn.spawn_type ?? '-';
+            document.getElementById('pipe-confidence').textContent = formatDecimal(nn.confidence, 4);
+            const skipEl = document.getElementById('pipe-skip');
+            if (nn.skip !== undefined) {
+                skipEl.textContent = nn.skip ? 'YES' : 'NO';
+                skipEl.style.color = nn.skip ? 'var(--danger)' : 'var(--success)';
+            } else {
+                skipEl.textContent = '-';
+                skipEl.style.color = '';
+            }
+
+            // Stage 3: Gate Components
+            const comp = pipeline.gate_components || {};
+            const decision = pipeline.decision || {};
+            // Capacity is OK unless reason is insufficient_energy
+            const capacityEl = document.getElementById('pipe-capacity');
+            const capacityOk = decision.reason !== 'insufficient_energy';
+            capacityEl.textContent = capacityOk ? 'OK' : 'LOW';
+            capacityEl.style.color = capacityOk ? 'var(--success)' : 'var(--danger)';
+            document.getElementById('pipe-survival').textContent = formatDecimal(comp.survival, 4);
+            document.getElementById('pipe-disruption').textContent = formatDecimal(comp.disruption, 4);
+            document.getElementById('pipe-location').textContent = formatDecimal(comp.location, 4);
+            document.getElementById('pipe-exploration').textContent = formatDecimal(comp.exploration, 4);
+
+            // Stage 4: Combined Reward
+            const combined = pipeline.combined_reward || {};
+            document.getElementById('pipe-expected-reward').textContent =
+                formatDecimal(combined.expected_reward, 4);
+
+            // Stage 5: Decision (decision already defined above for capacity check)
+            const decisionEl = document.getElementById('pipe-decision');
+            const reasonEl = document.getElementById('pipe-reason');
+            const stageEl = document.getElementById('stage-decision');
+
+            decisionEl.textContent = decision.action || '-';
+            decisionEl.className = 'stage-decision ' + (decision.action?.toLowerCase() || '');
+            reasonEl.textContent = formatReason(decision.reason);
+
+            // Update stage border color
+            stageEl.classList.remove('decision-send', 'decision-wait');
+            if (decision.action === 'SEND') {
+                stageEl.classList.add('decision-send');
+            } else if (decision.action === 'WAIT') {
+                stageEl.classList.add('decision-wait');
+            }
+        }
+
+        function formatDecimal(value, maxDecimals = 4) {
+            if (value == null || isNaN(value)) return '-';
+            // Use at most maxDecimals, but trim trailing zeros
+            const fixed = Number(value).toFixed(maxDecimals);
+            return parseFloat(fixed).toString();
+        }
+
+        function formatRate(rate) {
+            if (rate == null) return '-';
+            const sign = rate >= 0 ? '+' : '';
+            return sign + formatDecimal(rate * 100, 2) + '%';
+        }
+
+        function formatReason(reason) {
+            if (!reason) return '-';
+            const labels = {
+                'positive_reward': 'Positive Reward',
+                'confidence_override': 'High Confidence',
+                'negative_reward': 'Negative Reward',
+                'insufficient_energy': 'Low Energy'
+            };
+            return labels[reason] || reason;
+        }
+    </script>
+</body>
+</html>

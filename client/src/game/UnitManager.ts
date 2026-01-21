@@ -14,6 +14,7 @@ import { GameState } from './GameState';
 import { UnitRenderer, UnitVisual } from '../rendering/UnitRenderer';
 import { GameEngine } from './GameEngine';
 import { CombatSystem } from './CombatSystem';
+import { SpatialIndex } from './SpatialIndex';
 
 export interface UnitCommand {
     id: string;
@@ -40,10 +41,20 @@ export class UnitManager {
     private unitRenderer: UnitRenderer;
     private terrainGenerator: any = null;
     private combatSystem: CombatSystem | null = null;
+    private territoryManager: any = null; // TerritoryManager for mining bonus
 
     // Unit management
     private units: Map<string, Unit> = new Map();
     private selectedUnits: Set<string> = new Set();
+
+    // Typed unit arrays for zero-allocation access (maintained alongside Map)
+    private workerUnits: Worker[] = [];
+    private protectorUnits: Protector[] = [];
+    private scoutUnits: Scout[] = [];
+
+    // Event-driven mining worker tracking (NN v2)
+    // O(1) add/remove - no iteration needed to find mining workers
+    private miningWorkers: Set<Worker> = new Set();
 
     // Command system
     private commandQueue: UnitCommand[] = [];
@@ -82,6 +93,20 @@ export class UnitManager {
     }
 
     /**
+     * Set territory manager for mining bonus integration
+     */
+    public setTerritoryManager(territoryManager: any): void {
+        this.territoryManager = territoryManager;
+        
+        // Update existing units with territory manager
+        for (const unit of this.units.values()) {
+            if (unit.setTerritoryManager) {
+                unit.setTerritoryManager(territoryManager);
+            }
+        }
+    }
+
+    /**
      * Create a new unit
      */
     public createUnit(unitType: 'worker' | 'scout' | 'protector', position: Vector3): Unit | null {
@@ -106,9 +131,27 @@ export class UnitManager {
             // Add to units map
             this.units.set(unit.getId(), unit);
 
+            // Add to typed array for zero-allocation access
+            switch (unitType) {
+                case 'worker':
+                    this.workerUnits.push(unit as Worker);
+                    break;
+                case 'protector':
+                    this.protectorUnits.push(unit as Protector);
+                    break;
+                case 'scout':
+                    this.scoutUnits.push(unit as Scout);
+                    break;
+            }
+
             // Set terrain generator for height detection
             if (this.terrainGenerator) {
                 unit.setTerrainGenerator(this.terrainGenerator);
+            }
+
+            // Set territory manager for mining bonus
+            if (this.territoryManager && unit.setTerritoryManager) {
+                unit.setTerritoryManager(this.territoryManager);
             }
 
             // Update counter
@@ -134,6 +177,13 @@ export class UnitManager {
                 if (combatSystem) {
                     combatSystem.registerProtector(unit as Protector);
                 }
+            }
+
+            // Add to spatial index for O(1) lookups
+            const gameEngine = GameEngine.getInstance();
+            const spatialIndex = gameEngine?.getSpatialIndex();
+            if (spatialIndex) {
+                spatialIndex.add(unit.getId(), position, unitType);
             }
 
             return unit;
@@ -166,9 +216,15 @@ export class UnitManager {
     private handleUnitDestroyed(unit: Unit): void {
         const unitId = unit.getId();
 
+        // Remove from spatial index
+        const gameEngine = GameEngine.getInstance();
+        const spatialIndex = gameEngine?.getSpatialIndex();
+        if (spatialIndex) {
+            spatialIndex.remove(unitId);
+        }
+
         // Unregister protectors from combat system
         if (unit instanceof Protector) {
-            const gameEngine = GameEngine.getInstance();
             const combatSystem = gameEngine?.getCombatSystem();
             if (combatSystem) {
                 combatSystem.unregisterProtector(unitId);
@@ -180,6 +236,25 @@ export class UnitManager {
 
         // Remove visual
         this.unitRenderer.removeUnitVisual(unitId);
+
+        // Remove from typed arrays
+        const unitType = unit.getUnitType();
+        switch (unitType) {
+            case 'worker':
+                const wIdx = this.workerUnits.findIndex(u => u.getId() === unitId);
+                if (wIdx !== -1) this.workerUnits.splice(wIdx, 1);
+                // Also remove from mining workers set (NN v2)
+                this.miningWorkers.delete(unit as Worker);
+                break;
+            case 'protector':
+                const pIdx = this.protectorUnits.findIndex(u => u.getId() === unitId);
+                if (pIdx !== -1) this.protectorUnits.splice(pIdx, 1);
+                break;
+            case 'scout':
+                const sIdx = this.scoutUnits.findIndex(u => u.getId() === unitId);
+                if (sIdx !== -1) this.scoutUnits.splice(sIdx, 1);
+                break;
+        }
 
         // Remove from units map
         this.units.delete(unitId);
@@ -293,7 +368,7 @@ export class UnitManager {
     /**
      * Process command queue
      */
-    public async processCommands(): Promise<void> {
+    public processCommands(): void {
         if (this.commandQueue.length === 0) {
             return;
         }
@@ -313,7 +388,7 @@ export class UnitManager {
                 continue;
             }
 
-            const executed = await this.executeCommand(unit, command);
+            const executed = this.executeCommand(unit, command);
             if (executed) {
                 commandsToRemove.push(i);
                 this.commandsExecuted++;
@@ -329,15 +404,15 @@ export class UnitManager {
     /**
      * Execute a command on a unit
      */
-    private async executeCommand(unit: Unit, command: UnitCommand): Promise<boolean> {
+    private executeCommand(unit: Unit, command: UnitCommand): boolean {
         try {
             switch (command.commandType) {
                 case 'move':
                     if (command.targetPosition) {
                         // Use moveToLocation for Protectors to enable auto-attack during movement
                         if (unit instanceof Protector) {
-                            const success = await unit.moveToLocation(command.targetPosition);
-                            return success;
+                            unit.moveToLocation(command.targetPosition);
+                            return true;
                         } else {
                             // Use regular movement for other unit types
                             unit.startMovement(command.targetPosition);
@@ -355,7 +430,7 @@ export class UnitManager {
                         if (terrainGenerator) {
                             const target = terrainGenerator.getMineralDepositById(command.targetId);
                             if (target) {
-                                const success = await unit.startMining(target);
+                                unit.startMining(target);
                                 return true;
                             }
                         }
@@ -414,16 +489,24 @@ export class UnitManager {
     /**
      * Update all units
      */
-    public async update(deltaTime: number): Promise<void> {
+    public update(deltaTime: number): void {
+        const gameEngine = GameEngine.getInstance();
+        const spatialIndex = gameEngine?.getSpatialIndex();
+
         // Update all units
         for (const unit of this.units.values()) {
             if (unit.isActiveUnit()) {
                 unit.update(deltaTime);
+
+                // Update spatial index with new position
+                if (spatialIndex) {
+                    spatialIndex.updatePosition(unit.getId(), unit.getPosition());
+                }
             }
         }
 
         // Process command queue
-        await this.processCommands();
+        this.processCommands();
 
         // Update unit renderer
         this.unitRenderer.updateAllVisuals();
@@ -444,10 +527,48 @@ export class UnitManager {
     }
 
     /**
-     * Get units by type
+     * Get units by type (zero allocation - returns existing array)
      */
     public getUnitsByType(unitType: 'worker' | 'scout' | 'protector'): Unit[] {
-        return Array.from(this.units.values()).filter(unit => unit.getUnitType() === unitType);
+        switch (unitType) {
+            case 'worker': return this.workerUnits;
+            case 'protector': return this.protectorUnits;
+            case 'scout': return this.scoutUnits;
+            default: return [];
+        }
+    }
+
+    // ==================== Mining Worker Tracking (NN v2) ====================
+
+    /**
+     * Called when a worker starts mining - O(1) add
+     * Event-driven tracking for efficient observation collection
+     */
+    public onWorkerStartMining(worker: Worker): void {
+        this.miningWorkers.add(worker);
+    }
+
+    /**
+     * Called when a worker stops mining - O(1) remove
+     * Event-driven tracking for efficient observation collection
+     */
+    public onWorkerStopMining(worker: Worker): void {
+        this.miningWorkers.delete(worker);
+    }
+
+    /**
+     * Get all currently mining workers - O(1) access
+     * Returns the Set directly for zero-allocation iteration
+     */
+    public getMiningWorkers(): Set<Worker> {
+        return this.miningWorkers;
+    }
+
+    /**
+     * Get mining worker count - O(1)
+     */
+    public getMiningWorkerCount(): number {
+        return this.miningWorkers.size;
     }
 
     /**
@@ -510,5 +631,13 @@ export class UnitManager {
         this.units.clear();
         this.selectedUnits.clear();
         this.commandQueue = [];
+
+        // Clear typed arrays
+        this.workerUnits.length = 0;
+        this.protectorUnits.length = 0;
+        this.scoutUnits.length = 0;
+
+        // Clear mining worker tracking (NN v2)
+        this.miningWorkers.clear();
     }
 }

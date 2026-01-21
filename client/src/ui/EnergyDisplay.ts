@@ -19,8 +19,7 @@ export class EnergyDisplay {
     private container: HTMLElement | null = null;
     private config: EnergyDisplayConfig;
     
-    // UI elements
-    private energyValueElement: HTMLElement | null = null;
+    // UI elements (Fix 15: removed energyValueElement - total energy now shown only in Energy Lords HUD)
     private energyBarElement: HTMLElement | null = null;
     private energyBarFillElement: HTMLElement | null = null;
     private generationRateElement: HTMLElement | null = null;
@@ -113,7 +112,7 @@ export class EnergyDisplay {
 
         energyBarContainer.appendChild(this.energyBarFillElement);
 
-        // Linear stats display
+        // Linear stats display (Fix 15: removed total energy - now shown in Energy Lords HUD)
         const statsLine = document.createElement('div');
         statsLine.style.cssText = `
             display: flex;
@@ -121,16 +120,6 @@ export class EnergyDisplay {
             gap: 12px;
             font-size: 11px;
         `;
-
-        // Energy value
-        this.energyValueElement = document.createElement('span');
-        this.energyValueElement.style.cssText = `
-            font-size: 14px;
-            font-weight: 700;
-            color: #00ff00;
-            text-shadow: 0 0 6px rgba(0, 255, 0, 0.6);
-        `;
-        this.energyValueElement.textContent = '0J';
 
         // Generation
         const genContainer = document.createElement('span');
@@ -168,8 +157,7 @@ export class EnergyDisplay {
         this.netRateElement.textContent = '0.0';
         netContainer.appendChild(this.netRateElement);
 
-        // Assemble linear layout
-        statsLine.appendChild(this.energyValueElement);
+        // Assemble linear layout (Fix 15: removed total energy element)
         statsLine.appendChild(genContainer);
         statsLine.appendChild(conContainer);
         statsLine.appendChild(effContainer);
@@ -228,10 +216,16 @@ export class EnergyDisplay {
 
     /**
      * Subscribe to energy system events
+     * Event updates are throttled to avoid excessive UI updates
      */
     private subscribeToEnergyEvents(): void {
+        // Throttle energy change events - only update if 1 second has passed
         this.energyManager.onEnergyChange((stats: EnergyStats) => {
-            this.updateDisplayWithStats(stats);
+            const now = performance.now();
+            if (now - this.lastUpdateTime >= 1000) {
+                this.updateDisplayWithStats(stats);
+                this.lastUpdateTime = now;
+            }
         });
 
         this.energyManager.onLowEnergy((entityId: string, currentEnergy: number) => {
@@ -252,23 +246,9 @@ export class EnergyDisplay {
     }
 
     /**
-     * Update display with provided stats
+     * Update display with provided stats (Fix 15: removed total energy display)
      */
     private updateDisplayWithStats(stats: EnergyStats): void {
-        // Update energy value (format: 100J)
-        if (this.energyValueElement) {
-            this.energyValueElement.textContent = `${Math.round(stats.totalEnergy)}J`;
-            
-            // Color based on energy level
-            if (stats.totalEnergy < 20) {
-                this.energyValueElement.style.color = '#ff4444'; // Red for low energy
-            } else if (stats.totalEnergy < 50) {
-                this.energyValueElement.style.color = '#ffff00'; // Yellow for medium energy
-            } else {
-                this.energyValueElement.style.color = '#00ff00'; // Green for good energy
-            }
-        }
-
         // Update energy bar (assuming max 200 energy for display)
         if (this.energyBarFillElement) {
             const maxDisplayEnergy = 200;
@@ -348,12 +328,12 @@ export class EnergyDisplay {
     }
 
     /**
-     * Show low energy warning
+     * Show low energy warning (Fix 15: uses energy bar instead of removed value element)
      */
     private showLowEnergyWarning(currentEnergy: number): void {
-        if (this.energyValueElement) {
-            this.energyValueElement.style.animation = 'blink 1s infinite';
-            
+        if (this.energyBarFillElement) {
+            this.energyBarFillElement.style.animation = 'blink 1s infinite';
+
             // Add CSS animation if not exists
             if (!document.querySelector('#energy-warning-style')) {
                 const style = document.createElement('style');
@@ -370,12 +350,12 @@ export class EnergyDisplay {
     }
 
     /**
-     * Show energy depleted alert
+     * Show energy depleted alert (Fix 15: uses energy bar instead of removed value element)
      */
     private showEnergyDepletedAlert(): void {
-        if (this.energyValueElement) {
-            this.energyValueElement.style.color = '#ff0000';
-            this.energyValueElement.style.animation = 'blink 0.5s infinite';
+        if (this.energyBarFillElement) {
+            this.energyBarFillElement.style.background = '#ff0000';
+            this.energyBarFillElement.style.animation = 'blink 0.5s infinite';
         }
     }
 

@@ -66,6 +66,7 @@ export abstract class Unit {
 
     // Terrain following
     protected terrainGenerator: any = null; // TerrainGenerator for height detection
+    protected territoryManager: any = null; // TerritoryManager for mining bonus
 
     // Event callbacks
     protected onDestroyedCallbacks: ((unit: Unit) => void)[] = [];
@@ -258,7 +259,8 @@ export abstract class Unit {
             // We're close enough - start mining
             this.currentMiningAction = new MiningAction(this.id, this.position, {
                 miningRange: this.getMiningRange(),
-                energyPerSecond: this.getMiningEnergyCost()
+                energyPerSecond: this.getMiningEnergyCost(),
+                territoryManager: this.territoryManager
             });
 
             this.currentMiningAction.setEnergyStorage(this.energyStorage);
@@ -339,7 +341,8 @@ export abstract class Unit {
             // Target is within range - start mining immediately
             this.currentMiningAction = new MiningAction(this.id, this.position, {
                 miningRange: this.getMiningRange(),
-                energyPerSecond: this.getMiningEnergyCost()
+                energyPerSecond: this.getMiningEnergyCost(),
+                territoryManager: this.territoryManager
             });
 
             this.currentMiningAction.setEnergyStorage(this.energyStorage);
@@ -566,6 +569,8 @@ export abstract class Unit {
     public getId(): string { return this.id; }
     public getUnitType(): string { return this.unitType; }
     public getPosition(): Vector3 { return this.position.clone(); }
+    /** Get position reference (zero allocation - DO NOT MODIFY). Use in hot paths. */
+    public getPositionRef(): Vector3 { return this.position; }
     public getHealth(): number { return this.health; }
     public getMaxHealth(): number { return this.maxHealth; }
     public getEnergyStorage(): EnergyStorage { return this.energyStorage; }
@@ -614,6 +619,13 @@ export abstract class Unit {
      */
     public setTerrainGenerator(terrainGenerator: any): void {
         this.terrainGenerator = terrainGenerator;
+    }
+
+    /**
+     * Set territory manager for mining bonus integration
+     */
+    public setTerritoryManager(territoryManager: any): void {
+        this.territoryManager = territoryManager;
     }
 
     /**

@@ -9,10 +9,12 @@ import { Vector3 } from '@babylonjs/core';
 import { EnergyConsumer, EnergyConsumptionResult, EnergyConsumerConfig } from '../EnergyConsumer';
 import { MineralDeposit } from '../../world/MineralDeposit';
 import { EnergyManager } from '../EnergyManager';
+import { TerritoryManager } from '../TerritoryManager';
 
 export interface MiningActionConfig extends EnergyConsumerConfig {
     miningRange: number; // Maximum distance to mine from
     energyPerSecond: number; // Energy cost per second of mining
+    territoryManager?: TerritoryManager; // For liberation mining bonus
 }
 
 export class MiningAction extends EnergyConsumer {
@@ -22,6 +24,7 @@ export class MiningAction extends EnergyConsumer {
     private isMining: boolean = false;
     private miningStartTime: number = 0;
     private totalEnergyGenerated: number = 0;
+    private territoryManager: TerritoryManager | null = null;
 
     constructor(entityId: string, minerPosition: Vector3, config?: Partial<MiningActionConfig>) {
         const defaultConfig: MiningActionConfig = {
@@ -36,6 +39,7 @@ export class MiningAction extends EnergyConsumer {
         super(entityId, 'mining', defaultConfig);
         this.miningConfig = defaultConfig;
         this.minerPosition = minerPosition.clone();
+        this.territoryManager = config?.territoryManager || null;
     }
 
     /**
@@ -58,7 +62,7 @@ export class MiningAction extends EnergyConsumer {
         }
 
         // Check if target is within mining range
-        const distance = Vector3.Distance(this.minerPosition, target.getPosition());
+        const distance = Vector3.Distance(this.minerPosition, target.getPositionRef());
         if (distance > this.miningConfig.miningRange) {
             return this.createResult(false, 0, 0, `Target too far (${distance.toFixed(1)}m > ${this.miningConfig.miningRange}m)`);
         }
@@ -113,7 +117,14 @@ export class MiningAction extends EnergyConsumer {
         }
 
         // Extract minerals (materials, not energy directly)
-        const extractedMaterials = this.currentTarget.mine(deltaTime);
+        // Apply liberation mining bonus if available (requirement 5.2)
+        let miningSpeedMultiplier = 1.0;
+        if (this.territoryManager) {
+            const liberationBonus = this.territoryManager.getMiningBonusAt(this.minerPosition);
+            miningSpeedMultiplier = 1.0 + liberationBonus; // 1.25x speed during liberation
+        }
+        
+        const extractedMaterials = this.currentTarget.mine(deltaTime * miningSpeedMultiplier);
 
         if (extractedMaterials > 0) {
             // Add extracted materials to the system (power plants convert to energy)
@@ -150,11 +161,11 @@ export class MiningAction extends EnergyConsumer {
      * Update miner position (for range checking)
      */
     public updatePosition(newPosition: Vector3): void {
-        this.minerPosition = newPosition.clone();
+        this.minerPosition.copyFrom(newPosition);  // Mutate existing, no allocation
 
         // Check if still in range of current target
         if (this.isMining && this.currentTarget) {
-            const distance = Vector3.Distance(this.minerPosition, this.currentTarget.getPosition());
+            const distance = Vector3.Distance(this.minerPosition, this.currentTarget.getPositionRef());
             if (distance > this.miningConfig.miningRange) {
                 this.stopMining();
             }
@@ -183,6 +194,25 @@ export class MiningAction extends EnergyConsumer {
     }
 
     /**
+     * Set territory manager for liberation bonus integration
+     */
+    public setTerritoryManager(territoryManager: TerritoryManager): void {
+        this.territoryManager = territoryManager;
+    }
+
+    /**
+     * Get current mining speed multiplier (including liberation bonus)
+     */
+    public getMiningSpeedMultiplier(): number {
+        if (!this.territoryManager) {
+            return 1.0;
+        }
+        
+        const liberationBonus = this.territoryManager.getMiningBonusAt(this.minerPosition);
+        return 1.0 + liberationBonus;
+    }
+
+    /**
      * Get mining statistics
      */
     public getMiningStats(): {
@@ -191,18 +221,24 @@ export class MiningAction extends EnergyConsumer {
         duration: number;
         totalGenerated: number;
         netEnergyRate: number;
+        miningSpeedMultiplier: number;
+        liberationBonus: number;
     } {
         const duration = this.isMining ? (performance.now() - this.miningStartTime) / 1000 : 0;
         const energyCostRate = this.calculateEnergyCost();
         const extractionRate = this.currentTarget?.getStats().extractionRate || 0;
-        const netRate = extractionRate - energyCostRate;
+        const speedMultiplier = this.getMiningSpeedMultiplier();
+        const netRate = (extractionRate * speedMultiplier) - energyCostRate;
+        const liberationBonus = this.territoryManager?.getMiningBonusAt(this.minerPosition) || 0;
 
         return {
             isActive: this.isMining,
             target: this.currentTarget?.getId() || null,
             duration,
             totalGenerated: this.totalEnergyGenerated,
-            netEnergyRate: netRate
+            netEnergyRate: netRate,
+            miningSpeedMultiplier: speedMultiplier,
+            liberationBonus
         };
     }
 

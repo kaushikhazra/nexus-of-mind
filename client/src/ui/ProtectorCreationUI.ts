@@ -24,7 +24,8 @@ export class ProtectorCreationUI {
     private container: HTMLElement | null = null;
     private creationPanel: HTMLElement | null = null;
     private createButton: HTMLElement | null = null;
-    
+    private updateIntervalId: number | null = null; // Fix: Track interval for cleanup
+
     // Configuration
     private readonly PROTECTOR_ENERGY_COST = 50;
 
@@ -49,7 +50,7 @@ export class ProtectorCreationUI {
         // Get or create container
         this.container = document.getElementById(this.config.containerId);
         if (!this.container) {
-            console.warn(`⚠️ Container ${this.config.containerId} not found, creating dynamically`);
+            // Container not found - creating dynamically
             this.container = document.createElement('div');
             this.container.id = this.config.containerId;
             this.container.style.cssText = `
@@ -201,11 +202,11 @@ export class ProtectorCreationUI {
      * Setup update timer for UI state
      */
     private setupUpdateTimer(): void {
-        // Update UI state every second
-        setInterval(() => {
+        // Fix: Store interval ID for cleanup
+        this.updateIntervalId = window.setInterval(() => {
             this.updateUI();
         }, 1000);
-        
+
         // Initial update
         this.updateUI();
     }
@@ -412,6 +413,12 @@ export class ProtectorCreationUI {
      * Dispose protector creation UI and cleanup resources
      */
     public dispose(): void {
+        // Fix: Clear interval to prevent memory leak
+        if (this.updateIntervalId !== null) {
+            clearInterval(this.updateIntervalId);
+            this.updateIntervalId = null;
+        }
+
         // Remove UI elements
         if (this.container) {
             this.container.remove();

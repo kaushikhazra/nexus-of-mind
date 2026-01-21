@@ -123,9 +123,9 @@ export class SceneManager {
         // Set target FPS
         this.scene.getEngine().setHardwareScalingLevel(1.0);
 
-        // Register performance monitoring
+        // Performance monitoring: use FPSCounter (toggle with 'f' key)
         this.scene.registerBeforeRender(() => {
-            // Performance monitoring will be handled by PerformanceMonitor
+            // Scene-level performance hooks can be added here if needed
         });
     }
 

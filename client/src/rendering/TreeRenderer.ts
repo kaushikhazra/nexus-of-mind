@@ -3,6 +3,11 @@
  *
  * Creates low-poly bioluminescent mushroom trees with glowing spots
  * that fit the game's sci-fi aesthetic.
+ *
+ * Fix 23: GPU-optimized glow animation using ShaderMaterial + thin instances
+ * - Glow spots use thin instances for single draw call
+ * - Pulsing animation runs entirely on GPU via shader
+ * - updateAnimations() is O(1) instead of O(n*m)
  */
 
 import {
@@ -10,16 +15,18 @@ import {
     Mesh,
     MeshBuilder,
     StandardMaterial,
+    ShaderMaterial,
     Color3,
     Vector3,
-    TransformNode
+    TransformNode,
+    Effect
 } from '@babylonjs/core';
 
 export interface TreeVisual {
     rootNode: TransformNode;
     trunk: Mesh;
     cap: Mesh;
-    glowSpots: Mesh[];
+    glowSpotIndices: number[];  // Indices into the instance buffer for this tree's spots
 }
 
 export interface TreeConfig {
@@ -30,6 +37,9 @@ export interface TreeConfig {
     glowColor?: Color3;
 }
 
+// Instance data for a single glow spot: x, y, z, phase, size, colorR, colorG, colorB
+const FLOATS_PER_INSTANCE = 8;
+
 export class TreeRenderer {
     private scene: Scene;
 
@@ -37,23 +47,31 @@ export class TreeRenderer {
     private treeVisuals: Map<string, TreeVisual> = new Map();
     private treeIdCounter: number = 0;
 
-    // Materials
+    // Materials for tree structure
     private trunkMaterial: StandardMaterial | null = null;
     private capMaterial: StandardMaterial | null = null;
-    private glowSpotMaterial: StandardMaterial | null = null;
     private rootMaterial: StandardMaterial | null = null;
 
-    // Default colors (can be varied per tree)
+    // Fix 23: GPU-based glow animation
+    private glowShaderMaterial: ShaderMaterial | null = null;
+    private glowBaseMesh: Mesh | null = null;
+    private glowInstanceData: number[] = [];  // Dynamic array for instance data
+    private glowInstanceBuffer: Float32Array | null = null;
+    private instancesDirty: boolean = false;  // Flag to rebuild instances
+
+    // Default colors
     private readonly defaultCapColor = new Color3(0.4, 0.2, 0.5); // Purple
     private readonly defaultGlowColor = new Color3(0.2, 0.9, 0.8); // Cyan-teal
 
     constructor(scene: Scene) {
         this.scene = scene;
         this.initializeMaterials();
+        this.initializeGlowShader();
+        this.initializeGlowBaseMesh();
     }
 
     /**
-     * Initialize materials for tree rendering
+     * Initialize materials for tree structure (trunk, cap, etc.)
      */
     private initializeMaterials(): void {
         // Trunk material (dark organic brownish-purple)
@@ -69,16 +87,217 @@ export class TreeRenderer {
         this.capMaterial.emissiveColor = this.defaultCapColor.scale(0.15);
         this.capMaterial.alpha = 0.85;
 
-        // Glow spots material (bright bioluminescent)
-        this.glowSpotMaterial = new StandardMaterial('treeGlowMaterial', this.scene);
-        this.glowSpotMaterial.diffuseColor = this.defaultGlowColor;
-        this.glowSpotMaterial.emissiveColor = new Color3(0.3, 1.2, 1.0);
-        this.glowSpotMaterial.disableLighting = true;
-
         // Root/base material
         this.rootMaterial = new StandardMaterial('treeRootMaterial', this.scene);
         this.rootMaterial.diffuseColor = new Color3(0.15, 0.12, 0.14);
         this.rootMaterial.specularColor = new Color3(0.1, 0.1, 0.1);
+    }
+
+    /**
+     * Fix 23: Initialize custom shader for GPU-animated glow spots
+     */
+    private initializeGlowShader(): void {
+        // Register custom shader code with Babylon.js
+        // Note: No conditionals - this shader is only used for thin instances
+        Effect.ShadersStore['glowSpotVertexShader'] = `
+            precision highp float;
+
+            // Babylon.js standard attributes
+            attribute vec3 position;
+            attribute vec3 normal;
+
+            // Thin instance attributes - automatically provided by Babylon.js
+            attribute vec4 world0;
+            attribute vec4 world1;
+            attribute vec4 world2;
+            attribute vec4 world3;
+
+            // Custom instance attribute for color and phase
+            attribute vec4 instanceColor;
+
+            // Babylon.js standard uniforms
+            uniform mat4 viewProjection;
+
+            // Custom uniforms
+            uniform float time;
+
+            // Output to fragment shader
+            varying vec3 vColor;
+
+            void main() {
+                // Get instance data
+                float phase = instanceColor.a;
+                vec3 glowColor = instanceColor.rgb;
+
+                // Calculate pulse based on time and per-instance phase
+                float pulse = sin(time * 1.5 + phase) * 0.15 + 0.85;
+                vColor = glowColor * (0.8 + pulse * 0.4);
+
+                // Build world matrix from thin instance data
+                mat4 instanceWorld = mat4(world0, world1, world2, world3);
+
+                // Apply pulse scaling to local position
+                vec3 scaledPos = position * pulse;
+
+                // Transform to world space then to clip space
+                vec4 worldPos = instanceWorld * vec4(scaledPos, 1.0);
+                gl_Position = viewProjection * worldPos;
+            }
+        `;
+
+        Effect.ShadersStore['glowSpotFragmentShader'] = `
+            precision highp float;
+
+            varying vec3 vColor;
+
+            void main() {
+                gl_FragColor = vec4(vColor, 1.0);
+            }
+        `;
+
+        // Create the shader material
+        this.glowShaderMaterial = new ShaderMaterial(
+            'glowSpotShader',
+            this.scene,
+            {
+                vertex: 'glowSpot',
+                fragment: 'glowSpot'
+            },
+            {
+                attributes: ['position', 'normal', 'world0', 'world1', 'world2', 'world3', 'instanceColor'],
+                uniforms: ['viewProjection', 'time'],
+                needAlphaBlending: false
+            }
+        );
+
+        // Initialize time uniform
+        this.glowShaderMaterial.setFloat('time', 0);
+
+        // Disable backface culling for small spheres
+        this.glowShaderMaterial.backFaceCulling = false;
+    }
+
+    /**
+     * Fix 23: Initialize base mesh for thin instances
+     */
+    private initializeGlowBaseMesh(): void {
+        // Create a single low-poly sphere as the base for all glow spots
+        this.glowBaseMesh = MeshBuilder.CreateSphere('glowSpotBase', {
+            diameter: 1.0,  // Unit size, will be scaled per instance
+            segments: 4     // Low poly for performance
+        }, this.scene);
+
+        this.glowBaseMesh.material = this.glowShaderMaterial;
+
+        // The base mesh itself is invisible; only instances render
+        this.glowBaseMesh.isVisible = true;  // Must be true for thin instances to render
+        this.glowBaseMesh.alwaysSelectAsActiveMesh = true;  // Ensure it's always processed
+    }
+
+    /**
+     * Add a glow spot instance to the buffer
+     * Returns the index of this instance
+     */
+    private addGlowSpotInstance(
+        worldX: number,
+        worldY: number,
+        worldZ: number,
+        size: number,
+        phase: number,
+        color: Color3
+    ): number {
+        const index = this.glowInstanceData.length / FLOATS_PER_INSTANCE;
+
+        // Store: x, y, z, phase, size, colorR, colorG, colorB
+        this.glowInstanceData.push(
+            worldX, worldY, worldZ,
+            phase,
+            size,
+            color.r, color.g, color.b
+        );
+
+        this.instancesDirty = true;
+        return index;
+    }
+
+    /**
+     * Rebuild thin instance buffer from instance data
+     */
+    private rebuildInstanceBuffer(): void {
+        if (!this.glowBaseMesh || this.glowInstanceData.length === 0) {
+            // No instances - hide base mesh
+            if (this.glowBaseMesh) {
+                this.glowBaseMesh.thinInstanceCount = 0;
+            }
+            return;
+        }
+
+        const instanceCount = this.glowInstanceData.length / FLOATS_PER_INSTANCE;
+
+        // Create matrices buffer (16 floats per instance for 4x4 matrix)
+        const matricesData = new Float32Array(instanceCount * 16);
+
+        // Create custom attribute buffer for color + phase (4 floats: r, g, b, phase)
+        const colorData = new Float32Array(instanceCount * 4);
+
+        for (let i = 0; i < instanceCount; i++) {
+            const dataOffset = i * FLOATS_PER_INSTANCE;
+            const matrixOffset = i * 16;
+            const colorOffset = i * 4;
+
+            const x = this.glowInstanceData[dataOffset];
+            const y = this.glowInstanceData[dataOffset + 1];
+            const z = this.glowInstanceData[dataOffset + 2];
+            const phase = this.glowInstanceData[dataOffset + 3];
+            const size = this.glowInstanceData[dataOffset + 4];
+            const r = this.glowInstanceData[dataOffset + 5];
+            const g = this.glowInstanceData[dataOffset + 6];
+            const b = this.glowInstanceData[dataOffset + 7];
+
+            // Build a translation + scale matrix (column-major order for WebGL)
+            // Matrix format:
+            // [sx,  0,  0, 0]   column 0: matrix0
+            // [ 0, sy,  0, 0]   column 1: matrix1
+            // [ 0,  0, sz, 0]   column 2: matrix2
+            // [tx, ty, tz, 1]   column 3: matrix3
+
+            matricesData[matrixOffset + 0] = size;  // scale X
+            matricesData[matrixOffset + 1] = 0;
+            matricesData[matrixOffset + 2] = 0;
+            matricesData[matrixOffset + 3] = 0;
+
+            matricesData[matrixOffset + 4] = 0;
+            matricesData[matrixOffset + 5] = size;  // scale Y
+            matricesData[matrixOffset + 6] = 0;
+            matricesData[matrixOffset + 7] = 0;
+
+            matricesData[matrixOffset + 8] = 0;
+            matricesData[matrixOffset + 9] = 0;
+            matricesData[matrixOffset + 10] = size;  // scale Z
+            matricesData[matrixOffset + 11] = 0;
+
+            matricesData[matrixOffset + 12] = x;   // translate X
+            matricesData[matrixOffset + 13] = y;   // translate Y
+            matricesData[matrixOffset + 14] = z;   // translate Z
+            matricesData[matrixOffset + 15] = 1;
+
+            // Store color and phase
+            colorData[colorOffset + 0] = r;
+            colorData[colorOffset + 1] = g;
+            colorData[colorOffset + 2] = b;
+            colorData[colorOffset + 3] = phase;
+        }
+
+        // Set thin instance buffers
+        // 'matrix' is the special name that Babylon.js uses for world matrices
+        // It automatically maps to world0, world1, world2, world3 attributes
+        this.glowBaseMesh.thinInstanceSetBuffer('matrix', matricesData, 16, false);
+
+        // Register and set custom attribute for color + phase
+        this.glowBaseMesh.thinInstanceRegisterAttribute('instanceColor', 4);
+        this.glowBaseMesh.thinInstanceSetBuffer('instanceColor', colorData, 4, false);
+
+        this.instancesDirty = false;
     }
 
     /**
@@ -163,22 +382,20 @@ export class TreeRenderer {
         capUnder.position.y = 1.5;
         capUnder.material = this.trunkMaterial;
 
-        // ===== 6. BIOLUMINESCENT GLOW SPOTS =====
-        const glowSpots: Mesh[] = [];
+        // ===== 6. BIOLUMINESCENT GLOW SPOTS (via thin instances) =====
+        const glowSpotIndices: number[] = [];
         const spotCount = 8 + Math.floor(Math.random() * 5); // 8-12 spots
 
-        // Create glow material (custom if color specified)
-        let spotMaterial = this.glowSpotMaterial;
-        if (config.glowColor) {
-            spotMaterial = new StandardMaterial(`tree_glow_mat_${treeId}`, this.scene);
-            spotMaterial.diffuseColor = config.glowColor;
-            spotMaterial.emissiveColor = new Color3(
-                config.glowColor.r * 1.5,
-                config.glowColor.g * 1.5,
-                config.glowColor.b * 1.5
-            );
-            spotMaterial.disableLighting = true;
-        }
+        // Determine glow color
+        const glowColor = config.glowColor || this.defaultGlowColor;
+        const emissiveColor = new Color3(
+            glowColor.r * 1.5,
+            glowColor.g * 1.5,
+            glowColor.b * 1.5
+        );
+
+        // Tree world position for calculating glow spot world positions
+        const treeWorldPos = config.position;
 
         for (let i = 0; i < spotCount; i++) {
             // Distribute spots on the dome surface
@@ -186,40 +403,46 @@ export class TreeRenderer {
             const phi = 0.2 + Math.random() * 0.5; // Height on dome (0.2-0.7)
 
             const spotRadius = 0.9; // Radius of cap
-            const x = Math.cos(theta) * Math.sin(phi * Math.PI) * spotRadius;
-            const z = Math.sin(theta) * Math.sin(phi * Math.PI) * spotRadius;
-            const y = Math.cos(phi * Math.PI) * spotRadius * 0.5;
+            const localX = Math.cos(theta) * Math.sin(phi * Math.PI) * spotRadius;
+            const localZ = Math.sin(theta) * Math.sin(phi * Math.PI) * spotRadius;
+            const localY = 1.65 + Math.cos(phi * Math.PI) * spotRadius * 0.5;
 
-            const spotSize = 0.08 + Math.random() * 0.08; // Varied sizes
-            const spot = MeshBuilder.CreateSphere(`tree_spot_${treeId}_${i}`, {
-                diameter: spotSize,
-                segments: 4
-            }, this.scene);
-            spot.parent = rootNode;
-            spot.position.x = x;
-            spot.position.z = z;
-            spot.position.y = 1.65 + y;
-            spot.material = spotMaterial;
+            // Calculate world position (accounting for tree scale)
+            const worldX = treeWorldPos.x + localX * scale;
+            const worldY = treeWorldPos.y + localY * scale;
+            const worldZ = treeWorldPos.z + localZ * scale;
 
-            glowSpots.push(spot);
+            const spotSize = (0.08 + Math.random() * 0.08) * scale;
+            const phase = i * 0.3; // Phase offset for staggered pulsing
+
+            const instanceIndex = this.addGlowSpotInstance(
+                worldX, worldY, worldZ,
+                spotSize,
+                phase,
+                emissiveColor
+            );
+            glowSpotIndices.push(instanceIndex);
         }
 
         // ===== 7. TOP SPOT (larger, at apex) =====
-        const topSpot = MeshBuilder.CreateSphere(`tree_top_spot_${treeId}`, {
-            diameter: 0.15,
-            segments: 6
-        }, this.scene);
-        topSpot.parent = rootNode;
-        topSpot.position.y = 2.15;
-        topSpot.material = spotMaterial;
-        glowSpots.push(topSpot);
+        const topSpotWorldY = treeWorldPos.y + 2.15 * scale;
+        const topSpotSize = 0.15 * scale;
+        const topSpotPhase = spotCount * 0.3;
 
-        // Store tree visual
+        const topSpotIndex = this.addGlowSpotInstance(
+            treeWorldPos.x, topSpotWorldY, treeWorldPos.z,
+            topSpotSize,
+            topSpotPhase,
+            emissiveColor
+        );
+        glowSpotIndices.push(topSpotIndex);
+
+        // Store tree visual (no longer stores individual glow meshes)
         const treeVisual: TreeVisual = {
             rootNode,
             trunk,
             cap,
-            glowSpots
+            glowSpotIndices
         };
         this.treeVisuals.set(treeId, treeVisual);
 
@@ -228,10 +451,6 @@ export class TreeRenderer {
 
     /**
      * Create a cluster of trees at a location
-     * @param centerPosition - Center of the cluster
-     * @param count - Number of trees in the cluster
-     * @param spread - How spread out the trees are
-     * @param getTerrainHeight - Optional function to get terrain height at x,z
      */
     public createTreeCluster(
         centerPosition: Vector3,
@@ -283,20 +502,18 @@ export class TreeRenderer {
     }
 
     /**
-     * Update tree animations (glow pulsing)
+     * Fix 23: Update tree animations - O(1) cost!
+     * Only updates the time uniform; GPU shader handles all animation
      */
     public updateAnimations(): void {
-        const time = performance.now() / 1000;
+        // Rebuild instance buffer if dirty (trees added/removed)
+        if (this.instancesDirty) {
+            this.rebuildInstanceBuffer();
+        }
 
-        for (const [treeId, treeVisual] of this.treeVisuals) {
-            // Pulse glow spots
-            for (let i = 0; i < treeVisual.glowSpots.length; i++) {
-                const spot = treeVisual.glowSpots[i];
-                // Offset pulse for each spot
-                const offset = i * 0.3;
-                const pulse = Math.sin(time * 1.5 + offset) * 0.15 + 0.85;
-                spot.scaling = new Vector3(pulse, pulse, pulse);
-            }
+        // Single uniform update - GPU does all the animation work
+        if (this.glowShaderMaterial) {
+            this.glowShaderMaterial.setFloat('time', performance.now() / 1000);
         }
     }
 
@@ -307,13 +524,23 @@ export class TreeRenderer {
         const treeVisual = this.treeVisuals.get(treeId);
         if (!treeVisual) return;
 
-        // Dispose all meshes
+        // Dispose tree structure meshes
         treeVisual.trunk.dispose();
         treeVisual.cap.dispose();
-        for (const spot of treeVisual.glowSpots) {
-            spot.dispose();
-        }
         treeVisual.rootNode.dispose();
+
+        // Mark instances as needing removal
+        // For simplicity, we'll mark the instance data for rebuild
+        // In a production system, you'd want a more efficient removal strategy
+        for (const index of treeVisual.glowSpotIndices) {
+            // Mark this instance as removed by setting size to 0
+            // The instance will be invisible but still in buffer
+            const dataOffset = index * FLOATS_PER_INSTANCE;
+            if (dataOffset < this.glowInstanceData.length) {
+                this.glowInstanceData[dataOffset + 4] = 0; // Set size to 0
+            }
+        }
+        this.instancesDirty = true;
 
         this.treeVisuals.delete(treeId);
     }
@@ -326,6 +553,13 @@ export class TreeRenderer {
     }
 
     /**
+     * Get count of glow spot instances
+     */
+    public getGlowSpotCount(): number {
+        return this.glowInstanceData.length / FLOATS_PER_INSTANCE;
+    }
+
+    /**
      * Dispose all trees and materials
      */
     public dispose(): void {
@@ -334,10 +568,17 @@ export class TreeRenderer {
             this.removeTree(treeId);
         }
 
+        // Clear instance data
+        this.glowInstanceData = [];
+        this.glowInstanceBuffer = null;
+
+        // Dispose glow system
+        this.glowBaseMesh?.dispose();
+        this.glowShaderMaterial?.dispose();
+
         // Dispose materials
         this.trunkMaterial?.dispose();
         this.capMaterial?.dispose();
-        this.glowSpotMaterial?.dispose();
         this.rootMaterial?.dispose();
     }
 }

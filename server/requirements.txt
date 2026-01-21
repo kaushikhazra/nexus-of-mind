@@ -1,0 +1,32 @@
+# Adaptive Queen Intelligence - Python Backend Requirements
+
+# Web Framework and WebSocket Support
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+websockets==12.0
+
+# Neural Network and Machine Learning
+tensorflow>=2.16.0
+numpy==1.24.3
+pandas==2.1.4
+
+# Data Processing and Utilities
+pydantic==2.5.0
+python-multipart==0.0.6
+python-json-logger==2.0.7
+jsonschema==4.20.0
+
+# Performance Monitoring and System Resources
+psutil==5.9.6
+
+# Development and Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+black==23.11.0
+flake8==6.1.0
+
+# Optional GPU Support (uncomment if CUDA is available)
+# tensorflow-gpu==2.15.0
+
+# Environment and Configuration
+python-dotenv==1.0.0

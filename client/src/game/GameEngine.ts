@@ -6,11 +6,11 @@
  */
 
 import { Engine, Scene, PointerEventTypes, Vector3, Matrix } from '@babylonjs/core';
+import '@babylonjs/inspector';
 import { SceneManager } from '../rendering/SceneManager';
 import { CameraController } from '../rendering/CameraController';
 import { LightingSetup } from '../rendering/LightingSetup';
 import { MaterialManager } from '../rendering/MaterialManager';
-import { PerformanceMonitor } from '../utils/PerformanceMonitor';
 import { EnergyManager } from './EnergyManager';
 import { EnergyDisplay } from '../ui/EnergyDisplay';
 import { GameState } from './GameState';
@@ -25,6 +25,29 @@ import { TreeRenderer } from '../rendering/TreeRenderer';
 import { Worker } from './entities/Worker';
 import { Protector } from './entities/Protector';
 import { CombatSystem } from './CombatSystem';
+import { TerritoryManager } from './TerritoryManager';
+import { TerritoryRenderer } from '../rendering/TerritoryRenderer';
+import { LiberationManager } from './LiberationManager';
+import { QueenGrowthUI } from '../ui/QueenGrowthUI';
+import { TerritoryVisualUI } from '../ui/TerritoryVisualUI';
+import { AdaptiveQueenIntegration, createAdaptiveQueenIntegration } from './AdaptiveQueenIntegration';
+import { SpatialIndex } from './SpatialIndex';
+import { AdvancedDynamicTexture } from '@babylonjs/gui';
+import { EnergyLordsManager, EnergyLordsEvent } from './systems/EnergyLordsManager';
+import { EnergyLordsHUD } from '../ui/EnergyLordsHUD';
+import { VictoryScreen } from '../ui/VictoryScreen';
+import { FPSCounter } from '../ui/FPSCounter';
+import { CoordinateDisplay } from '../ui/CoordinateDisplay';
+
+/**
+ * Interface for throttled system updates (round-robin scheduling)
+ */
+interface ThrottledSystem {
+    name: string;
+    interval: number;      // ms between updates
+    lastUpdate: number;    // timestamp of last update
+    update: () => void;    // update function
+}
 
 export class GameEngine {
     private static instance: GameEngine | null = null;
@@ -38,7 +61,6 @@ export class GameEngine {
     private cameraController: CameraController | null = null;
     private lightingSetup: LightingSetup | null = null;
     private materialManager: MaterialManager | null = null;
-    private performanceMonitor: PerformanceMonitor | null = null;
 
     // Energy system
     private energyManager: EnergyManager | null = null;
@@ -59,12 +81,51 @@ export class GameEngine {
     private parasiteManager: ParasiteManager | null = null;
     private combatSystem: CombatSystem | null = null;
 
+    // Territory system
+    private territoryManager: TerritoryManager | null = null;
+    private liberationManager: LiberationManager | null = null;
+    private territoryRenderer: TerritoryRenderer | null = null;
+
     // Vegetation system
     private treeRenderer: TreeRenderer | null = null;
 
     // UI systems
     private miningAnalysisTooltip: MiningAnalysisTooltip | null = null;
     private protectorSelectionUI: ProtectorSelectionUI | null = null;
+    private queenGrowthUI: QueenGrowthUI | null = null;
+    private territoryVisualUI: TerritoryVisualUI | null = null;
+
+    // Adaptive Queen Intelligence Integration
+    private adaptiveQueenIntegration: AdaptiveQueenIntegration | null = null;
+    private guiTexture: AdvancedDynamicTexture | null = null;
+
+    // Spatial indexing for O(1) entity lookups
+    private spatialIndex: SpatialIndex | null = null;
+
+    // Energy Lords progression system
+    private energyLordsManager: EnergyLordsManager | null = null;
+    private energyLordsHUD: EnergyLordsHUD | null = null;
+    private victoryScreen: VictoryScreen | null = null;
+
+    // FPS Counter (toggle with 'f' key)
+    private fpsCounter: FPSCounter | null = null;
+
+    // Coordinate Display (toggle with 'c' key)
+    private coordinateDisplay: CoordinateDisplay | null = null;
+
+    // Throttling for spatial index checks
+    private lastDetectionCheckTime: number = 0;
+    private readonly DETECTION_CHECK_INTERVAL: number = 200; // Check every 200ms
+
+    // Fix 19: Removed mouse move throttling variables - no longer using scene.pick() on mouse move
+
+    // Round-robin throttled system updates (prevents burst updates)
+    private throttledSystems: ThrottledSystem[] = [];
+    private currentSystemIndex: number = 0;
+    private lastDeltaTime: number = 0;
+
+    // Pending upgrade bonus to apply after BuildingManager is created
+    private pendingUpgradeBonus: number = 0;
 
     private isInitialized: boolean = false;
     private isRunning: boolean = false;
@@ -116,11 +177,27 @@ export class GameEngine {
             this.cameraController = new CameraController(this.scene, this.canvas);
             this.lightingSetup = new LightingSetup(this.scene);
             this.materialManager = new MaterialManager(this.scene);
-            this.performanceMonitor = new PerformanceMonitor(this.scene, this.engine);
+
+            // Initialize FPS counter (toggle with 'f' key)
+            this.fpsCounter = new FPSCounter(this.engine);
+
+            // Initialize coordinate display (toggle with 'c' key)
+            this.coordinateDisplay = new CoordinateDisplay();
+            this.coordinateDisplay.setCameraGetter(() => this.cameraController?.getCamera() || null);
+
+            // Initialize spatial index for O(1) entity lookups
+            this.spatialIndex = new SpatialIndex();
 
             // Initialize energy system
             this.energyManager = EnergyManager.getInstance();
             this.energyManager.initialize(500, 15); // Start with 500 energy, 15 minerals
+
+            // Initialize Energy Lords progression system
+            this.energyLordsManager = new EnergyLordsManager(this.energyManager);
+            await this.energyLordsManager.initialize();
+
+            // Apply saved upgrade bonus to power plants (will be applied after BuildingManager is created)
+            this.pendingUpgradeBonus = this.energyLordsManager.getTotalUpgradeBonus();
 
             // Initialize game state
             this.gameState = GameState.getInstance();
@@ -134,6 +211,11 @@ export class GameEngine {
             this.buildingRenderer = new BuildingRenderer(this.scene, this.materialManager);
             this.buildingManager = new BuildingManager(this.gameState, this.buildingRenderer, this.energyManager);
 
+            // Apply Energy Lords upgrade bonus to power plants
+            if (this.pendingUpgradeBonus > 0) {
+                this.buildingManager.setEnergyGenerationBonus(this.pendingUpgradeBonus);
+            }
+
             // Initialize combat system
             this.parasiteManager = new ParasiteManager({
                 scene: this.scene,
@@ -143,12 +225,7 @@ export class GameEngine {
 
             // Initialize central combat system with scene for visual effects
             this.combatSystem = new CombatSystem(this.energyManager, this.scene);
-            
-            // Connect combat system to performance monitor for combat-specific monitoring
-            if (this.performanceMonitor) {
-                this.performanceMonitor.setCombatSystem(this.combatSystem);
-            }
-            
+
             // Register combat system with UnitManager for auto-attack integration
             if (this.unitManager) {
                 this.unitManager.setCombatSystem(this.combatSystem);
@@ -156,6 +233,35 @@ export class GameEngine {
 
             // Initialize vegetation system
             this.treeRenderer = new TreeRenderer(this.scene);
+
+            // Initialize territory system
+            this.territoryManager = new TerritoryManager();
+            this.territoryManager.initialize(this);
+
+            // Initialize territory renderer
+            if (this.scene && this.materialManager) {
+                this.territoryRenderer = new TerritoryRenderer(
+                    this.scene,
+                    this.materialManager
+                );
+                this.territoryRenderer.setTerritoryManager(this.territoryManager);
+                // Set initial player position at camera target (0, 0, 0)
+                this.territoryRenderer.setPlayerPosition(new Vector3(0, 0, 0));
+            }
+
+            // Initialize liberation manager
+            this.liberationManager = new LiberationManager(this.energyManager!);
+            this.liberationManager.setTerritoryManager(this.territoryManager);
+
+            // Connect territory manager to unit manager for mining bonus
+            if (this.unitManager) {
+                this.unitManager.setTerritoryManager(this.territoryManager);
+            }
+
+            // Connect territory manager to parasite manager for territorial control
+            if (this.parasiteManager) {
+                this.parasiteManager.setTerritoryManager(this.territoryManager);
+            }
 
             // Set terrain generator after terrain is initialized (delayed)
             setTimeout(() => {
@@ -181,11 +287,34 @@ export class GameEngine {
             // Initialize energy UI
             this.initializeEnergyUI();
 
+            // Initialize Energy Lords UI
+            this.initializeEnergyLordsUI();
+
             // Initialize mining analysis tooltip
             this.initializeMiningAnalysisTooltip();
 
             // Initialize protector selection UI
             this.initializeProtectorSelectionUI();
+
+            // Initialize Queen & Territory UI components
+            this.initializeQueenGrowthUI();
+            this.initializeTerritoryVisualUI();
+
+            // Connect territory manager to Queen growth UI
+            if (this.queenGrowthUI && this.territoryManager) {
+                this.queenGrowthUI.setTerritoryManager(this.territoryManager);
+            }
+
+            // Initialize GUI texture for advanced UI components
+            this.guiTexture = AdvancedDynamicTexture.CreateFullscreenUI("MainUI", true, this.scene);
+
+            // Share GUI texture with combat system to avoid duplicate fullscreen UIs
+            if (this.combatSystem && this.guiTexture) {
+                this.combatSystem.setSharedUI(this.guiTexture);
+            }
+
+            // Initialize Adaptive Queen Intelligence Integration
+            await this.initializeAdaptiveQueenIntegration();
 
             // Setup terrain integration with game state
             this.setupTerrainIntegration();
@@ -197,6 +326,9 @@ export class GameEngine {
             window.addEventListener('resize', () => {
                 this.engine?.resize();
             });
+
+            // Babylon.js debug layer - uncomment for perf tuning
+            // this.scene.debugLayer.show({ embedMode: true });
 
             this.isInitialized = true;
 
@@ -222,23 +354,28 @@ export class GameEngine {
                 throw new Error('Engine or scene not initialized');
             }
 
-            // Start performance monitoring
-            this.performanceMonitor?.startMonitoring();
+            // Initialize throttled systems for round-robin updates
+            this.initThrottledSystems();
 
-            // Start render loop
-            this.engine.runRenderLoop(async () => {
+            // Start render loop (synchronous for performance)
+            this.engine.runRenderLoop(() => {
                 if (this.scene && this.engine) {
+                    const now = performance.now();
+
                     // Calculate delta time
                     const deltaTime = this.engine.getDeltaTime() / 1000; // Convert to seconds
+                    this.lastDeltaTime = deltaTime;
+
+                    // === 60 Hz UPDATES (critical for gameplay) ===
 
                     // Update game state
                     if (this.gameState) {
                         this.gameState.update(deltaTime);
                     }
 
-                    // Update unit system (async for command processing)
+                    // Update unit system
                     if (this.unitManager) {
-                        await this.unitManager.update(deltaTime);
+                        this.unitManager.update(deltaTime);
                     }
 
                     // Update building system
@@ -246,12 +383,7 @@ export class GameEngine {
                         this.buildingManager.update(deltaTime);
                     }
 
-                    // Update energy system
-                    if (this.energyManager) {
-                        this.energyManager.update();
-                    }
-
-                    // Update combat system
+                    // Update combat system (parasites)
                     if (this.parasiteManager && this.gameState && this.unitManager) {
                         const mineralDeposits = this.gameState.getAllMineralDeposits();
                         const workers = this.unitManager.getUnitsByType('worker') as Worker[];
@@ -261,16 +393,44 @@ export class GameEngine {
 
                     // Update central combat system with auto-attack integration
                     if (this.combatSystem && this.unitManager) {
-                        // Handle movement-combat transitions for all protectors
                         this.handleMovementCombatTransitions();
-                        
-                        // Update combat system
                         this.combatSystem.update(deltaTime);
+                    }
+
+                    // Update territory renderer player position
+                    if (this.territoryRenderer && this.cameraController) {
+                        const camera = this.cameraController.getCamera();
+                        if (camera) {
+                            this.territoryRenderer.setPlayerPosition(camera.getTarget());
+                        }
+                    }
+
+                    // Update Adaptive Queen Integration
+                    if (this.adaptiveQueenIntegration) {
+                        this.adaptiveQueenIntegration.update(deltaTime);
                     }
 
                     // Update vegetation animations
                     if (this.treeRenderer) {
                         this.treeRenderer.updateAnimations();
+                    }
+
+                    // === ROUND-ROBIN THROTTLED UPDATES ===
+                    // Check ONE system per frame to prevent burst updates
+                    if (this.throttledSystems.length > 0) {
+                        // Guard: Clamp to valid range before access
+                        if (this.currentSystemIndex < 0 || this.currentSystemIndex >= this.throttledSystems.length) {
+                            this.currentSystemIndex = 0;
+                        }
+
+                        const system = this.throttledSystems[this.currentSystemIndex];
+                        if (now - system.lastUpdate >= system.interval) {
+                            system.update();
+                            system.lastUpdate = now;
+                        }
+
+                        // Move to next system for next frame
+                        this.currentSystemIndex = (this.currentSystemIndex + 1) % this.throttledSystems.length;
                     }
 
                     this.scene.render();
@@ -296,7 +456,6 @@ export class GameEngine {
             this.engine.stopRenderLoop();
         }
 
-        this.performanceMonitor?.stopMonitoring();
         this.isRunning = false;
     }
 
@@ -315,6 +474,13 @@ export class GameEngine {
             deposits.forEach(deposit => {
                 this.gameState!.addMineralDeposit(deposit);
             });
+        }
+
+        // Create single territory at initial camera position (0, 0) with Queen
+        if (this.territoryManager) {
+            // Creating initial territory silently
+            this.territoryManager.createTerritory(0, 0, true); // skipAlignment for dev
+            // TerritoryRenderer auto-detects territories from TerritoryManager
         }
     }
 
@@ -345,6 +511,51 @@ export class GameEngine {
     }
 
     /**
+     * Initialize Energy Lords progression UI
+     */
+    private initializeEnergyLordsUI(): void {
+        if (!this.energyLordsManager) {
+            return;
+        }
+
+        // Create HUD container (positioned below Defense window which is at top: 320px)
+        let hudContainer = document.getElementById('energy-lords-hud');
+        if (!hudContainer) {
+            hudContainer = document.createElement('div');
+            hudContainer.id = 'energy-lords-hud';
+            hudContainer.style.cssText = `
+                position: fixed;
+                top: 420px;
+                left: 20px;
+                z-index: 1000;
+            `;
+            document.body.appendChild(hudContainer);
+        }
+
+        // Initialize HUD
+        this.energyLordsHUD = new EnergyLordsHUD({
+            containerId: 'energy-lords-hud'
+        });
+        this.energyLordsHUD.setManager(this.energyLordsManager);
+
+        // Initialize Victory Screen
+        this.victoryScreen = new VictoryScreen({
+            onContinue: () => {
+                // Reload the game to restart with upgraded power plants
+                // Progress is already saved, so on reload the upgrade bonus will be applied
+                window.location.reload();
+            }
+        });
+
+        // Subscribe to victory events
+        this.energyLordsManager.addEventListener((event: EnergyLordsEvent) => {
+            if (event.type === 'victory' && this.victoryScreen) {
+                this.victoryScreen.show(event.data);
+            }
+        });
+    }
+
+    /**
      * Initialize mining analysis tooltip
      */
     private initializeMiningAnalysisTooltip(): void {
@@ -360,6 +571,133 @@ export class GameEngine {
      */
     private initializeProtectorSelectionUI(): void {
         this.protectorSelectionUI = new ProtectorSelectionUI();
+    }
+
+    /**
+     * Initialize Queen growth UI
+     */
+    private initializeQueenGrowthUI(): void {
+        // Create Queen growth UI container if it doesn't exist
+        let queenGrowthContainer = document.getElementById('queen-growth-display');
+        if (!queenGrowthContainer) {
+            queenGrowthContainer = document.createElement('div');
+            queenGrowthContainer.id = 'queen-growth-display';
+            queenGrowthContainer.style.cssText = `
+                position: fixed;
+                top: 80px;
+                right: 20px;
+                z-index: 1000;
+            `;
+            document.body.appendChild(queenGrowthContainer);
+        }
+
+        this.queenGrowthUI = new QueenGrowthUI({
+            containerId: 'queen-growth-display'
+        });
+    }
+
+    /**
+     * Initialize territory visual UI
+     */
+    private initializeTerritoryVisualUI(): void {
+        if (!this.scene) {
+            return;
+        }
+
+        this.territoryVisualUI = new TerritoryVisualUI({ containerId: 'territory-visual-display' });
+    }
+
+    /**
+     * Initialize Adaptive Queen Intelligence Integration
+     */
+    private async initializeAdaptiveQueenIntegration(): Promise<void> {
+        if (!this.territoryManager || !this.gameState || !this.guiTexture) {
+            console.warn('🧠 Cannot initialize AdaptiveQueenIntegration: missing dependencies');
+            return;
+        }
+
+        try {
+            // AI learning enabled - ensure backend is running: python -m server.main
+            const enableLearning = true;
+
+            this.adaptiveQueenIntegration = await createAdaptiveQueenIntegration({
+                gameEngine: this,
+                territoryManager: this.territoryManager,
+                gameState: this.gameState,
+                guiTexture: this.guiTexture,
+                websocketUrl: 'ws://localhost:8000/ws',
+                enableLearning: enableLearning
+            });
+
+//             console.log(`🧠 AdaptiveQueenIntegration initialized (Learning: ${backendAvailable ? 'enabled' : 'disabled'})`);
+            
+        } catch (error) {
+            console.warn('🧠 Failed to initialize AdaptiveQueenIntegration, falling back to standard behavior:', error);
+            
+            // Create integration without learning capabilities
+            this.adaptiveQueenIntegration = new AdaptiveQueenIntegration({
+                gameEngine: this,
+                territoryManager: this.territoryManager,
+                gameState: this.gameState,
+                guiTexture: this.guiTexture,
+                enableLearning: false
+            });
+        }
+    }
+
+    /**
+     * Check if AI backend is available
+     */
+    private async checkAIBackendAvailability(): Promise<boolean> {
+        try {
+            const response = await fetch('http://localhost:8000/health', {
+                method: 'GET',
+                timeout: 5000
+            } as any);
+
+            if (response.ok) {
+                const health = await response.json();
+                return health.status === 'healthy';
+            }
+
+            return false;
+        } catch (error) {
+            console.log('🧠 AI backend not available, using fallback behavior');
+            return false;
+        }
+    }
+
+    /**
+     * Initialize throttled systems for round-robin updates
+     * These systems don't need 60 Hz updates, so we spread them across frames
+     */
+    private initThrottledSystems(): void {
+        this.throttledSystems = [
+            {
+                name: 'energy',
+                interval: 100,  // 10 Hz
+                lastUpdate: 0,
+                update: () => this.energyManager?.update()
+            },
+            {
+                name: 'territory',
+                interval: 100,  // 10 Hz
+                lastUpdate: 0,
+                update: () => this.territoryManager?.update(this.lastDeltaTime)
+            },
+            {
+                name: 'liberation',
+                interval: 200,  // 5 Hz
+                lastUpdate: 0,
+                update: () => this.liberationManager?.updateLiberations(this.lastDeltaTime)
+            },
+            {
+                name: 'energyLords',
+                interval: 100,  // 10 Hz
+                lastUpdate: 0,
+                update: () => this.energyLordsManager?.update(performance.now())
+            }
+        ];
     }
 
     /**
@@ -438,15 +776,80 @@ export class GameEngine {
     public getCombatSystem(): CombatSystem | null {
         return this.combatSystem;
     }
+
+    /**
+     * Get territory manager
+     */
+    public getTerritoryManager(): TerritoryManager | null {
+        return this.territoryManager;
+    }
+
+    /**
+     * Get liberation manager
+     */
+    public getLiberationManager(): LiberationManager | null {
+        return this.liberationManager;
+    }
+
+    /**
+     * Get Queen growth UI
+     */
+    public getQueenGrowthUI(): QueenGrowthUI | null {
+        return this.queenGrowthUI;
+    }
+
+    /**
+     * Get territory visual UI
+     */
+    public getTerritoryVisualUI(): TerritoryVisualUI | null {
+        return this.territoryVisualUI;
+    }
+
+    /**
+     * Get spatial index for efficient entity lookups
+     */
+    public getSpatialIndex(): SpatialIndex | null {
+        return this.spatialIndex;
+    }
+
+    /**
+     * Get Adaptive Queen Integration
+     */
+    public getAdaptiveQueenIntegration(): AdaptiveQueenIntegration | null {
+        return this.adaptiveQueenIntegration;
+    }
+
+    /**
+     * Get GUI texture for advanced UI components
+     */
+    public getGUITexture(): AdvancedDynamicTexture | null {
+        return this.guiTexture;
+    }
+
+    /**
+     * Get Energy Lords progression manager
+     */
+    public getEnergyLordsManager(): EnergyLordsManager | null {
+        return this.energyLordsManager;
+    }
+
     /**
      * Handle movement-combat transitions for auto-attack system
      * This method checks for enemy detection during protector movement
      * and initiates auto-attack when enemies are detected within range
+     * Throttled to run every 200ms instead of every frame for performance
      */
     private handleMovementCombatTransitions(): void {
         if (!this.combatSystem || !this.unitManager) {
             return;
         }
+
+        // Throttle detection checks to every 200ms
+        const now = performance.now();
+        if (now - this.lastDetectionCheckTime < this.DETECTION_CHECK_INTERVAL) {
+            return;
+        }
+        this.lastDetectionCheckTime = now;
 
         // Get all active protectors
         const protectors = this.unitManager.getUnitsByType('protector') as Protector[];
@@ -506,19 +909,27 @@ export class GameEngine {
         }
 
         // Add pointer observable for mouse clicks
+        // Fix 19: Removed POINTERMOVE handler - no scene.pick() on mouse move
         this.scene.onPointerObservable.add((pointerInfo) => {
             if (pointerInfo.type === PointerEventTypes.POINTERDOWN) {
-                this.handleMouseClick(pointerInfo);
-            } else if (pointerInfo.type === PointerEventTypes.POINTERMOVE) {
-                this.handleMouseMove();
+                const event = pointerInfo.event as PointerEvent;
+                if (event.button === 2) {
+                    // Right-click: Show Protector tooltip (Fix 19)
+                    this.handleRightClick();
+                } else {
+                    // Left-click: Normal click handling
+                    this.handleMouseClick(pointerInfo);
+                }
             }
+            // No POINTERMOVE handler - eliminates scene.pick() on mouse move
         });
     }
 
     /**
-     * Handle mouse move for hover detection (Protector tooltip)
+     * Handle right-click for Protector info tooltip (Fix 19)
+     * Replaces hover-based detection to eliminate scene.pick() on mouse move
      */
-    private handleMouseMove(): void {
+    private handleRightClick(): void {
         if (!this.scene || !this.unitManager || !this.protectorSelectionUI) return;
 
         const pickInfo = this.scene.pick(this.scene.pointerX, this.scene.pointerY);
@@ -526,7 +937,7 @@ export class GameEngine {
         if (pickInfo && pickInfo.hit && pickInfo.pickedMesh) {
             const meshName = pickInfo.pickedMesh.name;
 
-            // Check if hovering over a unit
+            // Check if right-clicked on a unit
             if (meshName.startsWith('unit_')) {
                 const unitId = meshName.replace('unit_', '');
                 const unit = this.unitManager.getUnit(unitId);
@@ -543,7 +954,7 @@ export class GameEngine {
             }
         }
 
-        // Hide tooltip if not hovering over a Protector
+        // Right-clicked elsewhere - hide tooltip
         this.protectorSelectionUI.hide();
     }
 
@@ -552,6 +963,11 @@ export class GameEngine {
      */
     private handleMouseClick(pointerInfo: any): void {
         if (!this.scene || !this.unitManager) return;
+
+        // Fix 19: Hide Protector tooltip on left-click (user clicked elsewhere)
+        if (this.protectorSelectionUI) {
+            this.protectorSelectionUI.hide();
+        }
 
         // Get the pick result
         const pickInfo = this.scene.pick(this.scene.pointerX, this.scene.pointerY);
@@ -801,7 +1217,16 @@ export class GameEngine {
         this.stop();
 
         // Dispose components in reverse order
+        this.victoryScreen?.dispose();
+        this.energyLordsHUD?.dispose();
+        this.energyLordsManager?.dispose();
+        this.adaptiveQueenIntegration?.dispose();
+        this.guiTexture?.dispose();
         this.treeRenderer?.dispose();
+        this.territoryVisualUI?.dispose();
+        this.queenGrowthUI?.dispose();
+        this.liberationManager?.dispose();
+        this.territoryManager?.dispose();
         this.combatSystem?.dispose();
         this.parasiteManager?.dispose();
         this.buildingManager?.dispose();
@@ -813,7 +1238,8 @@ export class GameEngine {
         this.miningAnalysisTooltip?.dispose();
         this.protectorSelectionUI?.dispose();
         this.energyManager?.dispose();
-        this.performanceMonitor?.dispose();
+        this.fpsCounter?.dispose();
+        this.coordinateDisplay?.dispose();
         this.materialManager?.dispose();
         this.lightingSetup?.dispose();
         this.cameraController?.dispose();
