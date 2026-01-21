@@ -66,7 +66,7 @@ def setup_environment():
     env_defaults = {
         "HOST": "0.0.0.0",
         "PORT": "8000",
-        "LOG_LEVEL": "info",
+        "LOG_LEVEL": "debug",
         "GPU_MEMORY_LIMIT": "2048"  # MB
     }
     

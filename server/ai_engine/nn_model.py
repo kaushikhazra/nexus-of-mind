@@ -302,12 +302,9 @@ class NNModel:
             # Flip target for negative reward
             type_target = 1.0 - type_target
 
-        # Apply reward scaling to learning rate
-        scaled_lr = learning_rate * abs(reward)
-
-        # Temporarily adjust learning rate
+        # Set learning rate (no reward scaling - target construction handles magnitude)
         old_lr = float(self.model.optimizer.learning_rate)
-        self.model.optimizer.learning_rate.assign(scaled_lr)
+        self.model.optimizer.learning_rate.assign(learning_rate)
 
         # Train
         result = self.train_step(
@@ -320,7 +317,6 @@ class NNModel:
         self.model.optimizer.learning_rate.assign(old_lr)
 
         result['reward'] = reward
-        result['scaled_lr'] = scaled_lr
 
         return result
 

@@ -11,7 +11,6 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Dict, Any
 
-import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -586,21 +585,7 @@ async def reset_neural_network():
         logger.error(f"Failed to reset neural network: {e}")
         return JSONResponse(
             status_code=500,
-            content={"error": f"Reset failed: {str(e)}"}
-        )
+            content={"error": f"Reset failed: {str(e)}"})
 
 
-if __name__ == "__main__":
-    # Development server configuration
-    port = int(os.getenv("PORT", 8000))
-    host = os.getenv("HOST", "0.0.0.0")
-    
-    logger.info(f"Starting server on {host}:{port}")
-    
-    uvicorn.run(
-        "main:app",
-        host=host,
-        port=port,
-        reload=True,  # Enable auto-reload for development
-        log_level="info"
-    )
+# To start the server, run: python start_server.py

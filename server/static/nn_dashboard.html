@@ -612,8 +612,12 @@
 
             <div class="stat-grid">
                 <div class="stat-card">
-                    <div class="stat-value" id="totalSteps">0</div>
-                    <div class="stat-label">Training Steps</div>
+                    <div class="stat-value" id="modelVersion">0</div>
+                    <div class="stat-label">NN Version</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="bufferSize">0</div>
+                    <div class="stat-label">Buffer Size</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-value" id="avgLoss">-</div>
@@ -912,7 +916,8 @@
             updateWaitStreak(data.gate_behavior.wait_streak, data.gate_behavior.time_since_last_action);
 
             // Training
-            document.getElementById('totalSteps').textContent = data.training.total_steps || 0;
+            document.getElementById('modelVersion').textContent = data.training.model_version || 0;
+            document.getElementById('bufferSize').textContent = data.training.buffer_size || 0;
             document.getElementById('avgLoss').textContent =
                 formatDecimal(data.training.avg_loss, 4);
             document.getElementById('avgReward').textContent =
