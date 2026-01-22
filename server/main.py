@@ -166,7 +166,7 @@ async def health_check():
             status_code=503,
             content={"status": "error", "message": "AI Engine not initialized"}
         )
-    
+
     # Gather comprehensive health information
     health_data = {
         "status": "healthy",
@@ -181,6 +181,16 @@ async def health_check():
             "log_level": os.getenv("LOG_LEVEL", "INFO")
         }
     }
+
+    # Add model version info if available
+    if message_handler and message_handler.continuous_trainer:
+        metadata = message_handler.continuous_trainer.metadata
+        health_data["model_version"] = {
+            "version": metadata.version,
+            "created_at": metadata.created_at,
+            "last_saved_at": metadata.last_saved_at,
+            "total_training_iterations": metadata.total_training_iterations
+        }
     
     # Add performance metrics if available
     try:
@@ -206,7 +216,7 @@ async def system_status():
             status_code=503,
             content={"error": "AI Engine not initialized"}
         )
-    
+
     status = {
         "system": {
             "status": "operational",
@@ -224,7 +234,20 @@ async def system_status():
             "total_known": len(connection_manager.connection_metadata) if connection_manager else 0
         }
     }
-    
+
+    # Add model version info if available
+    if message_handler and message_handler.continuous_trainer:
+        metadata = message_handler.continuous_trainer.metadata
+        status["model"] = {
+            "version": metadata.version,
+            "created_at": metadata.created_at,
+            "last_saved_at": metadata.last_saved_at,
+            "total_training_iterations": metadata.total_training_iterations,
+            "total_samples_ever_processed": metadata.total_samples_ever_processed,
+            "best_loss": metadata.best_loss if metadata.best_loss != float('inf') else None,
+            "description": metadata.description
+        }
+
     return status
 
 

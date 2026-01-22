@@ -76,6 +76,14 @@ class MessageHandler:
         try:
             self.continuous_trainer = AsyncContinuousTrainer()
             logger.info("ContinuousTrainer initialized for real-time learning")
+
+            # Set initial model version in dashboard from metadata
+            try:
+                dashboard = get_dashboard_metrics()
+                dashboard.model_version = self.continuous_trainer.metadata.version
+                logger.info(f"Dashboard initialized with model version {dashboard.model_version}")
+            except Exception as e:
+                logger.warning(f"Failed to set dashboard model version: {e}")
         except Exception as e:
             logger.warning(f"Failed to initialize ContinuousTrainer: {e}. Continuous learning disabled.")
 
@@ -979,10 +987,12 @@ class MessageHandler:
                         # Record training step to dashboard
                         try:
                             dashboard = get_dashboard_metrics()
+                            model_ver = self.continuous_trainer.metadata.version if self.continuous_trainer else 0
                             dashboard.record_training_step(
                                 loss=train_result.get('loss', 0),
                                 reward=reward_info['reward'],
-                                is_simulation=False
+                                is_simulation=False,
+                                model_version=model_ver
                             )
                         except Exception as e:
                             logger.warning(f"Failed to record training step to dashboard: {e}")
@@ -1128,10 +1138,12 @@ class MessageHandler:
                         # Record simulation training step to dashboard
                         try:
                             dashboard = get_dashboard_metrics()
+                            model_ver = self.continuous_trainer.metadata.version if self.continuous_trainer else 0
                             dashboard.record_training_step(
                                 loss=train_result.get('loss', 0),
                                 reward=sim_reward,
-                                is_simulation=True
+                                is_simulation=True,
+                                model_version=model_ver
                             )
                         except Exception as e:
                             logger.warning(f"Failed to record sim training to dashboard: {e}")

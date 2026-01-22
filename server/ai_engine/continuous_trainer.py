@@ -6,12 +6,14 @@ Queen death as a trigger. Trains incrementally and generates strategy updates.
 """
 
 import asyncio
+import json
 import logging
 import os
 import time
 from collections import deque
+from datetime import datetime
 from typing import Dict, Any, Optional, List, Tuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 import numpy as np
 
 try:
@@ -36,6 +38,28 @@ class Experience:
     features: np.ndarray
     reward: float
     timestamp: float = field(default_factory=time.time)
+
+
+@dataclass
+class ModelMetadata:
+    """Persistent metadata for model versioning and tracking."""
+    version: int = 1
+    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    last_saved_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    total_training_iterations: int = 0
+    total_samples_ever_processed: int = 0
+    cumulative_training_time_seconds: float = 0.0
+    best_loss: float = float('inf')
+    description: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ModelMetadata':
+        """Create from dictionary."""
+        return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
 
 
 @dataclass
@@ -128,6 +152,10 @@ class ContinuousTrainer:
 
         # Model path
         self.model_path = model_path or "models/queen_continuous_model.keras"
+        self.metadata_path = self.model_path.replace('.keras', '_metadata.json')
+
+        # Model metadata for versioning
+        self.metadata: ModelMetadata = ModelMetadata()
 
         # Initialize model
         self.model: Optional[keras.Model] = None
@@ -194,24 +222,75 @@ class ContinuousTrainer:
         logger.info(f"Built model with {self.config.get_total_parameters()} parameters")
 
     def _load_model(self) -> bool:
-        """Load model weights if available."""
+        """Load model weights and metadata if available."""
+        loaded = False
         if os.path.exists(self.model_path):
             try:
                 self.model.load_weights(self.model_path)
+                loaded = True
                 logger.info(f"Loaded model weights from {self.model_path}")
-                return True
             except Exception as e:
                 logger.warning(f"Failed to load model: {e}")
-        return False
+
+        # Load metadata
+        if os.path.exists(self.metadata_path):
+            try:
+                with open(self.metadata_path, 'r') as f:
+                    data = json.load(f)
+                self.metadata = ModelMetadata.from_dict(data)
+                logger.info("=" * 60)
+                logger.info("MODEL VERSION INFO")
+                logger.info(f"  Version: {self.metadata.version}")
+                logger.info(f"  Created: {self.metadata.created_at}")
+                logger.info(f"  Last saved: {self.metadata.last_saved_at}")
+                logger.info(f"  Total training iterations: {self.metadata.total_training_iterations}")
+                logger.info(f"  Total samples processed: {self.metadata.total_samples_ever_processed}")
+                logger.info(f"  Best loss: {self.metadata.best_loss:.6f}")
+                if self.metadata.description:
+                    logger.info(f"  Description: {self.metadata.description}")
+                logger.info("=" * 60)
+            except Exception as e:
+                logger.warning(f"Failed to load metadata: {e}")
+                self.metadata = ModelMetadata()
+        else:
+            if loaded:
+                logger.info("No metadata file found - creating new metadata for existing model")
+                self.metadata = ModelMetadata(description="Metadata created for pre-existing model")
+
+        return loaded
 
     def save_model(self) -> None:
-        """Save model weights."""
+        """Save model weights and metadata."""
         try:
             os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
             self.model.save_weights(self.model_path)
             logger.info(f"Saved model weights to {self.model_path}")
+
+            # Update and save metadata
+            self._save_metadata()
         except Exception as e:
             logger.error(f"Failed to save model: {e}")
+
+    def _save_metadata(self) -> None:
+        """Save model metadata to JSON file."""
+        try:
+            # Update metadata
+            self.metadata.version += 1
+            self.metadata.last_saved_at = datetime.now().isoformat()
+            self.metadata.total_training_iterations += self.training_count
+            self.metadata.total_samples_ever_processed += self.total_samples_processed
+
+            # Track best loss
+            if self.last_training_loss > 0 and self.last_training_loss < self.metadata.best_loss:
+                self.metadata.best_loss = self.last_training_loss
+
+            # Save to file
+            with open(self.metadata_path, 'w') as f:
+                json.dump(self.metadata.to_dict(), f, indent=2)
+
+            logger.info(f"Saved model metadata (version {self.metadata.version}) to {self.metadata_path}")
+        except Exception as e:
+            logger.error(f"Failed to save metadata: {e}")
 
     def process_observation(self, observation: Dict[str, Any]) -> StrategyUpdate:
         """
@@ -399,6 +478,15 @@ class ContinuousTrainer:
                 'hidden_layers': self.config.hidden_layers,
                 'learning_rate': self.config.learning_rate,
                 'batch_size': self.config.batch_size
+            },
+            'model_metadata': {
+                'version': self.metadata.version,
+                'created_at': self.metadata.created_at,
+                'last_saved_at': self.metadata.last_saved_at,
+                'total_training_iterations': self.metadata.total_training_iterations,
+                'total_samples_ever_processed': self.metadata.total_samples_ever_processed,
+                'best_loss': self.metadata.best_loss if self.metadata.best_loss != float('inf') else None,
+                'description': self.metadata.description
             }
         }
 
@@ -421,29 +509,46 @@ class ContinuousTrainer:
 
     def full_reset(self) -> Dict[str, Any]:
         """
-        Full reset: delete saved model file and reset to fresh state.
+        Full reset: delete saved model file, metadata and reset to fresh state.
 
         Returns:
             Status dictionary with reset details
         """
-        deleted_file = False
+        deleted_model = False
+        deleted_metadata = False
+        old_version = self.metadata.version
 
         # Delete saved model file if exists
         if os.path.exists(self.model_path):
             try:
                 os.remove(self.model_path)
-                deleted_file = True
+                deleted_model = True
                 logger.info(f"Deleted model file: {self.model_path}")
             except Exception as e:
                 logger.warning(f"Failed to delete model file: {e}")
 
+        # Delete metadata file if exists
+        if os.path.exists(self.metadata_path):
+            try:
+                os.remove(self.metadata_path)
+                deleted_metadata = True
+                logger.info(f"Deleted metadata file: {self.metadata_path}")
+            except Exception as e:
+                logger.warning(f"Failed to delete metadata file: {e}")
+
         # Reset model to random weights
         self.reset_model()
 
+        # Reset metadata to fresh state
+        self.metadata = ModelMetadata(description="Fresh model after full reset")
+
         return {
             'status': 'success',
-            'deleted_model_file': deleted_file,
+            'deleted_model_file': deleted_model,
+            'deleted_metadata_file': deleted_metadata,
+            'previous_version': old_version,
             'model_path': self.model_path,
+            'metadata_path': self.metadata_path,
             'message': 'Neural network fully reset to initial state'
         }
 
