@@ -2,13 +2,13 @@
  * QueenEnergySystem - Manages Queen's spawn energy resource
  *
  * The Queen has an energy reserve that:
- * - Regenerates passively from the planetary environment (3.0/sec)
- * - Is consumed when spawning parasites (15 for energy, 25 for combat)
+ * - Regenerates passively from the planetary environment (10.0/sec)
+ * - Is consumed when spawning parasites (8 for energy, 15 for combat)
  * - Naturally throttles spawn rate based on resource availability
  *
  * This system provides spawn capacity inputs to the NN:
- * - energy_capacity = floor(current/15) / 6 → 0-1
- * - combat_capacity = floor(current/25) / 4 → 0-1
+ * - energy_capacity = floor(current/8) / 12 → 0-1
+ * - combat_capacity = floor(current/15) / 6 → 0-1
  */
 
 import {

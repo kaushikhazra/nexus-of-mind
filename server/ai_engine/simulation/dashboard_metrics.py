@@ -56,13 +56,18 @@ class DashboardMetrics:
         if getattr(self, '_initialized', False):
             return
 
-        # NN Decisions tracking
-        self.chunk_frequency: List[int] = [0] * 400  # 20x20 grid (total)
-        self.chunk_sent: List[int] = [0] * 400  # Chunks where spawn was sent
-        self.chunk_skipped: List[int] = [0] * 400  # Chunks where spawn was skipped
+        # NN Decisions tracking (16x16 = 256 spawn chunks, matching NN output)
+        self.chunk_frequency: List[int] = [0] * 256  # 16x16 grid (total)
+        self.chunk_sent: List[int] = [0] * 256  # Chunks where spawn was sent
+        self.chunk_skipped: List[int] = [0] * 256  # Chunks where spawn was skipped
         self.recent_decisions: Deque[NNDecisionRecord] = deque(maxlen=20)
         self.type_counts: Dict[str, int] = {'energy': 0, 'combat': 0}
         self.confidence_bins: List[int] = [0] * 10  # 0.0-0.1, 0.1-0.2, ..., 0.9-1.0
+
+        # No-spawn statistics
+        self.no_spawn_decisions: int = 0
+        self.correct_no_spawn: int = 0
+        self.missed_opportunities: int = 0
 
         # Gate behavior tracking
         self.gate_decisions: Deque[GateDecisionRecord] = deque(maxlen=100)
@@ -78,6 +83,12 @@ class DashboardMetrics:
         # Background training tracking
         self.model_version: int = 0
         self.buffer_size: int = 0
+
+        # Entropy tracking (distribution health)
+        self.entropy_history: Deque[float] = deque(maxlen=500)
+        self.current_entropy: float = 0.0
+        self.max_entropy: float = 5.549  # log(257) for 257 chunks
+        self.effective_actions: float = 0.0
 
         # Server info
         self.start_time: float = time.time()
@@ -113,7 +124,8 @@ class DashboardMetrics:
         """
         with self._data_lock:
             # Update chunk frequency (total and sent/skipped)
-            if 0 <= chunk < 400:
+            # NN outputs chunks 0-255 (256 spawn locations)
+            if 0 <= chunk < 256:
                 self.chunk_frequency[chunk] += 1
                 if sent:
                     self.chunk_sent[chunk] += 1
@@ -146,7 +158,7 @@ class DashboardMetrics:
         expected_reward: float,
         components: Dict[str, float],
         observation_summary: Optional[Dict[str, Any]] = None,
-        nn_output: Optional[Dict[str, Any]] = None
+        nn_inference: Optional[Dict[str, Any]] = None
     ) -> None:
         """
         Record a simulation gate decision.
@@ -157,7 +169,7 @@ class DashboardMetrics:
             expected_reward: Calculated expected reward
             components: Breakdown of cost function components
             observation_summary: Summary of observation data (for pipeline viz)
-            nn_output: NN output data (for pipeline viz)
+            nn_inference: NN inference data (for pipeline viz)
         """
         with self._data_lock:
             # Handle -inf by converting to a large negative number for JSON
@@ -181,10 +193,18 @@ class DashboardMetrics:
                 self.wait_streak = 0
                 self.last_action_time = time.time()
 
+            # Track no-spawn statistics
+            if nn_inference and nn_inference.get('nn_decision') == 'no_spawn':
+                self.no_spawn_decisions += 1
+                if decision == 'CORRECT_WAIT':
+                    self.correct_no_spawn += 1
+                elif decision == 'SHOULD_SPAWN':
+                    self.missed_opportunities += 1
+
             # Store pipeline data for visualization
             self.last_pipeline = {
                 'observation': observation_summary or {},
-                'nn_output': nn_output or {},
+                'nn_inference': nn_inference or {},
                 'gate_components': {
                     **components,
                     'weights': {
@@ -235,6 +255,26 @@ class DashboardMetrics:
                 self.model_version = model_version
             if buffer_size is not None:
                 self.buffer_size = buffer_size
+
+    def record_entropy(
+        self,
+        entropy: float,
+        max_entropy: float,
+        effective_actions: float
+    ) -> None:
+        """
+        Record entropy metrics for distribution health monitoring.
+
+        Args:
+            entropy: Current entropy of chunk probability distribution
+            max_entropy: Maximum possible entropy (log of num chunks)
+            effective_actions: Perplexity - effective number of choices
+        """
+        with self._data_lock:
+            self.current_entropy = entropy
+            self.max_entropy = max_entropy
+            self.effective_actions = effective_actions
+            self.entropy_history.append(entropy)
 
     def update_game_state(self, game_state: Dict) -> None:
         """
@@ -318,7 +358,15 @@ class DashboardMetrics:
                         for d in list(self.recent_decisions)[-10:]
                     ],
                     'type_counts': self.type_counts.copy(),
-                    'confidence_histogram': self.confidence_bins.copy()
+                    'confidence_histogram': self.confidence_bins.copy(),
+                    'no_spawn_stats': {
+                        'total_no_spawn': self.no_spawn_decisions,
+                        'correct_no_spawn': self.correct_no_spawn,
+                        'missed_opportunities': self.missed_opportunities,
+                        'no_spawn_accuracy': round(
+                            self.correct_no_spawn / self.no_spawn_decisions if self.no_spawn_decisions > 0 else 0.0, 3
+                        )
+                    }
                 },
                 'gate_behavior': {
                     'pass_rate': round(pass_rate, 3),
@@ -336,21 +384,57 @@ class DashboardMetrics:
                     'avg_loss': round(avg_loss, 4),
                     'avg_reward': round(avg_reward, 3),
                     'model_version': self.model_version,
-                    'buffer_size': self.buffer_size
+                    'buffer_size': self.buffer_size,
+                    'stats': {
+                        'training_count': self.total_training_steps
+                    }
+                },
+                'entropy': {
+                    'current': round(self.current_entropy, 3),
+                    'max': round(self.max_entropy, 3),
+                    'ratio': round(self.current_entropy / self.max_entropy, 3) if self.max_entropy > 0 else 0,
+                    'effective_actions': round(self.effective_actions, 1),
+                    'total_actions': 257,
+                    'history': [round(e, 3) for e in list(self.entropy_history)[-100:]],
+                    'health': self._get_entropy_health()
                 },
                 'game_state': self.current_game_state.copy(),
                 'pipeline': self.last_pipeline
             }
 
+    def _get_entropy_health(self) -> str:
+        """
+        Get a human-readable health status for entropy.
+
+        Returns:
+            'healthy', 'warning', or 'collapsed'
+        """
+        if self.max_entropy == 0:
+            return 'unknown'
+
+        ratio = self.current_entropy / self.max_entropy
+
+        if ratio >= 0.5:
+            return 'healthy'  # Good exploration
+        elif ratio >= 0.25:
+            return 'warning'  # Starting to collapse
+        else:
+            return 'collapsed'  # Distribution has collapsed
+
     def reset(self) -> None:
         """Reset all metrics to initial state."""
         with self._data_lock:
-            self.chunk_frequency = [0] * 400
-            self.chunk_sent = [0] * 400
-            self.chunk_skipped = [0] * 400
+            self.chunk_frequency = [0] * 256
+            self.chunk_sent = [0] * 256
+            self.chunk_skipped = [0] * 256
             self.recent_decisions.clear()
             self.type_counts = {'energy': 0, 'combat': 0}
             self.confidence_bins = [0] * 10
+
+            # Reset no-spawn statistics
+            self.no_spawn_decisions = 0
+            self.correct_no_spawn = 0
+            self.missed_opportunities = 0
 
             self.gate_decisions.clear()
             self.wait_streak = 0
@@ -362,6 +446,11 @@ class DashboardMetrics:
             self.total_training_steps = 0
             self.model_version = 0
             self.buffer_size = 0
+
+            # Reset entropy tracking
+            self.entropy_history.clear()
+            self.current_entropy = 0.0
+            self.effective_actions = 0.0
 
             self.start_time = time.time()
             self.current_game_state = {}

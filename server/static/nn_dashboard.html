@@ -253,6 +253,102 @@
             height: 180px;
         }
 
+        /* Entropy Display Styles */
+        .entropy-display {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .entropy-bar-container {
+            position: relative;
+            height: 30px;
+            background: linear-gradient(to right,
+                var(--danger) 0%,
+                var(--danger) 25%,
+                var(--warning) 25%,
+                var(--warning) 50%,
+                var(--success) 50%,
+                var(--success) 100%);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .entropy-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            border-right: 3px solid white;
+            transition: width 0.5s ease;
+        }
+
+        .entropy-zones {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            padding: 0 8px;
+        }
+
+        .entropy-zones .zone {
+            flex: 1;
+            text-align: center;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            opacity: 0.8;
+        }
+
+        .entropy-zones .zone.collapsed { color: #fff; }
+        .entropy-zones .zone.warning { color: #000; }
+        .entropy-zones .zone.healthy { color: #fff; }
+
+        .entropy-value {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .entropy-value #entropyRatio {
+            font-size: 32px;
+            font-weight: bold;
+            color: var(--info);
+        }
+
+        .entropy-value .entropy-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .entropy-explanation {
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .entropy-explanation p {
+            margin-bottom: 8px;
+        }
+
+        .entropy-explanation ul {
+            margin-left: 16px;
+            margin-bottom: 8px;
+        }
+
+        .entropy-explanation li {
+            margin-bottom: 4px;
+        }
+
+        #entropyHealth.healthy { color: var(--success); }
+        #entropyHealth.warning { color: var(--warning); }
+        #entropyHealth.collapsed { color: var(--danger); }
+
         .loading { opacity: 0.5; }
 
         .type-badge {
@@ -470,14 +566,14 @@
 
             <div class="pipeline-arrow">→</div>
 
-            <!-- Stage 2: NN Output -->
-            <div class="pipeline-stage" id="stage-nn-output">
-                <div class="stage-header">NN OUTPUT</div>
+            <!-- Stage 2: NN Inference -->
+            <div class="pipeline-stage" id="stage-nn-inference">
+                <div class="stage-header">NN INFERENCE</div>
                 <div class="stage-content">
+                    <div class="stage-item"><span class="label">Decision</span><span class="value" id="pipe-nn-decision">-</span></div>
                     <div class="stage-item"><span class="label">Chunk</span><span class="value" id="pipe-chunk">-</span></div>
                     <div class="stage-item"><span class="label">Type</span><span class="value" id="pipe-type">-</span></div>
                     <div class="stage-item"><span class="label">Confidence</span><span class="value" id="pipe-confidence">-</span></div>
-                    <div class="stage-item"><span class="label">Skip</span><span class="value" id="pipe-skip">-</span></div>
                 </div>
             </div>
 
@@ -525,9 +621,16 @@
             <h2>NN Decisions</h2>
 
             <div class="card">
-                <h3>Chunk Heatmap (20x20)</h3>
+                <h3>Chunk Heatmap (16x16 = 256 spawn chunks)</h3>
                 <div class="heatmap-container">
                     <canvas id="chunkHeatmap"></canvas>
+                </div>
+                <div style="display: flex; gap: 12px; font-size: 10px; color: var(--text-secondary); margin-top: 6px; flex-wrap: wrap;">
+                    <span><span style="color: #4caf50;">●</span> Workers</span>
+                    <span><span style="color: #f44336;">■</span> Protectors</span>
+                    <span><span style="color: #ffeb3b;">◆</span> Parasites</span>
+                    <span><span style="color: #00bcd4;">□</span> Sent</span>
+                    <span><span style="color: #ff5252;">□</span> Skipped</span>
                 </div>
             </div>
 
@@ -644,12 +747,71 @@
                 <div class="stat-label">Average Reward</div>
             </div>
         </div>
+
+        <!-- Entropy Section (Distribution Health) -->
+        <div class="section">
+            <h2>Distribution Health (Entropy)</h2>
+
+            <div class="card">
+                <h3>Entropy Status</h3>
+                <div class="entropy-display">
+                    <div class="entropy-bar-container">
+                        <div class="entropy-bar" id="entropyBar"></div>
+                        <div class="entropy-zones">
+                            <span class="zone collapsed">Collapsed</span>
+                            <span class="zone warning">Warning</span>
+                            <span class="zone healthy">Healthy</span>
+                        </div>
+                    </div>
+                    <div class="entropy-value">
+                        <span id="entropyRatio">-</span>
+                        <span class="entropy-label">of maximum</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="entropyValue">-</div>
+                    <div class="stat-label">Current Entropy</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="maxEntropy">-</div>
+                    <div class="stat-label">Max Entropy</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="effectiveActions">-</div>
+                    <div class="stat-label">Effective Actions</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="entropyHealth">-</div>
+                    <div class="stat-label">Health Status</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Entropy History</h3>
+                <div class="chart-container tall">
+                    <canvas id="entropyChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card entropy-explanation">
+                <h3>What is Entropy?</h3>
+                <p><strong>Entropy</strong> measures how spread out the NN's probability distribution is.</p>
+                <ul>
+                    <li><strong>High entropy (healthy)</strong>: NN considers many chunks → good exploration</li>
+                    <li><strong>Low entropy (collapsed)</strong>: NN stuck on few chunks → no learning</li>
+                </ul>
+                <p><strong>Effective Actions</strong>: How many chunks the NN effectively considers (higher = better)</p>
+            </div>
+        </div>
     </div>
 
     <script>
         // Dashboard state
         let dashboardData = null;
-        let refreshInterval = 15000;
+        let refreshInterval = 5000;
         let countdownValue = 15;
         let countdownTimer = null;
         let charts = {};
@@ -840,6 +1002,60 @@
                     }
                 }
             );
+
+            // Entropy History Chart
+            charts.entropy = new Chart(
+                document.getElementById('entropyChart').getContext('2d'),
+                {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Entropy',
+                            data: [],
+                            borderColor: '#00bcd4',
+                            backgroundColor: 'rgba(0, 188, 212, 0.1)',
+                            tension: 0.3,
+                            fill: true,
+                            pointRadius: 0
+                        }]
+                    },
+                    options: {
+                        ...chartDefaults,
+                        scales: {
+                            y: {
+                                min: 0,
+                                max: 6,  // Slightly above max entropy (~5.55)
+                                ticks: { color: '#aaa' },
+                                grid: { color: 'rgba(255,255,255,0.1)' }
+                            },
+                            x: { display: false }
+                        },
+                        plugins: {
+                            annotation: {
+                                annotations: {
+                                    healthyLine: {
+                                        type: 'line',
+                                        yMin: 2.77,  // 50% of max
+                                        yMax: 2.77,
+                                        borderColor: 'rgba(0, 200, 83, 0.5)',
+                                        borderWidth: 1,
+                                        borderDash: [5, 5]
+                                    },
+                                    warningLine: {
+                                        type: 'line',
+                                        yMin: 1.39,  // 25% of max
+                                        yMax: 1.39,
+                                        borderColor: 'rgba(255, 193, 7, 0.5)',
+                                        borderWidth: 1,
+                                        borderDash: [5, 5]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            );
         }
 
         async function fetchDashboardData() {
@@ -876,8 +1092,15 @@
             // Pipeline Visualization
             updatePipeline(data.pipeline);
 
-            // NN Decisions
-            updateHeatmap(data.nn_decisions.chunk_sent, data.nn_decisions.chunk_skipped);
+            // NN Decisions - pass entity positions from pipeline observation
+            const obs = data.pipeline?.observation || {};
+            updateHeatmap(
+                data.nn_decisions.chunk_sent,
+                data.nn_decisions.chunk_skipped,
+                obs.worker_chunks || [],
+                obs.protector_chunks || [],
+                obs.parasite_chunks || []
+            );
             updateDecisionsTable(data.nn_decisions.recent_decisions);
             document.getElementById('energyCount').textContent =
                 data.nn_decisions.type_counts.energy || 0;
@@ -935,12 +1158,40 @@
             charts.rewards.data.datasets[0].data = simRewards;
             charts.rewards.data.datasets[1].data = realRewards;
             charts.rewards.update('none');
+
+            // Entropy (Distribution Health)
+            const entropy = data.entropy || {};
+            const entropyRatio = entropy.ratio || 0;
+            const entropyHealth = entropy.health || 'unknown';
+
+            // Update entropy bar position (0-100%)
+            document.getElementById('entropyBar').style.width = `${entropyRatio * 100}%`;
+
+            // Update entropy ratio display
+            document.getElementById('entropyRatio').textContent = `${(entropyRatio * 100).toFixed(1)}%`;
+
+            // Update entropy stats
+            document.getElementById('entropyValue').textContent = formatDecimal(entropy.current, 3);
+            document.getElementById('maxEntropy').textContent = formatDecimal(entropy.max, 3);
+            document.getElementById('effectiveActions').textContent =
+                `${formatDecimal(entropy.effective_actions, 1)} / ${entropy.total_actions || 257}`;
+
+            // Update health status with color
+            const healthEl = document.getElementById('entropyHealth');
+            healthEl.textContent = entropyHealth.toUpperCase();
+            healthEl.className = `stat-value ${entropyHealth}`;
+
+            // Update entropy history chart
+            const entropyHist = entropy.history || [];
+            charts.entropy.data.labels = entropyHist.map((_, i) => i);
+            charts.entropy.data.datasets[0].data = entropyHist;
+            charts.entropy.update('none');
         }
 
-        function updateHeatmap(sentFrequencies, skippedFrequencies) {
+        function updateHeatmap(sentFrequencies, skippedFrequencies, workerChunks, protectorChunks, parasiteChunks) {
             const canvas = document.getElementById('chunkHeatmap');
             const ctx = canvas.getContext('2d');
-            const gridSize = 20;
+            const gridSize = 16;  // 16x16 = 256 spawn chunks (NN outputs 0-255)
 
             // Set canvas size based on container
             const rect = canvas.parentElement.getBoundingClientRect();
@@ -951,15 +1202,18 @@
             const cellHeight = canvas.height / gridSize;
 
             // Find max for color scaling (use max of both for consistent scaling)
-            const maxSent = Math.max(...(sentFrequencies || []), 1);
-            const maxSkipped = Math.max(...(skippedFrequencies || []), 1);
+            // Only consider first 256 elements (valid spawn chunks)
+            const validSent = (sentFrequencies || []).slice(0, 256);
+            const validSkipped = (skippedFrequencies || []).slice(0, 256);
+            const maxSent = Math.max(...validSent, 1);
+            const maxSkipped = Math.max(...validSkipped, 1);
             const maxFreq = Math.max(maxSent, maxSkipped);
 
             // Clear canvas
             ctx.fillStyle = '#1e1e1e';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Draw grid
+            // Draw grid (16x16 = 256 chunks)
             for (let z = 0; z < gridSize; z++) {
                 for (let x = 0; x < gridSize; x++) {
                     const chunkId = z * gridSize + x;
@@ -995,6 +1249,62 @@
                         cellWidth - 1,
                         cellHeight - 1
                     );
+                }
+            }
+
+            // Draw entity markers on top of heatmap
+            const markerRadius = Math.min(cellWidth, cellHeight) * 0.3;
+
+            // Draw workers (green circles)
+            if (workerChunks && workerChunks.length > 0) {
+                ctx.fillStyle = '#4caf50';
+                ctx.strokeStyle = '#1e1e1e';
+                ctx.lineWidth = 1;
+                for (const chunkId of workerChunks) {
+                    if (chunkId >= 0 && chunkId < gridSize * gridSize) {
+                        const x = (chunkId % gridSize) * cellWidth + cellWidth / 2;
+                        const z = Math.floor(chunkId / gridSize) * cellHeight + cellHeight / 2;
+                        ctx.beginPath();
+                        ctx.arc(x, z, markerRadius, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            // Draw protectors (red squares)
+            if (protectorChunks && protectorChunks.length > 0) {
+                ctx.fillStyle = '#f44336';
+                ctx.strokeStyle = '#1e1e1e';
+                ctx.lineWidth = 1;
+                for (const chunkId of protectorChunks) {
+                    if (chunkId >= 0 && chunkId < gridSize * gridSize) {
+                        const x = (chunkId % gridSize) * cellWidth + cellWidth / 2;
+                        const z = Math.floor(chunkId / gridSize) * cellHeight + cellHeight / 2;
+                        ctx.fillRect(x - markerRadius, z - markerRadius, markerRadius * 2, markerRadius * 2);
+                        ctx.strokeRect(x - markerRadius, z - markerRadius, markerRadius * 2, markerRadius * 2);
+                    }
+                }
+            }
+
+            // Draw parasites (yellow diamonds)
+            if (parasiteChunks && parasiteChunks.length > 0) {
+                ctx.fillStyle = '#ffeb3b';
+                ctx.strokeStyle = '#1e1e1e';
+                ctx.lineWidth = 1;
+                for (const chunkId of parasiteChunks) {
+                    if (chunkId >= 0 && chunkId < gridSize * gridSize) {
+                        const x = (chunkId % gridSize) * cellWidth + cellWidth / 2;
+                        const z = Math.floor(chunkId / gridSize) * cellHeight + cellHeight / 2;
+                        ctx.beginPath();
+                        ctx.moveTo(x, z - markerRadius);
+                        ctx.lineTo(x + markerRadius, z);
+                        ctx.lineTo(x, z + markerRadius);
+                        ctx.lineTo(x - markerRadius, z);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.stroke();
+                    }
                 }
             }
         }
@@ -1139,19 +1449,22 @@
             mineralRateEl.textContent = formatRate(obs.player_mineral_rate);
             mineralRateEl.className = 'value ' + (obs.player_mineral_rate > 0 ? 'rate-positive' : obs.player_mineral_rate < 0 ? 'rate-negative' : '');
 
-            // Stage 2: NN Output
-            const nn = pipeline.nn_output || {};
-            document.getElementById('pipe-chunk').textContent = nn.chunk_id ?? '-';
-            document.getElementById('pipe-type').textContent = nn.spawn_type ?? '-';
-            document.getElementById('pipe-confidence').textContent = formatDecimal(nn.confidence, 4);
-            const skipEl = document.getElementById('pipe-skip');
-            if (nn.skip !== undefined) {
-                skipEl.textContent = nn.skip ? 'YES' : 'NO';
-                skipEl.style.color = nn.skip ? 'var(--danger)' : 'var(--success)';
+            // Stage 2: NN Inference
+            const nn = pipeline.nn_inference || {};
+            const nnDecision = nn.nn_decision || 'spawn';
+            
+            // Display NN decision
+            document.getElementById('pipe-nn-decision').textContent = nnDecision.toUpperCase();
+            
+            // Handle no-spawn display
+            if (nnDecision === 'no_spawn') {
+                document.getElementById('pipe-chunk').textContent = 'N/A';
+                document.getElementById('pipe-type').textContent = 'N/A';
             } else {
-                skipEl.textContent = '-';
-                skipEl.style.color = '';
+                document.getElementById('pipe-chunk').textContent = nn.chunk_id ?? '-';
+                document.getElementById('pipe-type').textContent = nn.spawn_type ?? '-';
             }
+            document.getElementById('pipe-confidence').textContent = formatDecimal(nn.confidence, 4);
 
             // Stage 3: Gate Components
             const comp = pipeline.gate_components || {};
@@ -1176,17 +1489,38 @@
             const reasonEl = document.getElementById('pipe-reason');
             const stageEl = document.getElementById('stage-decision');
 
-            decisionEl.textContent = decision.action || '-';
-            decisionEl.className = 'stage-decision ' + (decision.action?.toLowerCase() || '');
-            reasonEl.textContent = formatReason(decision.reason);
-
-            // Update stage border color
-            stageEl.classList.remove('decision-send', 'decision-wait');
-            if (decision.action === 'SEND') {
-                stageEl.classList.add('decision-send');
-            } else if (decision.action === 'WAIT') {
-                stageEl.classList.add('decision-wait');
+            if (nnDecision === 'no_spawn') {
+                // Handle no-spawn decision display
+                if (decision.action === 'CORRECT_WAIT') {
+                    decisionEl.textContent = 'CORRECT';
+                    decisionEl.className = 'stage-decision send'; // Green
+                    stageEl.classList.remove('decision-send', 'decision-wait');
+                    stageEl.classList.add('decision-send');
+                } else if (decision.action === 'SHOULD_SPAWN') {
+                    decisionEl.textContent = 'SHOULD SPAWN';
+                    decisionEl.className = 'stage-decision wait'; // Red
+                    stageEl.classList.remove('decision-send', 'decision-wait');
+                    stageEl.classList.add('decision-wait');
+                } else {
+                    decisionEl.textContent = decision.action || '-';
+                    decisionEl.className = 'stage-decision';
+                    stageEl.classList.remove('decision-send', 'decision-wait');
+                }
+            } else {
+                // Handle spawn decision display
+                decisionEl.textContent = decision.action || '-';
+                decisionEl.className = 'stage-decision ' + (decision.action?.toLowerCase() || '');
+                
+                // Update stage border color
+                stageEl.classList.remove('decision-send', 'decision-wait');
+                if (decision.action === 'SEND') {
+                    stageEl.classList.add('decision-send');
+                } else if (decision.action === 'WAIT') {
+                    stageEl.classList.add('decision-wait');
+                }
             }
+            
+            reasonEl.textContent = formatReason(decision.reason);
         }
 
         function formatDecimal(value, maxDecimals = 4) {

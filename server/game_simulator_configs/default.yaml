@@ -1,0 +1,42 @@
+# Default Game Simulator Configuration
+# This file contains sensible defaults for all simulation parameters
+
+# Map Configuration (16x16 = 256 chunks to match NN output space)
+grid_size: 16
+queen_chunk: 136  # Center of 16x16 grid (8*16 + 8 = 136)
+mining_spots: [18, 29, 45, 67, 123, 189, 234]  # Distributed across map (all < 256)
+base_chunk: 137  # Worker depot near queen
+
+# Worker Configuration
+num_workers: 8
+worker_speed: 1.0
+flee_radius: 3
+flee_duration: 5
+mining_rate: 1.0
+mining_duration: 10  # Ticks to mine before returning to base
+
+# Protector Configuration
+num_protectors: 3
+protector_speed: 1.5
+detection_radius: 5
+kill_radius: 2
+
+# Queen Configuration (balanced for active gameplay)
+queen_start_energy: 50
+queen_max_energy: 100
+queen_energy_regen: 1.0    # 3x faster regen for more action
+energy_parasite_cost: 8    # Cheaper spawns (was 15)
+combat_parasite_cost: 15   # Cheaper spawns (was 25)
+
+# Parasite Configuration
+disruption_radius: 3
+
+# Resource Configuration
+player_start_energy: 100
+player_start_minerals: 50
+energy_per_mining: 0.5
+minerals_per_mining: 0.3
+
+# Simulation Configuration
+tick_interval: 0.1  # 100ms per tick for real-time mode
+turbo_mode: false   # Set to true for maximum speed training

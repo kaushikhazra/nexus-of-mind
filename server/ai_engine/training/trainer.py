@@ -5,6 +5,7 @@ Uses gate_signal directly as training feedback.
 NO re-evaluation during training - gate_signal at inference is ground truth.
 """
 
+import os
 import threading
 import time
 import logging
@@ -50,12 +51,14 @@ class ContinuousTrainer:
         self._model_lock = threading.Lock()
 
         # Versioning
-        self._model_version = 0
-        self._last_save_version = 0
+        self._model_version = self._load_model_version()  # Restore from metadata
+        self._last_save_version = self._model_version
         self._save_interval = 50  # Save every 50 versions
 
         # Metrics
         self._metrics = TrainingMetrics()
+
+        logger.info(f"[Training] Restored model version: {self._model_version}")
 
     def start(self) -> None:
         """Start background training thread."""
@@ -127,20 +130,16 @@ class ContinuousTrainer:
         batch = self.buffer.sample(self.config.batch_size)
 
         if len(batch) < self.config.min_batch_size:
-            # Only log when there's some data but not enough (avoid flooding when empty)
-            if len(batch) > 0:
-                logger.debug(
-                    f"[Training] Skipped: buffer has {len(batch)} samples, need {self.config.min_batch_size}"
-                )
             return
 
         # Train on each experience in batch
         total_loss = 0.0
-        avg_gate_signal = sum(exp.gate_signal for exp in batch) / len(batch)
+        total_training_reward = 0.0
 
         with self._model_lock:
             for exp in batch:
                 training_reward = self._calculate_training_reward(exp)
+                total_training_reward += training_reward
 
                 # Use the model's train_with_reward method
                 result = self.model.train_with_reward(
@@ -160,6 +159,7 @@ class ContinuousTrainer:
                 self._save_model()
 
         avg_loss = total_loss / len(batch)
+        avg_training_reward = total_training_reward / len(batch)
 
         # Update metrics
         step_time = (time.time() - step_start) * 1000  # ms
@@ -167,12 +167,12 @@ class ContinuousTrainer:
             loss=avg_loss,
             batch_size=len(batch),
             step_time_ms=step_time,
-            avg_gate_signal=avg_gate_signal
+            avg_gate_signal=avg_training_reward  # Now shows normalized reward
         )
 
         logger.info(
             f"[Training] v{self._model_version}: loss={avg_loss:.4f}, "
-            f"batch={len(batch)}, avg_signal={avg_gate_signal:.3f}, "
+            f"batch={len(batch)}, avg_reward={avg_training_reward:.3f}, "
             f"time={step_time:.1f}ms"
         )
 
@@ -181,37 +181,35 @@ class ContinuousTrainer:
             dashboard = get_dashboard_metrics()
             dashboard.record_training_step(
                 loss=avg_loss,
-                reward=avg_gate_signal,
-                is_simulation=True,  # Background training uses gate signals
+                reward=avg_training_reward,  # Normalized training reward
+                is_simulation=True,
                 model_version=self._model_version,
                 buffer_size=len(self.buffer)
             )
         except Exception as e:
-            logger.debug(f"Failed to record to dashboard: {e}")
+            logger.info(f"Failed to record to dashboard: {e}")
 
     def _calculate_training_reward(self, experience: Experience) -> float:
         """
         Calculate training reward from experience.
 
-        Gate signal IS the training feedback:
-        - SEND: combine gate_signal with actual_reward (if available)
-        - WAIT: use gate_signal directly (negative = penalty)
+        Uses normalized R_expected for full [-1, +1] signal range:
+        - R_expected in [0, 1] maps to training_reward in [-1, +1]
+        - SEND with actual_reward: blend normalized expected with actual
         """
-        if experience.was_executed:
-            # SEND action
-            if experience.actual_reward is not None:
-                # Have actual reward - weighted combination
-                return (
-                    self.config.gate_weight * experience.gate_signal +
-                    self.config.actual_weight * experience.actual_reward
-                )
-            else:
-                # Pending - use gate signal only
-                return experience.gate_signal
+        # Normalize R_expected from [0,1] to [-1,+1]
+        # This gives full signal range regardless of threshold setting
+        normalized_expected = 2 * experience.R_expected - 1
+
+        if experience.was_executed and experience.actual_reward is not None:
+            # SEND with actual outcome - blend expected with actual
+            return (
+                self.config.gate_weight * normalized_expected +
+                self.config.actual_weight * experience.actual_reward
+            )
         else:
-            # WAIT action - gate signal IS the penalty
-            # It's negative (otherwise wouldn't have waited)
-            return experience.gate_signal
+            # WAIT or SEND pending actual - use normalized expected
+            return normalized_expected
 
     def train_batch(
         self,
@@ -281,10 +279,50 @@ class ContinuousTrainer:
         }
 
     def _save_model(self) -> None:
-        """Save model weights to disk."""
+        """Save model weights and version to disk."""
         try:
             if self.model.save_model():
                 self._last_save_version = self._model_version
+                self._save_model_version()
                 logger.info(f"[Training] Model saved at version {self._model_version}")
         except Exception as e:
             logger.error(f"[Training] Failed to save model: {e}")
+
+    def _save_model_version(self) -> None:
+        """Save model version to metadata file."""
+        try:
+            metadata_path = self.model.model_path.replace('.weights.h5', '_metadata.json')
+
+            # Load existing metadata
+            metadata = {}
+            if os.path.exists(metadata_path):
+                import json
+                with open(metadata_path, 'r') as f:
+                    metadata = json.load(f)
+
+            # Update with version
+            metadata['model_version'] = self._model_version
+            metadata['total_training_steps'] = self._model_version
+
+            # Save back
+            import json
+            with open(metadata_path, 'w') as f:
+                json.dump(metadata, f, indent=2)
+
+        except Exception as e:
+            logger.warning(f"[Training] Failed to save model version: {e}")
+
+    def _load_model_version(self) -> int:
+        """Load model version from metadata file."""
+        try:
+            metadata_path = self.model.model_path.replace('.weights.h5', '_metadata.json')
+
+            if os.path.exists(metadata_path):
+                import json
+                with open(metadata_path, 'r') as f:
+                    metadata = json.load(f)
+                return metadata.get('model_version', 0)
+        except Exception as e:
+            logger.warning(f"[Training] Failed to load model version: {e}")
+
+        return 0

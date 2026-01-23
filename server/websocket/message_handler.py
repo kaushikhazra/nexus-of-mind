@@ -77,13 +77,6 @@ class MessageHandler:
             self.continuous_trainer = AsyncContinuousTrainer()
             logger.info("ContinuousTrainer initialized for real-time learning")
 
-            # Set initial model version in dashboard from metadata
-            try:
-                dashboard = get_dashboard_metrics()
-                dashboard.model_version = self.continuous_trainer.metadata.version
-                logger.info(f"Dashboard initialized with model version {dashboard.model_version}")
-            except Exception as e:
-                logger.warning(f"Failed to set dashboard model version: {e}")
         except Exception as e:
             logger.warning(f"Failed to initialize ContinuousTrainer: {e}. Continuous learning disabled.")
 
@@ -181,6 +174,14 @@ class MessageHandler:
 
             # Start background training thread
             self.background_trainer.start()
+
+            # Set initial model version in dashboard
+            try:
+                dashboard = get_dashboard_metrics()
+                dashboard.model_version = self.background_trainer.model_version
+                logger.info(f"Dashboard initialized with model version {dashboard.model_version}")
+            except Exception as e:
+                logger.warning(f"Failed to set dashboard model version: {e}")
 
             logger.info(
                 f"[BackgroundTraining] Initialized with "
@@ -987,7 +988,7 @@ class MessageHandler:
                         # Record training step to dashboard
                         try:
                             dashboard = get_dashboard_metrics()
-                            model_ver = self.continuous_trainer.metadata.version if self.continuous_trainer else 0
+                            model_ver = self.background_trainer.model_version if self.background_trainer else 0
                             dashboard.record_training_step(
                                 loss=train_result.get('loss', 0),
                                 reward=reward_info['reward'],
@@ -1032,10 +1033,25 @@ class MessageHandler:
                     timeout=2.0  # 2s timeout to allow TensorFlow warm-up
                 )
 
-                # Extract confidence
+                # Extract NN decision details
+                nn_decision = spawn_decision['nnDecision']
                 confidence = spawn_decision['confidence']
                 spawn_chunk = spawn_decision['spawnChunk']
                 spawn_type = spawn_decision['spawnType']
+
+                logger.debug(f"[NN Decision] {nn_decision.upper()}, confidence={confidence:.3f}")
+
+                # Record entropy for distribution health monitoring
+                try:
+                    dist_stats = self.nn_model.get_distribution_stats(features)
+                    dashboard = get_dashboard_metrics()
+                    dashboard.record_entropy(
+                        entropy=dist_stats['entropy'],
+                        max_entropy=dist_stats['max_entropy'],
+                        effective_actions=dist_stats['effective_actions']
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to record entropy: {e}")
 
                 # === SIMULATION-GATED INFERENCE ===
                 should_skip = False
@@ -1046,7 +1062,7 @@ class MessageHandler:
                     # Build observation for simulation gate
                     sim_observation = self._build_simulation_observation(observation)
 
-                    # Evaluate through simulation gate
+                    # Evaluate through simulation gate (ALWAYS, for both spawn and no-spawn)
                     # Pass full observation for dashboard recording
                     gate_decision = self.simulation_gate.evaluate(
                         sim_observation,
@@ -1061,7 +1077,56 @@ class MessageHandler:
 
                     obs_count = self.thinking_stats['observations_since_last_action']
 
-                    if gate_decision.decision == 'SEND':
+                    # Handle no-spawn decisions
+                    if nn_decision == 'no_spawn':
+                        logger.info(f"[Gate Validation] {gate_decision.decision}")
+                        
+                        # Apply training signals for no-spawn
+                        if gate_decision.decision == 'CORRECT_WAIT':
+                            # NN was right - positive reinforcement
+                            train_reward = 0.2
+                            logger.info(f"[NN Training] NO_SPAWN correct, reward=+{train_reward}")
+                        else:  # SHOULD_SPAWN
+                            # NN missed opportunity - negative signal
+                            train_reward = gate_decision.expected_reward  # Already negative
+                            logger.info(f"[NN Training] NO_SPAWN missed opportunity, reward={train_reward:.3f}")
+
+                        # Train NN on no-spawn decision
+                        train_result = self.nn_model.train_with_reward(
+                            features,
+                            chunk_id=-1,  # Train on no-spawn decision
+                            spawn_type=None,
+                            reward=train_reward
+                        )
+                        
+                        # Log training feedback
+                        if self.gate_logger:
+                            self.gate_logger.log_training_feedback(
+                                feedback_type='no_spawn',
+                                reward=train_reward,
+                                loss=train_result.get('loss', 0),
+                                spawn_chunk=-1,
+                                spawn_type=None
+                            )
+
+                        # Record training step to dashboard
+                        try:
+                            dashboard = get_dashboard_metrics()
+                            model_ver = self.background_trainer.model_version if self.background_trainer else 0
+                            dashboard.record_training_step(
+                                loss=train_result.get('loss', 0),
+                                reward=train_reward,
+                                is_simulation=False,  # This is gate validation, not simulation
+                                model_version=model_ver
+                            )
+                        except Exception as e:
+                            logger.warning(f"Failed to record no-spawn training to dashboard: {e}")
+
+                        # For no-spawn decisions, we don't execute anything
+                        should_skip = True
+                        gate_blocked = False  # Not blocked, just no action needed
+                        
+                    elif gate_decision.decision == 'SEND':
                         # Gate allows - use NN's confidence-based skip decision
                         nn_threshold = self.nn_config.spawn_gating.confidence_threshold
                         nn_skip = confidence < nn_threshold
@@ -1138,7 +1203,7 @@ class MessageHandler:
                         # Record simulation training step to dashboard
                         try:
                             dashboard = get_dashboard_metrics()
-                            model_ver = self.continuous_trainer.metadata.version if self.continuous_trainer else 0
+                            model_ver = self.background_trainer.model_version if self.background_trainer else 0
                             dashboard.record_training_step(
                                 loss=train_result.get('loss', 0),
                                 reward=sim_reward,
@@ -1206,7 +1271,7 @@ class MessageHandler:
                         self.replay_buffer.add(experience)
 
                         action_str = "SEND" if was_executed else "WAIT"
-                        logger.info(
+                        logger.debug(
                             f"[BackgroundTraining] Added {action_str} experience: "
                             f"gate_signal={gate_signal:.3f}, chunk={spawn_chunk}"
                         )
@@ -1221,49 +1286,27 @@ class MessageHandler:
                     'was_executed': gate_decision.decision == 'SEND' if gate_decision else not should_skip
                 }
 
-                # If gate blocked the decision, send no_action
-                if gate_blocked:
-                    response_data = {
-                        "territoryId": territory_id,
-                        "reason": gate_decision.reason if gate_decision else "low_confidence",
-                        "confidence": confidence
-                    }
-                    # Add gate-specific info for debugging
-                    if gate_decision:
-                        expected_reward = gate_decision.expected_reward
-                        response_data["expectedReward"] = None if expected_reward == float('-inf') else expected_reward
-                        response_data["gateReason"] = gate_decision.reason
-
+                # Gate behavior:
+                # - For no-spawn decisions: always send (NN's explicit decision)
+                # - For spawn decisions: Gate allows → send, Gate blocks → send ack
+                if nn_decision == 'spawn' and gate_decision and gate_decision.decision != 'SEND':
+                    # Gate blocks spawn decision - send acknowledgement so client doesn't wait
                     return {
-                        "type": "no_action",
+                        "type": "observation_ack",
                         "timestamp": asyncio.get_event_loop().time(),
-                        "data": response_data
+                        "data": {"status": "processed", "action": "none"}
                     }
 
-                # Gate allows - send spawn decision with NN's skip value
+                # Send NN decision in clean format (no gate info)
                 response_data = {
-                    "spawnChunk": spawn_decision["spawnChunk"],
-                    "spawnType": spawn_decision["spawnType"],
-                    "confidence": confidence,
-                    "typeConfidence": spawn_decision["typeConfidence"],
-                    "territoryId": territory_id,
-                    "skip": should_skip  # NN's decision based on confidence
+                    "spawnChunk": spawn_decision["spawnChunk"],  # -1 for no-spawn, 0-255 for spawn
+                    "spawnType": spawn_decision["spawnType"],   # None for no-spawn, string for spawn
+                    "confidence": confidence
                 }
 
-                # Add gate-specific info
-                if gate_decision:
-                    response_data["gateDecision"] = gate_decision.decision
-                    response_data["gateReason"] = gate_decision.reason
-                    # Convert -inf to None for JSON serialization
-                    expected_reward = gate_decision.expected_reward
-                    response_data["expectedReward"] = None if expected_reward == float('-inf') else expected_reward
-                else:
-                    response_data["confidenceThreshold"] = self.nn_config.spawn_gating.confidence_threshold
-
-                # Include reward info if available
-                if reward_info:
-                    response_data["lastReward"] = reward_info["reward"]
-                    response_data["rewardTrend"] = self.reward_calculator.get_reward_trend()
+                # Add typeConfidence only for spawn decisions
+                if nn_decision == 'spawn':
+                    response_data["typeConfidence"] = spawn_decision["typeConfidence"]
 
                 return {
                     "type": "spawn_decision",

@@ -41,15 +41,15 @@ class SimulationGateConfig:
     combat_parasite_cost: float = 25.0
 
     # Combined cost function weights
-    survival_weight: float = 0.4     # w₁
+    survival_weight: float = 0.3     # w₁
     disruption_weight: float = 0.5   # w₂
-    location_weight: float = 0.1     # w₃
+    location_weight: float = 0.2     # w₃
 
     # Gate threshold
-    reward_threshold: float = 0.6    # θ - prevents wasteful spawns when no targets
+    reward_threshold: float = 0.35   # θ - prevents wasteful spawns when no targets
 
     # Exploration bonus (deadlock prevention)
-    exploration_coefficient: float = 0.2  # ε
+    exploration_coefficient: float = 0.35  # ε
     exploration_max_time: float = 300.0   # 5 minutes max bonus
 
     # Grid parameters
