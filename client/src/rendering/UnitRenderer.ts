@@ -696,12 +696,16 @@ export class UnitRenderer {
 
             // Normalize rotation difference to [-PI, PI]
             let normalizedDiff = rotationDiff;
-            while (normalizedDiff > Math.PI) normalizedDiff -= Math.PI * 2;
-            while (normalizedDiff < -Math.PI) normalizedDiff += Math.PI * 2;
+            while (normalizedDiff > Math.PI) normalizedDiff -= 2 * Math.PI;
+            while (normalizedDiff < -Math.PI) normalizedDiff += 2 * Math.PI;
 
-            // Smooth rotation (lerp factor controls turn speed) - faster for combat
-            const turnSpeed = 0.2;
-            unitVisual.mesh.rotation.y += normalizedDiff * turnSpeed;
+            // Smooth rotation (lerp factor controls turn speed) - slower for smoother movement
+            const turnSpeed = 0.1;
+            
+            // Only apply rotation if the change is significant (prevents oscillation)
+            if (Math.abs(normalizedDiff) > 0.05) {
+                unitVisual.mesh.rotation.y += normalizedDiff * turnSpeed;
+            }
         }
 
         // Update last position (reuse existing Vector3, no allocation)

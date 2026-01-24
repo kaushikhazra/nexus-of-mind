@@ -12,6 +12,8 @@ import { BuildingPlacementUI } from './ui/BuildingPlacementUI';
 import { MineralReserveUI } from './ui/MiningUI';
 import { WorkerCreationUI } from './ui/WorkerCreationUI';
 import { ProtectorCreationUI } from './ui/ProtectorCreationUI';
+import { IntroductionScreen } from './ui/IntroductionScreen';
+import { PreferenceManager } from './ui/PreferenceManager';
 import { Vector3 } from '@babylonjs/core';
 
 /**
@@ -25,11 +27,63 @@ class Application {
     private mineralReserveUI: MineralReserveUI | null = null;
     private workerCreationUI: WorkerCreationUI | null = null;
     private protectorCreationUI: ProtectorCreationUI | null = null;
+    private introductionScreen: IntroductionScreen | null = null;
+    private preferenceManager!: PreferenceManager;
 
     /**
      * Initialize the application
      */
     public async init(): Promise<void> {
+        try {
+            // Initialize preference manager
+            this.preferenceManager = new PreferenceManager({ storageKey: 'nexus-of-mind-preferences' });
+
+            // Check if introduction should be shown
+            const shouldShowIntroduction = !this.preferenceManager.getSkipIntroduction();
+            
+            if (shouldShowIntroduction) {
+                // Show introduction screen first
+                await this.showIntroductionScreen();
+            } else {
+                // Skip directly to game initialization
+                await this.initializeGame();
+            }
+
+        } catch (error) {
+            this.showError('Neural Core Initialization Failed. Please refresh the page.');
+        }
+    }
+
+    /**
+     * Show the introduction screen
+     */
+    private async showIntroductionScreen(): Promise<void> {
+        this.introductionScreen = new IntroductionScreen({
+            containerId: 'introduction-screen',
+            onComplete: () => {
+                this.hideIntroductionScreen();
+                this.initializeGame();
+            }
+        });
+
+        this.introductionScreen.show();
+    }
+
+    /**
+     * Hide the introduction screen
+     */
+    private hideIntroductionScreen(): void {
+        if (this.introductionScreen) {
+            this.introductionScreen.hide();
+            this.introductionScreen.dispose();
+            this.introductionScreen = null;
+        }
+    }
+
+    /**
+     * Initialize the game engine and UI components
+     */
+    private async initializeGame(): Promise<void> {
         try {
             // Get canvas element
             this.canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
@@ -200,6 +254,11 @@ class Application {
      * Cleanup on page unload
      */
     public dispose(): void {
+        if (this.introductionScreen) {
+            this.introductionScreen.dispose();
+            this.introductionScreen = null;
+        }
+
         if (this.protectorCreationUI) {
             this.protectorCreationUI.dispose();
             this.protectorCreationUI = null;

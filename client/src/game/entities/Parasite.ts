@@ -232,8 +232,19 @@ export abstract class Parasite implements CombatTarget {
         this.parentNode.position.z = newZ;
         this.parentNode.position.y = terrainHeight + this.roamHeight;
 
-        // Rotate to face movement direction
-        this.parentNode.rotation.y = Math.atan2(dx, dz);
+        // Rotate to face movement direction (only if significant change to prevent oscillation)
+        const targetRotation = Math.atan2(dx, dz);
+        const currentRotation = this.parentNode.rotation.y;
+        let rotationDiff = targetRotation - currentRotation;
+        
+        // Normalize rotation difference to [-PI, PI]
+        while (rotationDiff > Math.PI) rotationDiff -= 2 * Math.PI;
+        while (rotationDiff < -Math.PI) rotationDiff += 2 * Math.PI;
+        
+        // Only update rotation if change is significant (prevents oscillation)
+        if (Math.abs(rotationDiff) > 0.1) {
+            this.parentNode.rotation.y = targetRotation;
+        }
 
         // Sync logical position
         this.position.x = newX;
@@ -329,7 +340,19 @@ export abstract class Parasite implements CombatTarget {
         this.parentNode.position.x = newX;
         this.parentNode.position.z = newZ;
         this.parentNode.position.y = terrainHeight + this.roamHeight;
-        this.parentNode.rotation.y = Math.atan2(dx, dz);
+        // Rotate to face movement direction (only if significant change to prevent oscillation)
+        const targetRotation = Math.atan2(dx, dz);
+        const currentRotation = this.parentNode.rotation.y;
+        let rotationDiff = targetRotation - currentRotation;
+        
+        // Normalize rotation difference to [-PI, PI]
+        while (rotationDiff > Math.PI) rotationDiff -= 2 * Math.PI;
+        while (rotationDiff < -Math.PI) rotationDiff += 2 * Math.PI;
+        
+        // Only update rotation if change is significant (prevents oscillation)
+        if (Math.abs(rotationDiff) > 0.1) {
+            this.parentNode.rotation.y = targetRotation;
+        }
 
         // Sync logical position
         this.position.x = newX;
