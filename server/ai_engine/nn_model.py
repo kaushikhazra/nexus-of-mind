@@ -35,6 +35,14 @@ ARCHITECTURE_VERSION = 2  # Version 2: 257 chunk outputs (0-255 spawn, 256 no-sp
 # 0.2 provides robust collapse prevention
 DEFAULT_ENTROPY_COEF = 0.2
 
+# Label smoothing factor for training targets
+# 0.0 = one-hot targets (causes mode collapse)
+# 0.1 = 10% smoothing (iteration 1 - still collapsed)
+# 0.15 = 15% smoothing (iteration 2 - still collapsed)
+# 0.2 = 20% smoothing (iteration 3 - final attempt)
+# Higher = more uniform targets, less learning signal
+DEFAULT_LABEL_SMOOTHING = 0.2
+
 
 def get_device() -> torch.device:
     """Get the best available device (GPU or CPU)."""
@@ -210,6 +218,34 @@ class NNModel:
     def _count_parameters(self) -> int:
         """Count total trainable parameters."""
         return sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+
+    def _create_smoothed_target(self, target_idx: int, alpha: float = DEFAULT_LABEL_SMOOTHING) -> np.ndarray:
+        """
+        Create label-smoothed target for chunk prediction.
+
+        Instead of one-hot [0,0,...,1,...,0], creates a soft distribution
+        that prevents mode collapse by keeping non-target classes non-zero.
+
+        Args:
+            target_idx: Index of target class (0-256)
+            alpha: Smoothing factor (0.0 = one-hot, 1.0 = uniform)
+
+        Returns:
+            Smoothed probability distribution of shape (257,)
+
+        Example (alpha=0.1, 257 classes):
+            Target class: 0.9 + 0.1/257 ≈ 0.9004
+            Other classes: 0.1/257 ≈ 0.00039 each
+        """
+        num_classes = self.chunk_output_size  # 257
+
+        # Start with uniform distribution scaled by alpha
+        smoothed = np.full(num_classes, alpha / num_classes, dtype=np.float32)
+
+        # Add remaining probability mass to target
+        smoothed[target_idx] += (1.0 - alpha)
+
+        return smoothed
 
     def _load_model_if_exists(self) -> bool:
         """Load model weights if they exist, checking for architecture compatibility."""
@@ -517,16 +553,14 @@ class NNModel:
         # Map -1 to no-spawn index
         target_chunk = NO_SPAWN_CHUNK if chunk_id == -1 else chunk_id
 
-        # Get current predictions
-        chunk_probs, type_prob = self.predict(features)
-
-        # Create chunk target
-        chunk_target = np.zeros(257, dtype=np.float32)
+        # Create chunk target with label smoothing for positive rewards
         if reward > 0:
-            # Reinforce: make selected chunk more likely
-            chunk_target[target_chunk] = 1.0
+            # Reinforce: use smoothed target to prevent mode collapse
+            # Instead of one-hot [0,0,...,1,...,0], use soft distribution
+            chunk_target = self._create_smoothed_target(target_chunk)
         else:
             # Discourage: spread probability away from selected chunk
+            chunk_probs, _ = self.predict(features)
             chunk_target = chunk_probs.copy()
             chunk_target[target_chunk] = max(0.0, chunk_target[target_chunk] - abs(reward) * 0.5)
             chunk_target = chunk_target / (chunk_target.sum() + 1e-8)
@@ -576,9 +610,8 @@ class NNModel:
         Returns:
             Dictionary with training info
         """
-        # Create one-hot target for chunk
-        chunk_target = np.zeros(257, dtype=np.float32)
-        chunk_target[target_chunk] = 1.0
+        # Create smoothed target for chunk (prevents mode collapse)
+        chunk_target = self._create_smoothed_target(target_chunk)
 
         # Create type target
         if target_type is None:
