@@ -75,8 +75,29 @@ class SimulationGate:
         """
         # Store full observation for dashboard recording
         self._full_observation = full_observation
-        
-        # Route to appropriate evaluation method
+
+        # In simulation mode, always pass through (100% transparent)
+        simulation_mode = self.config.reward_threshold < -1000
+        if simulation_mode:
+            decision = GateDecision(
+                decision='SEND',
+                reason='simulation_mode',
+                expected_reward=0.0,
+                nn_confidence=nn_confidence,
+                components={}
+            )
+            self.metrics.record_evaluation(
+                decision.decision, decision.reason,
+                decision.expected_reward, decision.nn_confidence,
+                decision.components
+            )
+            self._record_to_dashboard(
+                full_observation or observation,
+                spawn_chunk, spawn_type, nn_confidence, decision
+            )
+            return decision
+
+        # Production mode: route to appropriate evaluation method
         if spawn_chunk == -1:
             return self._evaluate_no_spawn(observation, nn_confidence, full_observation)
         else:
@@ -268,7 +289,8 @@ class SimulationGate:
             )
 
             # Build observation summary for pipeline visualization
-            workers = observation.get('workersPresent', [])
+            # Note: simulator uses 'miningWorkers', backend uses 'workersPresent'
+            workers = observation.get('miningWorkers', observation.get('workersPresent', []))
             protectors = observation.get('protectors', [])
             parasites_end = observation.get('parasitesEnd', [])
             queen_energy = observation.get('queenEnergy', {})
