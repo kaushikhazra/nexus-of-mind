@@ -6,7 +6,7 @@ Includes metrics collection and structured logging.
 """
 
 from dataclasses import dataclass
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 import logging
 
 from .config import SimulationGateConfig
@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 class GateDecision:
     """Result of simulation gate evaluation."""
 
-    decision: str  # 'SEND' or 'WAIT'
-    reason: str    # 'positive_reward', 'negative_reward', 'insufficient_energy'
+    decision: str  # 'SEND', 'WAIT', 'CORRECT_WAIT', 'SHOULD_SPAWN'
+    reason: str    # 'positive_reward', 'negative_reward', 'insufficient_energy', 'no_viable_targets', 'missed_opportunity'
     expected_reward: float
     nn_confidence: float
     components: Dict[str, float]  # Breakdown of cost function components
@@ -55,18 +55,18 @@ class SimulationGate:
     def evaluate(
         self,
         observation: Dict[str, Any],
-        spawn_chunk: int,
-        spawn_type: str,
+        spawn_chunk: int,  # -1 for no-spawn
+        spawn_type: Optional[str],
         nn_confidence: float,
         full_observation: Optional[Dict[str, Any]] = None
     ) -> GateDecision:
         """
-        Evaluate proposed spawn action.
+        Evaluate proposed spawn action or no-spawn decision.
 
         Args:
             observation: Current game observation (simplified for cost function)
-            spawn_chunk: Proposed spawn chunk ID
-            spawn_type: 'energy' or 'combat'
+            spawn_chunk: Proposed spawn chunk ID (-1 for no-spawn)
+            spawn_type: 'energy' or 'combat' (None for no-spawn)
             nn_confidence: NN's confidence in this decision
             full_observation: Full observation data for dashboard recording (optional)
 
@@ -75,6 +75,33 @@ class SimulationGate:
         """
         # Store full observation for dashboard recording
         self._full_observation = full_observation
+        
+        # Route to appropriate evaluation method
+        if spawn_chunk == -1:
+            return self._evaluate_no_spawn(observation, nn_confidence, full_observation)
+        else:
+            return self._evaluate_spawn(observation, spawn_chunk, spawn_type, nn_confidence, full_observation)
+    def _evaluate_spawn(
+        self,
+        observation: Dict[str, Any],
+        spawn_chunk: int,
+        spawn_type: str,
+        nn_confidence: float,
+        full_observation: Optional[Dict[str, Any]] = None
+    ) -> GateDecision:
+        """
+        Evaluate NN's decision to spawn at a specific location.
+        
+        Args:
+            observation: Current game observation (simplified for cost function)
+            spawn_chunk: Proposed spawn chunk ID
+            spawn_type: 'energy' or 'combat'
+            nn_confidence: NN's confidence in this decision
+            full_observation: Full observation data for dashboard recording (optional)
+            
+        Returns:
+            GateDecision with decision and details
+        """
         # Skip if gate disabled
         if not self.config.gate_enabled:
             decision = GateDecision(
@@ -104,8 +131,12 @@ class SimulationGate:
             'exploration': result['exploration']
         }
 
-        # Check capacity first
-        if not result['capacity_valid']:
+        # Check capacity - in simulation mode (threshold < -1000), pass through anyway
+        # so the simulation can provide real feedback
+        simulation_mode = self.config.reward_threshold < -1000
+
+        if not result['capacity_valid'] and not simulation_mode:
+            # Production mode: block insufficient energy
             decision = GateDecision(
                 decision='WAIT',
                 reason='insufficient_energy',
@@ -124,11 +155,12 @@ class SimulationGate:
             return decision
 
         # Check reward threshold (gate is the final authority)
-        if expected_reward > self.config.reward_threshold:
+        # In simulation mode, pass everything through for real feedback
+        if simulation_mode or expected_reward > self.config.reward_threshold:
             decision = GateDecision(
                 decision='SEND',
-                reason='positive_reward',
-                expected_reward=expected_reward,
+                reason='simulation_mode' if simulation_mode else 'positive_reward',
+                expected_reward=expected_reward if expected_reward != float('-inf') else 0.0,
                 nn_confidence=nn_confidence,
                 components=components
             )
@@ -153,11 +185,72 @@ class SimulationGate:
 
         return decision
 
+    def _evaluate_no_spawn(
+        self,
+        observation: Dict[str, Any],
+        nn_confidence: float,
+        full_observation: Optional[Dict[str, Any]] = None
+    ) -> GateDecision:
+        """
+        Evaluate NN's decision to NOT spawn.
+
+        Find the best possible spawn and compare:
+        - If best_reward > threshold: NN missed an opportunity
+        - If best_reward <= threshold: NN was correct to wait
+        
+        Args:
+            observation: Current game observation
+            nn_confidence: NN's confidence in this decision
+            full_observation: Full observation data for dashboard recording (optional)
+            
+        Returns:
+            GateDecision with decision and details
+        """
+        # Find best available chunk
+        best_chunk, best_reward, best_type = self._find_best_spawn(observation)
+
+        components = {
+            'best_chunk': best_chunk,
+            'best_reward': best_reward,
+            'best_type': best_type
+        }
+
+        if best_reward > self.config.reward_threshold:
+            # NN should have spawned - missed opportunity
+            decision = GateDecision(
+                decision='SHOULD_SPAWN',
+                reason='missed_opportunity',
+                expected_reward=-best_reward,  # Negative signal
+                nn_confidence=nn_confidence,
+                components=components
+            )
+        else:
+            # NN was correct to wait
+            decision = GateDecision(
+                decision='CORRECT_WAIT',
+                reason='no_viable_targets',
+                expected_reward=0.2,  # Small positive signal
+                nn_confidence=nn_confidence,
+                components=components
+            )
+
+        self.metrics.record_evaluation(
+            decision.decision, decision.reason,
+            decision.expected_reward, decision.nn_confidence,
+            decision.components
+        )
+
+        # Record to dashboard metrics (use full_observation if available)
+        dashboard_obs = self._full_observation if self._full_observation else observation
+        self._record_to_dashboard(dashboard_obs, -1, None, nn_confidence, decision)
+
+        return decision
+
     def _record_to_dashboard(
         self,
         observation: Dict[str, Any],
         spawn_chunk: int,
-        spawn_type: str,
+        spawn_type: Optional[str],
         nn_confidence: float,
         decision: GateDecision
     ) -> None:
@@ -195,20 +288,28 @@ class SimulationGate:
             if max(mineral_start, mineral_end) > 0:
                 mineral_rate = (mineral_end - mineral_start) / max(mineral_start, mineral_end)
 
+            # Extract chunk IDs for heatmap visualization
+            worker_chunks = [w.get('chunkId', -1) for w in workers if isinstance(w, dict)]
+            protector_chunks = [p.get('chunkId', -1) for p in protectors if isinstance(p, dict)]
+            parasite_chunks = [p.get('chunkId', -1) for p in parasites_end if isinstance(p, dict)]
+
             observation_summary = {
                 'workers_count': len(workers),
                 'protectors_count': len(protectors),
                 'parasites_count': len(parasites_end),
                 'queen_energy': queen_energy.get('current', 0),
                 'player_energy_rate': round(energy_rate, 3),
-                'player_mineral_rate': round(mineral_rate, 3)
+                'player_mineral_rate': round(mineral_rate, 3),
+                'worker_chunks': worker_chunks,
+                'protector_chunks': protector_chunks,
+                'parasite_chunks': parasite_chunks
             }
 
             nn_output = {
                 'chunk_id': spawn_chunk,
                 'spawn_type': spawn_type,
                 'confidence': round(nn_confidence, 3),
-                'skip': decision.decision == 'WAIT'
+                'nn_decision': 'no_spawn' if spawn_chunk == -1 else 'spawn'
             }
 
             # Record gate decision with pipeline data
@@ -218,7 +319,7 @@ class SimulationGate:
                 expected_reward=decision.expected_reward,
                 components=decision.components,
                 observation_summary=observation_summary,
-                nn_output=nn_output
+                nn_inference=nn_output
             )
         except Exception as e:
             logger.warning(f"Failed to record to dashboard metrics: {e}")
@@ -245,3 +346,97 @@ class SimulationGate:
     def get_time_since_last_action(self) -> float:
         """Get seconds since last SEND decision."""
         return self.metrics.get_time_since_last_action()
+
+    def _get_candidate_chunks(self, observation: Dict[str, Any]) -> list[int]:
+        """
+        Get candidate chunks to evaluate (chunks near workers/activity).
+        
+        Args:
+            observation: Current game observation
+            
+        Returns:
+            List of chunk IDs to evaluate (limited to 20 for performance)
+        """
+        candidates = set()
+
+        # Add chunks with workers
+        for worker in observation.get('workersPresent', []):
+            if 'chunk' in worker:
+                candidates.add(worker['chunk'])
+                # Add neighboring chunks
+                for neighbor in self._get_neighbors(worker['chunk']):
+                    candidates.add(neighbor)
+
+        # Add chunks with mining workers
+        for worker in observation.get('workersMining', []):
+            if 'chunk' in worker:
+                candidates.add(worker['chunk'])
+
+        # Limit to prevent performance issues
+        return list(candidates)[:20]
+
+    def _get_neighbors(self, chunk_id: int) -> list[int]:
+        """
+        Get neighboring chunk IDs for a given chunk.
+        
+        Args:
+            chunk_id: Center chunk ID
+            
+        Returns:
+            List of neighboring chunk IDs
+        """
+        # Assuming 16x16 grid (256 chunks total)
+        grid_size = 16
+        row = chunk_id // grid_size
+        col = chunk_id % grid_size
+        
+        neighbors = []
+        
+        # Check all 8 directions (including diagonals)
+        for dr in [-1, 0, 1]:
+            for dc in [-1, 0, 1]:
+                if dr == 0 and dc == 0:
+                    continue  # Skip center chunk
+                    
+                new_row = row + dr
+                new_col = col + dc
+                
+                # Check bounds
+                if 0 <= new_row < grid_size and 0 <= new_col < grid_size:
+                    neighbor_id = new_row * grid_size + new_col
+                    neighbors.append(neighbor_id)
+        
+        return neighbors
+
+    def _find_best_spawn(self, observation: Dict[str, Any]) -> tuple[int, float, str]:
+        """
+        Find the best possible spawn location and its expected reward.
+
+        Evaluates top candidate chunks (e.g., near workers) and returns
+        the one with highest expected reward.
+        
+        Args:
+            observation: Current game observation
+            
+        Returns:
+            Tuple of (best_chunk, best_reward, best_type)
+        """
+        candidate_chunks = self._get_candidate_chunks(observation)
+
+        best_chunk = -1
+        best_reward = float('-inf')
+        best_type = 'energy'
+
+        for chunk in candidate_chunks:
+            for spawn_type in ['energy', 'combat']:
+                result = self.cost_function.calculate_expected_reward(
+                    observation, chunk, spawn_type
+                )
+                reward = result['expected_reward']
+                
+                if reward > best_reward:
+                    best_reward = reward
+                    best_chunk = chunk
+                    best_type = spawn_type
+
+        return best_chunk, best_reward, best_type

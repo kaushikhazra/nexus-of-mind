@@ -73,4 +73,42 @@
 
 ---
 
-**Visual design complete and ready for implementation!** 🎨✅
+## Dashboard Visualizations
+
+### Simulation Gate Pipeline Visualization
+
+A horizontal workflow diagram showing real-time data flowing through the simulation gate stages:
+
+```
+┌─────────────┐    ┌─────────────────────┐    ┌──────────────────────────┐    ┌──────────────┐    ┌──────────────┐
+│ OBSERVATION │ ─► │ NN OUTPUT           │ ─► │ GATE COMPONENTS          │ ─► │ COMBINED     │ ─► │ DECISION     │
+│             │    │                     │    │                          │    │              │    │              │
+│ • Workers   │    │ • Chunk ID: 145     │    │ • Survival: 0.85         │    │ R_expected   │    │   ✓ SEND     │
+│ • Protectors│    │ • Type: energy      │    │ • Disruption: 0.45       │    │   = 0.342    │    │   ✗ WAIT     │
+│ • Parasites │    │ • Confidence: 0.72  │    │ • Location: -0.12        │    │              │    │              │
+│ • Energy    │    │                     │    │ • Exploration: 0.05      │    │              │    │ Reason:      │
+│ • Minerals  │    │                     │    │                          │    │              │    │ positive_rwrd│
+└─────────────┘    └─────────────────────┘    └──────────────────────────┘    └──────────────┘    └──────────────┘
+```
+
+**Design Principles:**
+- Horizontal flow from left to right (data pipeline metaphor)
+- Each stage is a distinct box/card with clear boundaries
+- Arrows/connectors between stages to show data flow
+- Real-time values displayed inside each box
+- Color coding for decision outcome:
+  - Green border/highlight for SEND decisions
+  - Red/orange border for WAIT decisions
+- Components section shows individual contribution values
+- Weights shown below formula in Combined section
+
+**Color Scheme (matching existing dashboard):**
+- Box backgrounds: `--bg-primary` (#1a1a2e)
+- Box borders: `--accent` (#0f3460)
+- SEND decision: `--success` (#00c853)
+- WAIT decision: `--danger` (#ff5252)
+- Arrow connectors: `--text-secondary` (#aaa)
+
+---
+
+**Visual design complete and ready for implementation!**

@@ -2,8 +2,8 @@
  * QueenEnergyTypes - Type definitions for Queen Energy System
  *
  * The Queen Energy System manages spawn resource allocation:
- * - Energy regenerates passively (3.0/sec)
- * - Each parasite type has a spawn cost
+ * - Energy regenerates passively (10.0/sec)
+ * - Each parasite type has a spawn cost (8 for energy, 15 for combat)
  * - Spawn capacity = how many of each type can be afforded
  */
 
@@ -29,9 +29,9 @@ export interface QueenEnergyConfig {
  * - 0.0 = cannot spawn any of this type
  */
 export interface SpawnCapacity {
-    /** Energy Parasite spawn capacity: floor(current/15) / 6 */
+    /** Energy Parasite spawn capacity: floor(current/8) / 12 */
     energy: number;
-    /** Combat Parasite spawn capacity: floor(current/25) / 4 */
+    /** Combat Parasite spawn capacity: floor(current/15) / 6 */
     combat: number;
 }
 
@@ -55,19 +55,19 @@ export interface QueenEnergyState {
 /**
  * Default configuration for the Queen Energy System
  *
- * Based on design spec:
+ * Balanced for active gameplay:
  * - Max Energy: 100
  * - Starting Energy: 50 (50% of max)
- * - Regen Rate: 3.0 energy/second
- * - Energy Parasite Cost: 15 (max 6 affordable at full energy)
- * - Combat Parasite Cost: 25 (max 4 affordable at full energy)
+ * - Regen Rate: 10.0 energy/second (fast recovery)
+ * - Energy Parasite Cost: 8 (max 12 affordable at full energy)
+ * - Combat Parasite Cost: 15 (max 6 affordable at full energy)
  */
 export const DEFAULT_QUEEN_ENERGY_CONFIG: QueenEnergyConfig = {
     maxEnergy: 100,
     startingEnergy: 50,
-    regenRate: 3.0,
-    energyParasiteCost: 15,
-    combatParasiteCost: 25
+    regenRate: 10.0,
+    energyParasiteCost: 8,
+    combatParasiteCost: 15
 };
 
 /**
@@ -75,8 +75,8 @@ export const DEFAULT_QUEEN_ENERGY_CONFIG: QueenEnergyConfig = {
  * Used for spawn capacity normalization
  */
 export const MAX_AFFORDABLE = {
-    /** floor(100/15) = 6 Energy Parasites at full energy */
-    energy: 6,
-    /** floor(100/25) = 4 Combat Parasites at full energy */
-    combat: 4
+    /** floor(100/8) = 12 Energy Parasites at full energy */
+    energy: 12,
+    /** floor(100/15) = 6 Combat Parasites at full energy */
+    combat: 6
 } as const;

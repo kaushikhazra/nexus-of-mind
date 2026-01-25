@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 
 from ai_engine.ai_engine import AIEngine
 from ai_engine.neural_network import QueenBehaviorNetwork
+from ai_engine.simulation.dashboard_metrics import get_dashboard_metrics
 from websocket.connection_manager import ConnectionManager
 from websocket.message_handler import MessageHandler
 from logging_config import initialize_logging, get_logger, log_ai_event, log_websocket_event, request_logging_context
@@ -574,9 +575,13 @@ async def reset_database():
 @app.get("/reset-nn")
 async def reset_neural_network():
     """
-    Reset the neural network to initial random state.
+    Reset all neural networks to initial random state.
 
-    Deletes saved model file and clears all training history.
+    Resets both:
+    - NNModel (spawn decisions - 257 outputs)
+    - ContinuousTrainer (strategy model - 8 outputs)
+
+    Deletes saved model files and clears all training history.
     Access via: http://localhost:8000/reset-nn
     """
     if not message_handler:
@@ -585,23 +590,42 @@ async def reset_neural_network():
             content={"error": "Message handler not initialized"}
         )
 
-    if not message_handler.continuous_trainer:
-        return JSONResponse(
-            status_code=503,
-            content={"error": "Continuous trainer not available"}
-        )
+    results = {}
 
     try:
         logger.info("Neural network reset requested via HTTP endpoint")
-        result = message_handler.continuous_trainer.full_reset()
 
-        log_ai_event("neural_network_reset", result)
-        logger.info(f"Neural network reset complete: {result}")
+        # Reset NNModel (spawn model with 257 outputs)
+        if message_handler.nn_model:
+            nn_result = message_handler.nn_model.full_reset()
+            results['nn_model'] = nn_result
+            logger.info(f"NNModel reset complete: {nn_result}")
+        else:
+            results['nn_model'] = {'status': 'skipped', 'reason': 'not initialized'}
+
+        # Reset ContinuousTrainer (strategy model with 8 outputs)
+        if message_handler.continuous_trainer:
+            trainer_result = message_handler.continuous_trainer.full_reset()
+            results['continuous_trainer'] = trainer_result
+            logger.info(f"ContinuousTrainer reset complete: {trainer_result}")
+        else:
+            results['continuous_trainer'] = {'status': 'skipped', 'reason': 'not initialized'}
+
+        # Update dashboard metrics with new model version (resets to 0)
+        dashboard = get_dashboard_metrics()
+        if message_handler.background_trainer:
+            dashboard.model_version = message_handler.background_trainer.model_version
+        else:
+            dashboard.model_version = 0
+        results['dashboard_model_version'] = dashboard.model_version
+        logger.info(f"Dashboard model version updated to: {dashboard.model_version}")
+
+        log_ai_event("neural_network_reset", results)
 
         return {
             "status": "success",
-            "message": "Neural network reset to initial state",
-            "details": result
+            "message": "All neural networks reset to initial state",
+            "details": results
         }
 
     except Exception as e:
