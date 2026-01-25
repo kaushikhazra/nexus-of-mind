@@ -6,9 +6,13 @@ uvicorn[standard]==0.24.0
 websockets==12.0
 
 # Neural Network and Machine Learning
-tensorflow>=2.16.0
+# PyTorch with CUDA 12.x support (install via: pip install torch --index-url https://download.pytorch.org/whl/cu121)
+torch>=2.0.0
 numpy==1.24.3
 pandas==2.1.4
+
+# Legacy TensorFlow (will be removed after PyTorch migration)
+tensorflow>=2.16.0
 
 # Data Processing and Utilities
 pydantic==2.5.0
@@ -25,8 +29,8 @@ pytest-asyncio==0.21.1
 black==23.11.0
 flake8==6.1.0
 
-# Optional GPU Support (uncomment if CUDA is available)
-# tensorflow-gpu==2.15.0
+# Note: PyTorch GPU support requires CUDA 12.x
+# Install with: pip install torch --index-url https://download.pytorch.org/whl/cu121
 
 # Environment and Configuration
 python-dotenv==1.0.0
