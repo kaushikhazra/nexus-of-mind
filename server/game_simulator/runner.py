@@ -124,7 +124,8 @@ class SimulationRunner:
         self.curriculum_manager = curriculum_manager
         self.ws: Optional[Any] = None
         self.connected = False
-        
+        self._ws_url: Optional[str] = None  # Store URL for reconnection
+
         # Performance tracking
         self.performance_metrics: Optional[PerformanceMetrics] = None
         
@@ -141,7 +142,7 @@ class SimulationRunner:
         else:
             logger.info("Initialized without curriculum learning")
         
-    async def connect(self, url: str = "ws://localhost:8000/ws") -> None:
+    async def connect(self, url: str = "ws://localhost:8010/ws") -> None:
         """
         Connect to backend WebSocket.
         
@@ -165,12 +166,42 @@ class SimulationRunner:
             logger.info(f"Connecting to WebSocket at {url}")
             self.ws = await websockets.connect(url)
             self.connected = True
+            self._ws_url = url  # Store for reconnection
             logger.info("Successfully connected to WebSocket")
             
         except Exception as e:
             logger.error(f"Failed to connect to WebSocket: {e}")
             self.connected = False
             raise ConnectionError(f"Failed to connect to WebSocket: {e}")
+
+    async def _reconnect(self, url: str, max_retries: int = 5) -> bool:
+        """
+        Attempt to reconnect to WebSocket with exponential backoff.
+
+        Args:
+            url: WebSocket URL to connect to
+            max_retries: Maximum number of reconnection attempts
+
+        Returns:
+            True if reconnected successfully, False otherwise
+        """
+        for attempt in range(1, max_retries + 1):
+            wait_time = min(2 ** attempt, 30)  # Exponential backoff, max 30s
+            logger.info(f"Reconnection attempt {attempt}/{max_retries} in {wait_time}s...")
+            await asyncio.sleep(wait_time)
+
+            try:
+                if self.ws:
+                    await self.ws.close()
+                self.ws = await websockets.connect(url)
+                self.connected = True
+                logger.info("Reconnected successfully!")
+                return True
+            except Exception as e:
+                logger.warning(f"Reconnection attempt {attempt} failed: {e}")
+
+        logger.error(f"Failed to reconnect after {max_retries} attempts")
+        return False
     
     async def run(self, num_ticks: int, continuous: bool = False) -> None:
         """
@@ -224,37 +255,66 @@ class SimulationRunner:
                     self._apply_phase(new_phase)
                     self._handle_phase_transition(new_phase, tick)
 
-                # 3. Generate and send observation
-                observation = generate_observation(self.simulator.state)
-                await self._send_observation(observation)
+                # WebSocket operations with reconnection handling
+                try:
+                    # 3. Generate and send observation
+                    observation = generate_observation(self.simulator.state)
+                    await self._send_observation(observation)
 
-                # 4. Receive NN decision
-                response = await self._receive_response()
+                    # 4. Receive NN decision
+                    response = await self._receive_response()
 
-                # 5. Execute spawn if decision was to spawn
-                if response and self._should_spawn(response):
-                    success = self._execute_spawn(response)
-                    data = response.get('data', {})
-                    if success:
-                        logger.info(f"Tick {tick}: NN spawned {data.get('spawnType')} parasite at chunk {data.get('spawnChunk')}")
-                    else:
-                        logger.warning(f"Tick {tick}: NN spawn failed - {data.get('spawnType')} at chunk {data.get('spawnChunk')}")
-                else:
-                    # Log NN decision to wait or no-spawn
-                    if response:
-                        resp_type = response.get("type")
-                        if resp_type == "spawn_decision":
-                            data = response.get("data", {})
-                            if data.get("spawnChunk") == -1:
-                                logger.debug(f"Tick {tick}: NN decided no-spawn (confidence: {data.get('confidence', 0):.3f})")
-                            else:
-                                logger.debug(f"Tick {tick}: NN response blocked by gate")
-                        elif resp_type == "observation_ack":
-                            logger.debug(f"Tick {tick}: Observation acknowledged (gate blocked)")
+                    # 5. Execute spawn if decision was to spawn
+                    if response and self._should_spawn(response):
+                        success = self._execute_spawn(response)
+                        data = response.get('data', {})
+                        spawn_chunk = data.get('spawnChunk')
+                        spawn_type = data.get('spawnType')
+
+                        if success:
+                            logger.info(f"Tick {tick}: NN spawned {spawn_type} parasite at chunk {spawn_chunk}")
                         else:
-                            logger.debug(f"Tick {tick}: NN response: {response}")
+                            logger.warning(f"Tick {tick}: NN spawn failed - {spawn_type} at chunk {spawn_chunk}")
+                            # Send spawn_result to notify server of failure
+                            await self._send_spawn_result(
+                                success=False,
+                                spawn_chunk=spawn_chunk,
+                                spawn_type=spawn_type,
+                                reason="insufficient_energy"
+                            )
                     else:
-                        logger.debug(f"Tick {tick}: No response from NN (timeout)")
+                        # Log NN decision to wait or no-spawn
+                        if response:
+                            resp_type = response.get("type")
+                            if resp_type == "spawn_decision":
+                                data = response.get("data", {})
+                                if data.get("spawnChunk") == -1:
+                                    logger.debug(f"Tick {tick}: NN decided no-spawn (confidence: {data.get('confidence', 0):.3f})")
+                                else:
+                                    logger.debug(f"Tick {tick}: NN response blocked by gate")
+                            elif resp_type == "observation_ack":
+                                logger.debug(f"Tick {tick}: Observation acknowledged (gate blocked)")
+                            else:
+                                logger.debug(f"Tick {tick}: NN response: {response}")
+                        else:
+                            logger.debug(f"Tick {tick}: No response from NN (timeout)")
+
+                except (websockets.exceptions.ConnectionClosed,
+                        websockets.exceptions.ConnectionClosedError,
+                        ConnectionError, OSError) as e:
+                    logger.warning(f"Connection lost at tick {tick}: {e}")
+                    self.connected = False
+
+                    if self._ws_url:
+                        if await self._reconnect(self._ws_url):
+                            logger.info(f"Resuming simulation at tick {tick}")
+                            continue  # Retry this tick
+                        else:
+                            logger.error("Failed to reconnect, stopping simulation")
+                            break
+                    else:
+                        logger.error("No URL stored for reconnection")
+                        break
 
                 # 6. Wait for next tick (skip in turbo mode)
                 if not self.config.turbo_mode:
@@ -556,7 +616,44 @@ class SimulationRunner:
             
         # Execute spawn
         return self.simulator.spawn_parasite(chunk, parasite_type)
-    
+
+    async def _send_spawn_result(
+        self,
+        success: bool,
+        spawn_chunk: int,
+        spawn_type: str,
+        reason: str = ""
+    ) -> None:
+        """
+        Send spawn result back to server.
+
+        This notifies the server whether the spawn succeeded or failed,
+        allowing proper experience tracking for training.
+
+        Args:
+            success: Whether spawn succeeded
+            spawn_chunk: The chunk where spawn was attempted
+            spawn_type: 'energy' or 'combat'
+            reason: Failure reason if not successful
+        """
+        if self.ws is None:
+            return
+
+        message = {
+            "type": "spawn_result",
+            "success": success,
+            "spawnChunk": spawn_chunk,
+            "spawnType": spawn_type,
+            "reason": reason if not success else "",
+            "tick": self.simulator.state.tick
+        }
+
+        try:
+            await self.ws.send(json.dumps(message))
+            logger.debug(f"Sent spawn_result: success={success}, chunk={spawn_chunk}, reason={reason}")
+        except Exception as e:
+            logger.warning(f"Failed to send spawn_result: {e}")
+
     async def close(self) -> None:
         """
         Close WebSocket connection and clean up resources.

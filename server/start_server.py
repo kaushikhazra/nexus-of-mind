@@ -65,7 +65,7 @@ def setup_environment():
     # Set default environment variables if not set
     env_defaults = {
         "HOST": "0.0.0.0",
-        "PORT": "8000",
+        "PORT": "8010",
         "LOG_LEVEL": "debug",
         "GPU_MEMORY_LIMIT": "2048"  # MB
     }
@@ -87,7 +87,7 @@ def main():
     
     # Get configuration from environment
     host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", 8000))
+    port = int(os.getenv("PORT", 8010))
     log_level = os.getenv("LOG_LEVEL", "info")
     
     logger.info(f"Starting server on {host}:{port}")

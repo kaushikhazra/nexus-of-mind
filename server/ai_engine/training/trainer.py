@@ -132,14 +132,21 @@ class ContinuousTrainer:
         if len(batch) < self.config.min_batch_size:
             return
 
-        # Train on each experience in batch
+        # Train on each experience in batch (only those with actual_reward)
         total_loss = 0.0
         total_training_reward = 0.0
+        trained_count = 0
 
         with self._model_lock:
             for exp in batch:
                 training_reward = self._calculate_training_reward(exp)
+
+                # Skip experiences without actual_reward (WAIT decisions)
+                if training_reward is None:
+                    continue
+
                 total_training_reward += training_reward
+                trained_count += 1
 
                 # Use the model's train_with_reward method
                 result = self.model.train_with_reward(
@@ -152,27 +159,33 @@ class ContinuousTrainer:
 
                 total_loss += result.get("loss", 0.0)
 
-            self._model_version += 1
+            # Only increment version if we actually trained
+            if trained_count > 0:
+                self._model_version += 1
 
-            # Periodic save
-            if self._model_version - self._last_save_version >= self._save_interval:
-                self._save_model()
+                # Periodic save
+                if self._model_version - self._last_save_version >= self._save_interval:
+                    self._save_model()
 
-        avg_loss = total_loss / len(batch)
-        avg_training_reward = total_training_reward / len(batch)
+        # Skip metrics if nothing was trained
+        if trained_count == 0:
+            return
+
+        avg_loss = total_loss / trained_count
+        avg_training_reward = total_training_reward / trained_count
 
         # Update metrics
         step_time = (time.time() - step_start) * 1000  # ms
         self._metrics.record_step(
             loss=avg_loss,
-            batch_size=len(batch),
+            batch_size=trained_count,
             step_time_ms=step_time,
-            avg_gate_signal=avg_training_reward  # Now shows normalized reward
+            avg_gate_signal=avg_training_reward  # Now shows actual_reward
         )
 
         logger.info(
             f"[Training] v{self._model_version}: loss={avg_loss:.4f}, "
-            f"batch={len(batch)}, avg_reward={avg_training_reward:.3f}, "
+            f"trained={trained_count}/{len(batch)}, avg_reward={avg_training_reward:.3f}, "
             f"time={step_time:.1f}ms"
         )
 
@@ -193,23 +206,17 @@ class ContinuousTrainer:
         """
         Calculate training reward from experience.
 
-        Uses normalized R_expected for full [-1, +1] signal range:
-        - R_expected in [0, 1] maps to training_reward in [-1, +1]
-        - SEND with actual_reward: blend normalized expected with actual
+        Only uses actual_reward from real game outcomes.
+        Gate's R_expected is NOT used for training - it's just a filter.
+        Returns None if no actual_reward available (skip this experience).
         """
-        # Normalize R_expected from [0,1] to [-1,+1]
-        # This gives full signal range regardless of threshold setting
-        normalized_expected = 2 * experience.R_expected - 1
-
         if experience.was_executed and experience.actual_reward is not None:
-            # SEND with actual outcome - blend expected with actual
-            return (
-                self.config.gate_weight * normalized_expected +
-                self.config.actual_weight * experience.actual_reward
-            )
+            # SEND with actual outcome - train on real feedback only
+            return experience.actual_reward
         else:
-            # WAIT or SEND pending actual - use normalized expected
-            return normalized_expected
+            # WAIT or SEND pending actual - no training signal
+            # Return None to signal this experience should be skipped
+            return None
 
     def train_batch(
         self,

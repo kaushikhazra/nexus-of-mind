@@ -38,7 +38,8 @@ ARCHITECTURE_VERSION = 2  # Version 2: 257 chunk outputs (0-255 spawn, 256 no-sp
 # Higher = more exploration (flatter distribution)
 # Lower = more exploitation (peaked distribution)
 # Typical range: 0.01 to 0.1
-DEFAULT_ENTROPY_COEF = 0.05
+# 0.03 balances learning with collapse prevention
+DEFAULT_ENTROPY_COEF = 0.03
 
 
 def create_entropy_regularized_loss(entropy_coef: float = DEFAULT_ENTROPY_COEF):
@@ -492,6 +493,59 @@ class NNModel:
         self.model.optimizer.learning_rate.assign(old_lr)
 
         result['reward'] = reward
+
+        return result
+
+    def train_with_supervision(
+        self,
+        features: np.ndarray,
+        target_chunk: int,
+        target_type: Optional[str] = None,
+        learning_rate: float = 0.01
+    ) -> Dict[str, float]:
+        """
+        Train using supervised learning (direct target).
+
+        Used for teaching deterministic rules like "low energy = no-spawn".
+        Unlike RL training, this directly teaches the correct answer.
+
+        Args:
+            features: Input features (29,)
+            target_chunk: Target chunk (0-255) or 256 for no-spawn
+            target_type: Target type ('energy', 'combat', or None for no-spawn)
+            learning_rate: Learning rate for this update
+
+        Returns:
+            Dictionary with training info
+        """
+        # Create one-hot target for chunk (supervised = direct target)
+        chunk_target = np.zeros(257, dtype=np.float32)
+        chunk_target[target_chunk] = 1.0
+
+        # Create type target
+        if target_type is None:
+            type_target = 0.5  # Neutral for no-spawn
+        else:
+            type_target = 1.0 if target_type == 'combat' else 0.0
+
+        # Set learning rate
+        old_lr = float(self.model.optimizer.learning_rate)
+        self.model.optimizer.learning_rate.assign(learning_rate)
+
+        # Train with direct supervised target
+        result = self.train_step(
+            features,
+            chunk_target.reshape(1, -1),
+            np.array([[type_target]], dtype=np.float32)
+        )
+
+        # Restore learning rate
+        self.model.optimizer.learning_rate.assign(old_lr)
+
+        result['mode'] = 'supervised'
+        result['target_chunk'] = target_chunk
+
+        logger.debug(f"[Supervised] Trained toward chunk {target_chunk}, loss={result.get('loss', 0):.4f}")
 
         return result
 

@@ -109,8 +109,8 @@ Examples:
     parser.add_argument(
         '--url', '-u',
         type=str,
-        default='ws://localhost:8000/ws',
-        help='WebSocket URL to connect to (default: ws://localhost:8000/ws)'
+        default='ws://localhost:8010/ws',
+        help='WebSocket URL to connect to (default: ws://localhost:8010/ws)'
     )
     
     # Curriculum learning

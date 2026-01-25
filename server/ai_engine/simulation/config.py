@@ -46,7 +46,9 @@ class SimulationGateConfig:
     location_weight: float = 0.2     # w₃
 
     # Gate threshold
-    reward_threshold: float = 0.35   # θ - prevents wasteful spawns when no targets
+    # Set to -2000 for simulation (gate passes everything, NN learns from actual outcomes)
+    # Set to 0.35 for real gameplay (gate filters bad spawns)
+    reward_threshold: float = -2000.0   # θ - simulation mode: disabled (low energy = -1000)
 
     # Exploration bonus (deadlock prevention)
     exploration_coefficient: float = 0.35  # ε

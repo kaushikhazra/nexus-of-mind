@@ -131,8 +131,12 @@ class SimulationGate:
             'exploration': result['exploration']
         }
 
-        # Check capacity first
-        if not result['capacity_valid']:
+        # Check capacity - in simulation mode (threshold < -1000), pass through anyway
+        # so the simulation can provide real feedback
+        simulation_mode = self.config.reward_threshold < -1000
+
+        if not result['capacity_valid'] and not simulation_mode:
+            # Production mode: block insufficient energy
             decision = GateDecision(
                 decision='WAIT',
                 reason='insufficient_energy',
@@ -151,11 +155,12 @@ class SimulationGate:
             return decision
 
         # Check reward threshold (gate is the final authority)
-        if expected_reward > self.config.reward_threshold:
+        # In simulation mode, pass everything through for real feedback
+        if simulation_mode or expected_reward > self.config.reward_threshold:
             decision = GateDecision(
                 decision='SEND',
-                reason='positive_reward',
-                expected_reward=expected_reward,
+                reason='simulation_mode' if simulation_mode else 'positive_reward',
+                expected_reward=expected_reward if expected_reward != float('-inf') else 0.0,
                 nn_confidence=nn_confidence,
                 components=components
             )

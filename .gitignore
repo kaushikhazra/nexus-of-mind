@@ -101,3 +101,6 @@ tmpclaude-*-cwd
 
 # SQLite databases
 *.db
+
+# Temporary planning documents
+docs/plans/*-temp.md

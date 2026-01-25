@@ -162,28 +162,60 @@ class CurriculumManager:
 
 def create_default_curriculum() -> List[CurriculumPhase]:
     """
-    Create a default curriculum with three phases.
-    
+    Create a comprehensive curriculum simulating player skill progression.
+
+    Phases represent different player skill levels:
+    - Beginner: New players, no defenses
+    - Novice: Learning to build defenses
+    - Intermediate: Typical casual player
+    - Advanced: Experienced player with good economy
+    - Expert: Skilled player with strong defenses
+    - Master: Pro-level play with maximum pressure
+
     Returns:
-        List of default curriculum phases
+        List of curriculum phases
     """
     return [
+        # Phase 1: Beginner - Learn to disrupt undefended workers
         CurriculumPhase(
-            name="basic",
-            duration=1000,
+            name="beginner",
+            duration=2000,  # ~3 min turbo
             num_workers=4,
             num_protectors=0
         ),
+        # Phase 2: Novice - Handle light defense
         CurriculumPhase(
-            name="with_protectors", 
-            duration=2000,
+            name="novice",
+            duration=3000,  # ~5 min turbo
             num_workers=6,
+            num_protectors=1
+        ),
+        # Phase 3: Intermediate - Typical player
+        CurriculumPhase(
+            name="intermediate",
+            duration=4000,  # ~7 min turbo
+            num_workers=8,
             num_protectors=2
         ),
+        # Phase 4: Advanced - Strong economy
         CurriculumPhase(
-            name="full",
-            duration=-1,  # Run indefinitely
-            num_workers=8,
+            name="advanced",
+            duration=5000,  # ~8 min turbo
+            num_workers=10,
             num_protectors=3
+        ),
+        # Phase 5: Expert - Heavy defenses
+        CurriculumPhase(
+            name="expert",
+            duration=6000,  # ~10 min turbo
+            num_workers=12,
+            num_protectors=4
+        ),
+        # Phase 6: Master - Maximum difficulty (runs indefinitely)
+        CurriculumPhase(
+            name="master",
+            duration=-1,  # Run indefinitely
+            num_workers=15,
+            num_protectors=5
         )
     ]

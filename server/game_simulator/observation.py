@@ -26,7 +26,10 @@ def generate_observation(state: SimulatedGameState) -> Dict[str, Any]:
     - 7.3: Include all required fields
     """
     # Build entity arrays matching backend schema
-    mining_workers = _build_mining_workers(state)
+    # mining_workers: only workers actively mining (affects reward calculation)
+    # workers_present: all workers visible in territory (for threat assessment)
+    mining_workers = _build_mining_workers(state, mining_only=True)
+    workers_present = _build_mining_workers(state, mining_only=False)
     protectors = _build_protectors(state)
     parasites_start = _build_parasites(state, is_start=True)
     parasites_end = _build_parasites(state, is_start=False)
@@ -39,8 +42,8 @@ def generate_observation(state: SimulatedGameState) -> Dict[str, Any]:
         "timestamp": time.time(),
         "territoryId": "sim-territory",
         "tick": state.tick,
-        "miningWorkers": mining_workers,
-        "workersPresent": mining_workers,  # Same as miningWorkers for simulator
+        "miningWorkers": mining_workers,  # Only actively mining workers
+        "workersPresent": workers_present,  # All workers in territory
         "protectors": protectors,
         "parasitesStart": parasites_start,
         "parasitesEnd": parasites_end,
@@ -58,18 +61,26 @@ def _chunk_to_xy(chunk: int) -> tuple:
     return chunk % 20, chunk // 20
 
 
-def _build_mining_workers(state: SimulatedGameState) -> List[Dict[str, Any]]:
+def _build_mining_workers(state: SimulatedGameState, mining_only: bool = False) -> List[Dict[str, Any]]:
     """
-    Build mining workers array for observation.
+    Build workers array for observation.
 
     Args:
         state: Current simulated game state
+        mining_only: If True, only include workers in MINING state.
+                    If False, include all workers (for workersPresent).
 
     Returns:
         List of worker objects with chunkId field
     """
     workers = []
     for i, worker in enumerate(state.workers):
+        # Filter to only mining workers if requested
+        if mining_only:
+            state_value = worker.state.value if hasattr(worker.state, 'value') else str(worker.state)
+            if state_value != "mining":
+                continue
+
         x, y = _chunk_to_xy(worker.chunk)
         workers.append({
             "id": f"worker_{i}",

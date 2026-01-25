@@ -35,7 +35,7 @@ class SimulationConfig:
     # Queen (balanced for active gameplay)
     queen_start_energy: float = 50
     queen_max_energy: float = 100
-    queen_energy_regen: float = 1.0  # 3x faster regen for more action
+    queen_energy_regen: float = 3.0  # Faster regen to allow more NN experimentation
     energy_parasite_cost: int = 8   # Cheaper spawns (was 15)
     combat_parasite_cost: int = 15  # Cheaper spawns (was 25)
 

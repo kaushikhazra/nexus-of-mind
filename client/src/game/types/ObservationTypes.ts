@@ -144,10 +144,10 @@ export interface ObservationData {
  * Spawn decision returned from backend after NN inference
  */
 export interface SpawnDecision {
-    /** Target chunk ID (0-255) */
+    /** Target chunk ID (0-255) or -1 for no-spawn */
     spawnChunk: number;
-    /** Parasite type to spawn */
-    spawnType: 'energy' | 'combat';
+    /** Parasite type to spawn, or null for no-spawn */
+    spawnType: 'energy' | 'combat' | null;
     /** Confidence score (optional, for debugging) */
     confidence?: number;
 }

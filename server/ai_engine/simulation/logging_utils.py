@@ -104,10 +104,10 @@ class GateLogger:
         json_data = self._to_json(entry)
 
         if decision == 'SEND':
-            logger.info(f"[SimGate] {summary}")
+            logger.debug(f"[SimGate] {summary}")
             logger.debug(f"[SimGate:JSON] {json_data}")
         else:
-            logger.info(f"[SimGate] {summary}")
+            logger.debug(f"[SimGate] {summary}")
             logger.debug(f"[SimGate:JSON] {json_data}")
 
     def _format_summary(self, entry: GateLogEntry) -> str:
@@ -159,7 +159,8 @@ class GateLogger:
             time_since_action: Seconds since last SEND
             threshold: Warning threshold
         """
-        if streak >= threshold:
+        # Only warn every 10 streaks after threshold to reduce log noise
+        if streak >= threshold and streak % 10 == 0:
             logger.warning(
                 f"[SimGate:DeadlockRisk] Wait streak={streak}, "
                 f"time_since_action={time_since_action:.1f}s - "
@@ -184,7 +185,7 @@ class GateLogger:
             spawn_chunk: Spawn location
             spawn_type: 'energy' or 'combat'
         """
-        logger.info(
+        logger.debug(
             f"[SimGate:Train] type={feedback_type}, reward={reward:.3f}, "
             f"loss={loss:.4f}, chunk={spawn_chunk}, spawn={spawn_type}"
         )
