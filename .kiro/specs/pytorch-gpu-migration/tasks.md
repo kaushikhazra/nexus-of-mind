@@ -219,9 +219,9 @@ Migrate the Neural Network from TensorFlow to PyTorch to enable GPU acceleration
     - Result: Logs "Using GPU: NVIDIA GeForce RTX 3060 Laptop GPU"
     - _Requirements: 4.1_
 
-### Phase 8: Cleanup (Optional)
+### Phase 8: Cleanup (Optional - Deferred)
 
-- [ ] 9. Remove TensorFlow dependency
+- [ ] 9. Remove TensorFlow dependency (DEFERRED)
   - [ ] 9.1 Remove TF imports
     - File: `server/ai_engine/nn_model.py`
     - Remove: `import tensorflow`, `from tensorflow import keras`
@@ -231,6 +231,8 @@ Migrate the Neural Network from TensorFlow to PyTorch to enable GPU acceleration
     - Remove: `tensorflow` from requirements.txt
     - Add: `torch` if not present
     - _Requirements: Out of scope_
+
+  - Note: Keeping TF installed for now - can remove later if needed
 
 ## Completion Criteria
 
