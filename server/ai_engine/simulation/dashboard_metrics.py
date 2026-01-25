@@ -405,7 +405,7 @@ class DashboardMetrics:
                     'max': round(self.max_entropy, 3),
                     'ratio': round(self.current_entropy / self.max_entropy, 3) if self.max_entropy > 0 else 0,
                     'effective_actions': round(self.effective_actions, 1),
-                    'total_actions': 6,  # 5 chunks + NO_SPAWN in 5-NN architecture
+                    'total_actions': 5,  # 5 chunks (no NO_SPAWN - Gate handles that)
                     'history': [round(e, 3) for e in list(self.entropy_history)[-100:]],
                     'health': self._get_entropy_health()
                 },

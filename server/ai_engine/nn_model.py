@@ -176,10 +176,11 @@ class SequentialQueenNN(nn.Module):
     NN1 (Energy Suitability): 10 → 8 → 5 (Sigmoid)
     NN2 (Combat Suitability): 10 → 8 → 5 (Sigmoid)
     NN3 (Type Decision):      10 → 8 → 2 (Softmax)
-    NN4 (Chunk Decision):     15 → 12 → 8 → 6 (Softmax)
+    NN4 (Chunk Decision):     15 → 12 → 8 → 5 (Softmax) - picks best of 5 chunks
     NN5 (Quantity Decision):  7 → 8 → 5 (Softmax)
 
-    Total parameters: ~830
+    Note: NO_SPAWN decision removed from NN4. Gate is sole authority on spawn/no-spawn.
+    Total parameters: ~820
     """
 
     # Feature indices for extraction from 29-dim input
@@ -224,14 +225,15 @@ class SequentialQueenNN(nn.Module):
             # Softmax applied in forward()
         )
 
-        # NN4: Chunk Decision (15 → 12 → 8 → 6, Softmax)
+        # NN4: Chunk Decision (15 → 12 → 8 → 5, Softmax)
         # Input: 5 worker_density + 5 suitability + 5 saturation
+        # Output: 5 chunks (no NO_SPAWN - Gate decides spawn/no-spawn)
         self.nn4_chunk = nn.Sequential(
             nn.Linear(15, 12),
             nn.ReLU(),
             nn.Linear(12, 8),
             nn.ReLU(),
-            nn.Linear(8, 6)
+            nn.Linear(8, 5)
             # Softmax applied in forward()
         )
 
@@ -343,7 +345,7 @@ class SequentialQueenNN(nn.Module):
             e_suit: Energy suitability from NN1 (batch, 5)
             c_suit: Combat suitability from NN2 (batch, 5)
             type_decision: Type decision from NN3 (batch,) - 0=energy, 1=combat
-            chunk_decision: Chunk decision from NN4 (batch,) - 0-4 or 5 for NO_SPAWN
+            chunk_decision: Chunk decision from NN4 (batch,) - 0-4
         """
         batch_size = features.shape[0] if features.dim() > 1 else 1
         if features.dim() == 1:
@@ -353,19 +355,16 @@ class SequentialQueenNN(nn.Module):
 
         for b in range(batch_size):
             chunk_idx = int(chunk_decision[b].item())
+            # Clamp to valid range (0-4)
+            chunk_idx = min(chunk_idx, 4)
 
-            # If NO_SPAWN (index 5), use zeros for chunk-specific features
-            if chunk_idx >= 5:
-                nn5_input[b, 0] = 0.0  # saturation
-                nn5_input[b, 1] = 0.0  # suitability
-            else:
-                # Selected chunk parasite saturation (index 0)
-                if type_decision[b] == 0:  # energy
-                    nn5_input[b, 0] = features[b, self.E_PARASITE_INDICES[chunk_idx]]
-                    nn5_input[b, 1] = e_suit[b, chunk_idx]
-                else:  # combat
-                    nn5_input[b, 0] = features[b, self.C_PARASITE_INDICES[chunk_idx]]
-                    nn5_input[b, 1] = c_suit[b, chunk_idx]
+            # Selected chunk parasite saturation (index 0)
+            if type_decision[b] == 0:  # energy
+                nn5_input[b, 0] = features[b, self.E_PARASITE_INDICES[chunk_idx]]
+                nn5_input[b, 1] = e_suit[b, chunk_idx]
+            else:  # combat
+                nn5_input[b, 0] = features[b, self.C_PARASITE_INDICES[chunk_idx]]
+                nn5_input[b, 1] = c_suit[b, chunk_idx]
 
             # Queen spawn capacity for chosen type (index 2)
             if type_decision[b] == 0:  # energy
@@ -381,7 +380,7 @@ class SequentialQueenNN(nn.Module):
             nn5_input[b, 5] = float(type_decision[b])
 
             # Chunk selection (index 6) - normalized 0-1
-            nn5_input[b, 6] = chunk_idx / 5.0  # 0-5 -> 0-1
+            nn5_input[b, 6] = chunk_idx / 4.0  # 0-4 -> 0-1
 
         return nn5_input
 
@@ -398,16 +397,14 @@ class SequentialQueenNN(nn.Module):
             - c_suitability: (batch, 5) combat suitability scores
             - type_probs: (batch, 2) type probabilities [P(energy), P(combat)]
             - type_decision: (batch,) argmax of type_probs
-            - chunk_probs: (batch, 6) chunk probabilities [P(c0-c4), P(NO_SPAWN)]
-            - chunk_decision: (batch,) argmax of chunk_probs
+            - chunk_probs: (batch, 5) chunk probabilities [P(c0-c4)]
+            - chunk_decision: (batch,) argmax of chunk_probs (0-4)
             - quantity_probs: (batch, 5) quantity probabilities [P(0-4)]
             - quantity_decision: (batch,) argmax of quantity_probs
         """
         single_input = features.dim() == 1
         if single_input:
             features = features.unsqueeze(0)
-
-        batch_size = features.shape[0]
 
         # NN1: Energy Suitability
         nn1_input = self._extract_nn1_input(features)
@@ -423,34 +420,17 @@ class SequentialQueenNN(nn.Module):
         type_probs = F.softmax(type_logits, dim=-1)
         type_decision = torch.argmax(type_probs, dim=-1)
 
-        # NN4: Chunk Decision
+        # NN4: Chunk Decision (always picks one of 5 chunks)
         nn4_input = self._extract_nn4_input(features, e_suit, c_suit, type_decision)
         chunk_logits = self.nn4_chunk(nn4_input)
         chunk_probs = F.softmax(chunk_logits, dim=-1)
         chunk_decision = torch.argmax(chunk_probs, dim=-1)
 
-        # NN5: Quantity Decision (skip if NO_SPAWN)
-        quantity_probs = torch.zeros(batch_size, 5, device=features.device)
-        quantity_logits_out = torch.zeros(batch_size, 5, device=features.device)
-        quantity_decision = torch.zeros(batch_size, dtype=torch.long, device=features.device)
-
-        # Check if any samples need NN5 (not NO_SPAWN)
-        needs_nn5 = chunk_decision < 5
-        if needs_nn5.any():
-            nn5_input = self._extract_nn5_input(features, e_suit, c_suit, type_decision, chunk_decision)
-            quantity_logits = self.nn5_quantity(nn5_input)
-            quantity_probs_all = F.softmax(quantity_logits, dim=-1)
-
-            # Only update non-NO_SPAWN samples
-            quantity_probs[needs_nn5] = quantity_probs_all[needs_nn5]
-            quantity_logits_out[needs_nn5] = quantity_logits[needs_nn5]
-            quantity_decision[needs_nn5] = torch.argmax(quantity_probs_all[needs_nn5], dim=-1)
-
-        # For NO_SPAWN, set quantity to 0
-        no_spawn_mask = chunk_decision >= 5
-        quantity_probs[no_spawn_mask, 0] = 1.0
-        quantity_logits_out[no_spawn_mask, 0] = 10.0  # High logit for quantity 0
-        quantity_decision[no_spawn_mask] = 0
+        # NN5: Quantity Decision (always runs - no NO_SPAWN)
+        nn5_input = self._extract_nn5_input(features, e_suit, c_suit, type_decision, chunk_decision)
+        quantity_logits = self.nn5_quantity(nn5_input)
+        quantity_probs = F.softmax(quantity_logits, dim=-1)
+        quantity_decision = torch.argmax(quantity_probs, dim=-1)
 
         result = {
             'e_suitability': e_suit,
@@ -461,7 +441,7 @@ class SequentialQueenNN(nn.Module):
             'chunk_logits': chunk_logits,
             'chunk_probs': chunk_probs,
             'chunk_decision': chunk_decision,
-            'quantity_logits': quantity_logits_out,
+            'quantity_logits': quantity_logits,
             'quantity_probs': quantity_probs,
             'quantity_decision': quantity_decision
         }
@@ -481,10 +461,11 @@ class NNModel:
     - NN1: Energy suitability scoring
     - NN2: Combat suitability scoring
     - NN3: Type decision (energy vs combat)
-    - NN4: Chunk decision (which of 5 chunks or NO_SPAWN)
+    - NN4: Chunk decision (which of 5 chunks - always spawns)
     - NN5: Quantity decision (0-4 parasites)
 
-    Total parameters: ~830 (vs ~10,530 in old architecture)
+    Note: NN always outputs a spawn decision. Gate is sole authority on spawn/no-spawn.
+    Total parameters: ~820 (vs ~10,530 in old architecture)
     """
 
     # Architecture version 3: Five-NN Sequential
@@ -667,9 +648,10 @@ class NNModel:
                     'nn1_energy_suit': '10->8->5 Sigmoid',
                     'nn2_combat_suit': '10->8->5 Sigmoid',
                     'nn3_type': '10->8->2 Softmax',
-                    'nn4_chunk': '15->12->8->6 Softmax',
+                    'nn4_chunk': '15->12->8->5 Softmax',  # No NO_SPAWN
                     'nn5_quantity': '7->8->5 Softmax'
-                }
+                },
+                'no_spawn_option': False  # Gate is sole spawn/no-spawn authority
             }
 
             with open(metadata_path, 'w') as f:
@@ -695,8 +677,8 @@ class NNModel:
             - c_suitability: (5,) combat suitability scores
             - type_probs: (2,) [P(energy), P(combat)]
             - type_decision: int (0=energy, 1=combat)
-            - chunk_probs: (6,) [P(chunk0-4), P(NO_SPAWN)]
-            - chunk_decision: int (0-4 or 5 for NO_SPAWN)
+            - chunk_probs: (5,) [P(chunk0-4)]
+            - chunk_decision: int (0-4, always a valid chunk)
             - quantity_probs: (5,) [P(0), P(1), P(2), P(3), P(4)]
             - quantity_decision: int (0-4)
         """
@@ -739,18 +721,20 @@ class NNModel:
         """
         Get spawn decision from features using 5-NN sequential pipeline.
 
+        NN always outputs a spawn decision. Gate is sole authority on spawn/no-spawn.
+
         Args:
             features: numpy array of 29 normalized features
             explore: if True, sample from distribution; if False, use argmax
 
         Returns:
             Dictionary with:
-            - spawnChunk: int (actual chunk ID 0-255) or -1 for no-spawn
-            - spawnType: str ('energy', 'combat', or None for no-spawn)
+            - spawnChunk: int (actual chunk ID 0-255)
+            - spawnType: str ('energy' or 'combat')
             - quantity: int (0-4, number of parasites to spawn)
             - confidence: float (chunk probability)
             - typeConfidence: float (type probability)
-            - nnDecision: str ('spawn' or 'no_spawn')
+            - nnDecision: str (always 'spawn' - Gate decides spawn/no-spawn)
             - pipeline: dict with all intermediate outputs for debugging
         """
         # Run sequential inference
@@ -759,7 +743,7 @@ class NNModel:
         # Extract top chunk IDs from features for mapping
         top_chunk_ids = self._extract_top_chunk_ids(features)
 
-        # Get chunk decision
+        # Get chunk decision (always 0-4, no NO_SPAWN option)
         chunk_probs = outputs['chunk_probs']
         if explore:
             # Sample from probability distribution (enables exploration)
@@ -785,30 +769,25 @@ class NNModel:
         else:
             quantity = int(np.argmax(quantity_probs))
 
-        # Check for no-spawn decision (chunk_idx == 5)
-        if chunk_idx >= 5:
-            return {
-                'spawnChunk': -1,
-                'spawnType': None,
-                'quantity': 0,
-                'confidence': chunk_confidence,
-                'nnDecision': 'no_spawn',
-                'pipeline': outputs
-            }
-
         # Map relative chunk index to actual chunk ID
         actual_chunk_id = top_chunk_ids[chunk_idx]
 
-        # Check if this is an invalid/empty slot (-1 means no workers at that position)
+        # If empty slot (no workers), try to find next best valid chunk
         if actual_chunk_id == -1:
-            return {
-                'spawnChunk': -1,
-                'spawnType': None,
-                'quantity': 0,
-                'confidence': chunk_confidence,
-                'nnDecision': 'no_spawn',
-                'pipeline': outputs
-            }
+            # Find highest-probability valid chunk
+            sorted_indices = np.argsort(chunk_probs)[::-1]
+            for idx in sorted_indices:
+                if top_chunk_ids[idx] != -1:
+                    actual_chunk_id = top_chunk_ids[idx]
+                    chunk_confidence = float(chunk_probs[idx])
+                    chunk_idx = idx  # Update for training
+                    break
+
+            # If all slots are empty, pick random chunk (Gate will evaluate)
+            if actual_chunk_id == -1:
+                # Random chunk from grid - avoid always defaulting to 0
+                actual_chunk_id = np.random.randint(0, 256)
+                logger.debug(f"All slots empty, random chunk: {actual_chunk_id}")
 
         spawn_type = 'combat' if type_idx == 1 else 'energy'
 
@@ -818,7 +797,7 @@ class NNModel:
             'quantity': quantity,
             'confidence': chunk_confidence,
             'typeConfidence': type_confidence,
-            'nnDecision': 'spawn',
+            'nnDecision': 'spawn',  # NN always suggests spawn, Gate decides
             'pipeline': outputs
         }
 
@@ -841,7 +820,7 @@ class NNModel:
             outputs: Dictionary with model outputs (from forward pass)
             targets: Dictionary with targets:
                 - 'type_target': int (0=energy, 1=combat)
-                - 'chunk_target': int (0-5, where 5=NO_SPAWN)
+                - 'chunk_target': int (0-4, always a valid chunk)
                 - 'quantity_target': int (0-4)
                 - 'e_suit_target': optional (5,) for supervised suitability
                 - 'c_suit_target': optional (5,) for supervised suitability
@@ -872,6 +851,8 @@ class NNModel:
         chunk_target = targets['chunk_target']
         if not isinstance(chunk_target, torch.Tensor):
             chunk_target = torch.tensor([chunk_target], device=self.device, dtype=torch.long)
+        # Clamp to valid range (0-4)
+        chunk_target = torch.clamp(chunk_target, 0, 4)
         chunk_ce_loss = F.cross_entropy(outputs['chunk_logits'], chunk_target)
 
         # Entropy regularization for chunk (prevents mode collapse)
@@ -884,24 +865,19 @@ class NNModel:
         loss_dict['chunk_loss'] = float(chunk_loss.item())
         loss_dict['chunk_entropy'] = float(chunk_entropy.item())
 
-        # NN5: Cross-entropy on quantity decision (only if not NO_SPAWN)
+        # NN5: Cross-entropy on quantity decision (always runs - no NO_SPAWN)
         quantity_target = targets['quantity_target']
         if not isinstance(quantity_target, torch.Tensor):
             quantity_target = torch.tensor([quantity_target], device=self.device, dtype=torch.long)
 
-        # Only compute quantity loss if chunk is not NO_SPAWN
-        if int(chunk_target[0].item()) < 5:
-            # Need to get quantity logits - recompute through NN5
-            quantity_logits = outputs.get('quantity_logits')
-            if quantity_logits is None:
-                # Quantity probs exist, convert back to pseudo-logits
-                quantity_probs = outputs['quantity_probs']
-                if quantity_probs.dim() == 1:
-                    quantity_probs = quantity_probs.unsqueeze(0)
-                quantity_logits = torch.log(quantity_probs + 1e-8)
-            quantity_loss = F.cross_entropy(quantity_logits, quantity_target)
-        else:
-            quantity_loss = torch.tensor(0.0, device=self.device)
+        quantity_logits = outputs.get('quantity_logits')
+        if quantity_logits is None:
+            # Quantity probs exist, convert back to pseudo-logits
+            quantity_probs = outputs['quantity_probs']
+            if quantity_probs.dim() == 1:
+                quantity_probs = quantity_probs.unsqueeze(0)
+            quantity_logits = torch.log(quantity_probs + 1e-8)
+        quantity_loss = F.cross_entropy(quantity_logits, quantity_target)
 
         loss_dict['quantity_loss'] = float(quantity_loss.item())
 
@@ -970,14 +946,15 @@ class NNModel:
         Train using reward signal (reinforcement learning style).
 
         In the 5-NN architecture:
-        - chunk_id is the actual chunk ID (0-255) or -1 for no-spawn
+        - chunk_id is the actual chunk ID (0-255)
         - We map it back to relative index (0-4) using top_chunk_ids
         - All 5 NNs are trained together (chain responsibility)
+        - NO_SPAWN is not an option - Gate handles spawn/no-spawn decision
 
         Args:
             features: Input features (29,)
-            chunk_id: Actual chunk ID that was selected, or -1 for no-spawn
-            spawn_type: Type that was selected ('energy', 'combat', or None for no-spawn)
+            chunk_id: Actual chunk ID that was selected (0-255)
+            spawn_type: Type that was selected ('energy' or 'combat')
             reward: Reward signal (-1 to +1)
             quantity: Number of parasites spawned (0-4)
             learning_rate: Learning rate for this update
@@ -988,20 +965,21 @@ class NNModel:
         # Extract top chunk IDs to map actual chunk ID back to relative index
         top_chunk_ids = self._extract_top_chunk_ids(features)
 
-        # Map actual chunk ID to relative index (0-4) or 5 for NO_SPAWN
-        if chunk_id == -1:
-            chunk_target = 5  # NO_SPAWN
-        else:
-            try:
-                chunk_target = top_chunk_ids.index(chunk_id)
-            except ValueError:
-                # Chunk not in top 5 - use NO_SPAWN as fallback
-                logger.warning(f"Chunk {chunk_id} not in top_chunk_ids {top_chunk_ids}, using NO_SPAWN")
-                chunk_target = 5
+        # Map actual chunk ID to relative index (0-4)
+        try:
+            chunk_target = top_chunk_ids.index(chunk_id)
+        except ValueError:
+            # Chunk not in top 5 - pick random valid index to avoid biasing towards 0
+            valid_indices = [i for i, cid in enumerate(top_chunk_ids) if cid != -1]
+            if valid_indices:
+                chunk_target = np.random.choice(valid_indices)
+            else:
+                chunk_target = np.random.randint(0, 5)  # Random if all empty
+            logger.debug(f"Chunk {chunk_id} not in top_chunk_ids {top_chunk_ids}, using random index {chunk_target}")
 
         # Map spawn type to index
         if spawn_type is None or spawn_type == '':
-            type_target = 0  # Default to energy for no-spawn cases
+            type_target = 0  # Default to energy
         else:
             type_target = 1 if spawn_type == 'combat' else 0
 
@@ -1045,13 +1023,14 @@ class NNModel:
         Train using supervised learning (direct target).
 
         In the 5-NN architecture:
-        - target_chunk is the actual chunk ID (0-255) or -1 for no-spawn
+        - target_chunk is the actual chunk ID (0-255)
         - We map it back to relative index (0-4) using top_chunk_ids
+        - NO_SPAWN is not an option - Gate handles spawn/no-spawn decision
 
         Args:
             features: Input features (29,)
-            target_chunk: Target chunk ID (0-255) or -1 for no-spawn
-            target_type: Target type ('energy', 'combat', or None for no-spawn)
+            target_chunk: Target chunk ID (0-255)
+            target_type: Target type ('energy' or 'combat')
             target_quantity: Target quantity (0-4)
             learning_rate: Learning rate for this update
 
@@ -1061,16 +1040,17 @@ class NNModel:
         # Extract top chunk IDs to map actual chunk ID back to relative index
         top_chunk_ids = self._extract_top_chunk_ids(features)
 
-        # Map actual chunk ID to relative index (0-4) or 5 for NO_SPAWN
-        if target_chunk == -1:
-            chunk_target = 5  # NO_SPAWN
-        else:
-            try:
-                chunk_target = top_chunk_ids.index(target_chunk)
-            except ValueError:
-                # Chunk not in top 5 - use NO_SPAWN as fallback
-                logger.warning(f"Target chunk {target_chunk} not in top_chunk_ids {top_chunk_ids}, using NO_SPAWN")
-                chunk_target = 5
+        # Map actual chunk ID to relative index (0-4)
+        try:
+            chunk_target = top_chunk_ids.index(target_chunk)
+        except ValueError:
+            # Chunk not in top 5 - pick random valid index to avoid biasing towards 0
+            valid_indices = [i for i, cid in enumerate(top_chunk_ids) if cid != -1]
+            if valid_indices:
+                chunk_target = np.random.choice(valid_indices)
+            else:
+                chunk_target = np.random.randint(0, 5)  # Random if all empty
+            logger.debug(f"Target chunk {target_chunk} not in top_chunk_ids {top_chunk_ids}, using random index {chunk_target}")
 
         # Map spawn type to index
         if target_type is None or target_type == '':
@@ -1151,10 +1131,11 @@ class NNModel:
             "  NN1 (Energy Suitability): 10 → 8 → 5 (Sigmoid)",
             "  NN2 (Combat Suitability): 10 → 8 → 5 (Sigmoid)",
             "  NN3 (Type Decision):      10 → 8 → 2 (Softmax)",
-            "  NN4 (Chunk Decision):     15 → 12 → 8 → 6 (Softmax)",
+            "  NN4 (Chunk Decision):     15 → 12 → 8 → 5 (Softmax)",
             "  NN5 (Quantity Decision):  7 → 8 → 5 (Softmax)",
             "",
             "Sequential Flow: NN1/NN2 → NN3 → NN4 → NN5",
+            "Note: NN always outputs spawn. Gate is sole spawn/no-spawn authority.",
             f"Total parameters: {self._count_parameters():,}",
             f"Device: {self.device}"
         ]
@@ -1173,12 +1154,12 @@ class NNModel:
         probs_clean = probs[probs > 1e-10]
         return float(-np.sum(probs_clean * np.log(probs_clean)))
 
-    def get_max_entropy(self, num_classes: int = 6) -> float:
+    def get_max_entropy(self, num_classes: int = 5) -> float:
         """
         Get maximum possible entropy (uniform distribution).
 
         Args:
-            num_classes: Number of classes (default 6 for chunk decision)
+            num_classes: Number of classes (default 5 for chunk decision)
 
         Returns:
             Maximum entropy for uniform distribution
@@ -1197,10 +1178,10 @@ class NNModel:
         """
         outputs = self.predict(features)
 
-        # Chunk distribution stats (6 classes: 5 chunks + NO_SPAWN)
+        # Chunk distribution stats (5 classes: chunks 0-4, no NO_SPAWN)
         chunk_probs = outputs['chunk_probs']
         chunk_entropy = self.get_entropy(chunk_probs)
-        chunk_max_entropy = self.get_max_entropy(6)
+        chunk_max_entropy = self.get_max_entropy(5)
 
         # Type distribution stats (2 classes)
         type_probs = outputs['type_probs']
@@ -1257,17 +1238,18 @@ class NNModel:
                 'nn1_energy_suit': '10->8->5 Sigmoid',
                 'nn2_combat_suit': '10->8->5 Sigmoid',
                 'nn3_type': '10->8->2 Softmax',
-                'nn4_chunk': '15->12->8->6 Softmax',
+                'nn4_chunk': '15->12->8->5 Softmax',  # No NO_SPAWN
                 'nn5_quantity': '7->8->5 Softmax'
             },
             'total_parameters': self._count_parameters(),
             'model_path': self.model_path,
             'weights_loaded': os.path.exists(self.model_path),
             'entropy_coef': self.entropy_coef,
-            'chunk_max_entropy': self.get_max_entropy(6),
+            'chunk_max_entropy': self.get_max_entropy(5),  # 5 chunks, no NO_SPAWN
             'type_max_entropy': self.get_max_entropy(2),
             'quantity_max_entropy': self.get_max_entropy(5),
-            'device': str(self.device)
+            'device': str(self.device),
+            'no_spawn_option': False  # Gate is sole spawn/no-spawn authority
         }
 
     def full_reset(self) -> Dict[str, Any]:
