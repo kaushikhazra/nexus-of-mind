@@ -168,6 +168,307 @@ class QueenNN(nn.Module):
         return chunk_logits, chunk_probs, type_prob
 
 
+class SequentialQueenNN(nn.Module):
+    """
+    Five-NN Sequential Architecture for Queen spawn decisions.
+
+    Sequential flow:
+    NN1 (Energy Suitability): 10 → 8 → 5 (Sigmoid)
+    NN2 (Combat Suitability): 10 → 8 → 5 (Sigmoid)
+    NN3 (Type Decision):      10 → 8 → 2 (Softmax)
+    NN4 (Chunk Decision):     15 → 12 → 8 → 6 (Softmax)
+    NN5 (Quantity Decision):  7 → 8 → 5 (Softmax)
+
+    Total parameters: ~830
+    """
+
+    # Feature indices for extraction from 29-dim input
+    # Each chunk has 5 features at indices: [i*5, i*5+1, i*5+2, i*5+3, i*5+4]
+    # = [chunk_id, worker_density, protector_density, e_parasite_rate, c_parasite_rate]
+    PROTECTOR_INDICES = [2, 7, 12, 17, 22]  # protector_density for chunks 0-4
+    E_PARASITE_INDICES = [3, 8, 13, 18, 23]  # energy_parasite_rate for chunks 0-4
+    C_PARASITE_INDICES = [4, 9, 14, 19, 24]  # combat_parasite_rate for chunks 0-4
+    WORKER_INDICES = [1, 6, 11, 16, 21]  # worker_density for chunks 0-4
+    QUEEN_ENERGY_CAP_INDEX = 25
+    QUEEN_COMBAT_CAP_INDEX = 26
+    PLAYER_ENERGY_RATE_INDEX = 27
+    PLAYER_MINERAL_RATE_INDEX = 28
+
+    def __init__(self):
+        super().__init__()
+
+        # NN1: Energy Suitability (10 → 8 → 5, Sigmoid)
+        # Input: [protector_density, e_parasite_rate] x 5 chunks
+        self.nn1_energy_suit = nn.Sequential(
+            nn.Linear(10, 8),
+            nn.ReLU(),
+            nn.Linear(8, 5),
+            nn.Sigmoid()
+        )
+
+        # NN2: Combat Suitability (10 → 8 → 5, Sigmoid)
+        # Input: [protector_density, c_parasite_rate] x 5 chunks
+        self.nn2_combat_suit = nn.Sequential(
+            nn.Linear(10, 8),
+            nn.ReLU(),
+            nn.Linear(8, 5),
+            nn.Sigmoid()
+        )
+
+        # NN3: Type Decision (10 → 8 → 2, Softmax)
+        # Input: 5 energy_suit + 5 combat_suit
+        self.nn3_type = nn.Sequential(
+            nn.Linear(10, 8),
+            nn.ReLU(),
+            nn.Linear(8, 2)
+            # Softmax applied in forward()
+        )
+
+        # NN4: Chunk Decision (15 → 12 → 8 → 6, Softmax)
+        # Input: 5 worker_density + 5 suitability + 5 saturation
+        self.nn4_chunk = nn.Sequential(
+            nn.Linear(15, 12),
+            nn.ReLU(),
+            nn.Linear(12, 8),
+            nn.ReLU(),
+            nn.Linear(8, 6)
+            # Softmax applied in forward()
+        )
+
+        # NN5: Quantity Decision (7 → 8 → 5, Softmax)
+        # Input: saturation, suitability, queen_cap, player_energy, player_mineral, type, chunk
+        self.nn5_quantity = nn.Sequential(
+            nn.Linear(7, 8),
+            nn.ReLU(),
+            nn.Linear(8, 5)
+            # Softmax applied in forward()
+        )
+
+        # Initialize weights
+        self._init_weights()
+
+    def _init_weights(self):
+        """Initialize weights using He normal for ReLU, Xavier for output."""
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                # Check if this is an output layer (followed by Sigmoid/Softmax)
+                # For simplicity, use Xavier for all - works well for both
+                nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+
+    def _extract_nn1_input(self, features: torch.Tensor) -> torch.Tensor:
+        """Extract NN1 input: [protector, e_parasite_rate] x 5 chunks."""
+        batch_size = features.shape[0] if features.dim() > 1 else 1
+        if features.dim() == 1:
+            features = features.unsqueeze(0)
+
+        # Interleave protector and e_parasite for each chunk
+        nn1_input = torch.zeros(batch_size, 10, device=features.device)
+        for i in range(5):
+            nn1_input[:, i*2] = features[:, self.PROTECTOR_INDICES[i]]
+            nn1_input[:, i*2+1] = features[:, self.E_PARASITE_INDICES[i]]
+        return nn1_input
+
+    def _extract_nn2_input(self, features: torch.Tensor) -> torch.Tensor:
+        """Extract NN2 input: [protector, c_parasite_rate] x 5 chunks."""
+        batch_size = features.shape[0] if features.dim() > 1 else 1
+        if features.dim() == 1:
+            features = features.unsqueeze(0)
+
+        # Interleave protector and c_parasite for each chunk
+        nn2_input = torch.zeros(batch_size, 10, device=features.device)
+        for i in range(5):
+            nn2_input[:, i*2] = features[:, self.PROTECTOR_INDICES[i]]
+            nn2_input[:, i*2+1] = features[:, self.C_PARASITE_INDICES[i]]
+        return nn2_input
+
+    def _extract_nn4_input(
+        self,
+        features: torch.Tensor,
+        e_suit: torch.Tensor,
+        c_suit: torch.Tensor,
+        type_decision: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Extract NN4 input: worker_density + suitability + saturation (all pre-selected by type).
+
+        Args:
+            features: Original 29-dim features
+            e_suit: Energy suitability from NN1 (batch, 5)
+            c_suit: Combat suitability from NN2 (batch, 5)
+            type_decision: Type decision from NN3 (batch,) - 0=energy, 1=combat
+        """
+        batch_size = features.shape[0] if features.dim() > 1 else 1
+        if features.dim() == 1:
+            features = features.unsqueeze(0)
+
+        nn4_input = torch.zeros(batch_size, 15, device=features.device)
+
+        # Worker densities (indices 0-4)
+        for i in range(5):
+            nn4_input[:, i] = features[:, self.WORKER_INDICES[i]]
+
+        # Suitability for chosen type (indices 5-9)
+        # type_decision: 0=energy, 1=combat
+        for b in range(batch_size):
+            if type_decision[b] == 0:  # energy
+                nn4_input[b, 5:10] = e_suit[b]
+            else:  # combat
+                nn4_input[b, 5:10] = c_suit[b]
+
+        # Parasite saturation for chosen type (indices 10-14)
+        for b in range(batch_size):
+            for i in range(5):
+                if type_decision[b] == 0:  # energy
+                    nn4_input[b, 10+i] = features[b, self.E_PARASITE_INDICES[i]]
+                else:  # combat
+                    nn4_input[b, 10+i] = features[b, self.C_PARASITE_INDICES[i]]
+
+        return nn4_input
+
+    def _extract_nn5_input(
+        self,
+        features: torch.Tensor,
+        e_suit: torch.Tensor,
+        c_suit: torch.Tensor,
+        type_decision: torch.Tensor,
+        chunk_decision: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Extract NN5 input: saturation, suitability, queen_cap, player_rates, type, chunk.
+
+        Args:
+            features: Original 29-dim features
+            e_suit: Energy suitability from NN1 (batch, 5)
+            c_suit: Combat suitability from NN2 (batch, 5)
+            type_decision: Type decision from NN3 (batch,) - 0=energy, 1=combat
+            chunk_decision: Chunk decision from NN4 (batch,) - 0-4 or 5 for NO_SPAWN
+        """
+        batch_size = features.shape[0] if features.dim() > 1 else 1
+        if features.dim() == 1:
+            features = features.unsqueeze(0)
+
+        nn5_input = torch.zeros(batch_size, 7, device=features.device)
+
+        for b in range(batch_size):
+            chunk_idx = int(chunk_decision[b].item())
+
+            # If NO_SPAWN (index 5), use zeros for chunk-specific features
+            if chunk_idx >= 5:
+                nn5_input[b, 0] = 0.0  # saturation
+                nn5_input[b, 1] = 0.0  # suitability
+            else:
+                # Selected chunk parasite saturation (index 0)
+                if type_decision[b] == 0:  # energy
+                    nn5_input[b, 0] = features[b, self.E_PARASITE_INDICES[chunk_idx]]
+                    nn5_input[b, 1] = e_suit[b, chunk_idx]
+                else:  # combat
+                    nn5_input[b, 0] = features[b, self.C_PARASITE_INDICES[chunk_idx]]
+                    nn5_input[b, 1] = c_suit[b, chunk_idx]
+
+            # Queen spawn capacity for chosen type (index 2)
+            if type_decision[b] == 0:  # energy
+                nn5_input[b, 2] = features[b, self.QUEEN_ENERGY_CAP_INDEX]
+            else:  # combat
+                nn5_input[b, 2] = features[b, self.QUEEN_COMBAT_CAP_INDEX]
+
+            # Player rates (indices 3-4)
+            nn5_input[b, 3] = features[b, self.PLAYER_ENERGY_RATE_INDEX]
+            nn5_input[b, 4] = features[b, self.PLAYER_MINERAL_RATE_INDEX]
+
+            # Type decision (index 5) - normalized 0 or 1
+            nn5_input[b, 5] = float(type_decision[b])
+
+            # Chunk selection (index 6) - normalized 0-1
+            nn5_input[b, 6] = chunk_idx / 5.0  # 0-5 -> 0-1
+
+        return nn5_input
+
+    def forward(self, features: torch.Tensor) -> Dict[str, torch.Tensor]:
+        """
+        Sequential forward pass through all 5 NNs.
+
+        Args:
+            features: Input tensor of shape (batch, 29) or (29,)
+
+        Returns:
+            Dictionary with all outputs:
+            - e_suitability: (batch, 5) energy suitability scores
+            - c_suitability: (batch, 5) combat suitability scores
+            - type_probs: (batch, 2) type probabilities [P(energy), P(combat)]
+            - type_decision: (batch,) argmax of type_probs
+            - chunk_probs: (batch, 6) chunk probabilities [P(c0-c4), P(NO_SPAWN)]
+            - chunk_decision: (batch,) argmax of chunk_probs
+            - quantity_probs: (batch, 5) quantity probabilities [P(0-4)]
+            - quantity_decision: (batch,) argmax of quantity_probs
+        """
+        single_input = features.dim() == 1
+        if single_input:
+            features = features.unsqueeze(0)
+
+        batch_size = features.shape[0]
+
+        # NN1: Energy Suitability
+        nn1_input = self._extract_nn1_input(features)
+        e_suit = self.nn1_energy_suit(nn1_input)
+
+        # NN2: Combat Suitability
+        nn2_input = self._extract_nn2_input(features)
+        c_suit = self.nn2_combat_suit(nn2_input)
+
+        # NN3: Type Decision
+        nn3_input = torch.cat([e_suit, c_suit], dim=-1)
+        type_logits = self.nn3_type(nn3_input)
+        type_probs = F.softmax(type_logits, dim=-1)
+        type_decision = torch.argmax(type_probs, dim=-1)
+
+        # NN4: Chunk Decision
+        nn4_input = self._extract_nn4_input(features, e_suit, c_suit, type_decision)
+        chunk_logits = self.nn4_chunk(nn4_input)
+        chunk_probs = F.softmax(chunk_logits, dim=-1)
+        chunk_decision = torch.argmax(chunk_probs, dim=-1)
+
+        # NN5: Quantity Decision (skip if NO_SPAWN)
+        quantity_probs = torch.zeros(batch_size, 5, device=features.device)
+        quantity_decision = torch.zeros(batch_size, dtype=torch.long, device=features.device)
+
+        # Check if any samples need NN5 (not NO_SPAWN)
+        needs_nn5 = chunk_decision < 5
+        if needs_nn5.any():
+            nn5_input = self._extract_nn5_input(features, e_suit, c_suit, type_decision, chunk_decision)
+            quantity_logits = self.nn5_quantity(nn5_input)
+            quantity_probs_all = F.softmax(quantity_logits, dim=-1)
+
+            # Only update non-NO_SPAWN samples
+            quantity_probs[needs_nn5] = quantity_probs_all[needs_nn5]
+            quantity_decision[needs_nn5] = torch.argmax(quantity_probs_all[needs_nn5], dim=-1)
+
+        # For NO_SPAWN, set quantity to 0
+        no_spawn_mask = chunk_decision >= 5
+        quantity_probs[no_spawn_mask, 0] = 1.0
+        quantity_decision[no_spawn_mask] = 0
+
+        result = {
+            'e_suitability': e_suit,
+            'c_suitability': c_suit,
+            'type_logits': type_logits,
+            'type_probs': type_probs,
+            'type_decision': type_decision,
+            'chunk_logits': chunk_logits,
+            'chunk_probs': chunk_probs,
+            'chunk_decision': chunk_decision,
+            'quantity_probs': quantity_probs,
+            'quantity_decision': quantity_decision
+        }
+
+        # Squeeze if single input
+        if single_input:
+            result = {k: v.squeeze(0) if v.dim() > 1 else v for k, v in result.items()}
+
+        return result
+
+
 class NNModel:
     """
     Split-head neural network for Queen spawn decisions.
