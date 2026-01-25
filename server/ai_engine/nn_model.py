@@ -31,9 +31,9 @@ ARCHITECTURE_VERSION = 2  # Version 2: 257 chunk outputs (0-255 spawn, 256 no-sp
 # Entropy regularization coefficient
 # Higher = more exploration (flatter distribution)
 # Lower = more exploitation (peaked distribution)
-# Typical range: 0.01 to 0.1
-# 0.03 balances learning with collapse prevention
-DEFAULT_ENTROPY_COEF = 0.03
+# PyTorch needs stronger regularization than TensorFlow
+# 0.2 provides robust collapse prevention
+DEFAULT_ENTROPY_COEF = 0.2
 
 
 def get_device() -> torch.device:
