@@ -955,6 +955,40 @@ class MessageHandler:
                         logger.info(f"[PreprocessGate] SKIP: {preprocess_decision.reason} "
                                    f"(workers={preprocess_decision.workers_count}, "
                                    f"protectors={preprocess_decision.protectors_count})")
+
+                        # Update dashboard pipeline visualization even when skipping
+                        try:
+                            dashboard = get_dashboard_metrics()
+                            dashboard.last_pipeline = {
+                                'observation': {
+                                    'workers_count': preprocess_decision.workers_count,
+                                    'protectors_count': preprocess_decision.protectors_count,
+                                    'parasites_count': len(observation.get('parasitesEnd', [])),
+                                    'queen_energy': queen_energy.get('current', 0),
+                                    'worker_chunks': [],
+                                    'protector_chunks': [],
+                                    'parasite_chunks': [],
+                                },
+                                'nn_inference': {
+                                    'chunk_id': -1,
+                                    'spawn_type': None,
+                                    'confidence': 0.0,
+                                    'nn_decision': 'skipped'
+                                },
+                                'gate_components': {},
+                                'combined_reward': {
+                                    'expected_reward': 0.0,
+                                    'formula': 'N/A - preprocess skipped'
+                                },
+                                'decision': {
+                                    'action': 'SKIP',
+                                    'reason': preprocess_decision.reason,
+                                    'timestamp': asyncio.get_event_loop().time()
+                                }
+                            }
+                        except Exception as e:
+                            logger.warning(f"Failed to update dashboard on preprocess skip: {e}")
+
                         # Return no-spawn decision without running NN
                         return {
                             "type": "spawn_decision",
