@@ -20,7 +20,7 @@ from ai_engine.feature_extractor import FeatureExtractor
 from ai_engine.nn_model import NNModel
 from ai_engine.reward_calculator import RewardCalculator
 from ai_engine.config import get_config
-from ai_engine.simulation import SimulationGate, SimulationGateConfig, get_gate_logger
+from ai_engine.simulation import SimulationGate, SimulationGateConfig, get_gate_logger, PreprocessGate
 from ai_engine.simulation.dashboard_metrics import get_dashboard_metrics
 
 # New continuous training module (gate as cost function)
@@ -126,6 +126,14 @@ class MessageHandler:
             logger.warning(f"Failed to initialize SimulationGate: {e}")
             self.simulation_gate = None
             self.gate_logger = None
+
+        # Initialize preprocess gate (runs BEFORE NN inference)
+        try:
+            self.preprocess_gate = PreprocessGate()
+            logger.info("PreprocessGate initialized for early skip detection")
+        except Exception as e:
+            logger.warning(f"Failed to initialize PreprocessGate: {e}")
+            self.preprocess_gate = None
 
         # Store previous observations for reward calculation (per territory)
         self.prev_observations: Dict[str, Dict[str, Any]] = {}
@@ -939,6 +947,26 @@ class MessageHandler:
                 logger.info(f"[Observation] Raw data: present={len(workers_present)}, mining={len(workers_mining)}, "
                            f"protectors={len(protectors)}, queenE={queen_energy.get('current', 0)}, "
                            f"playerE={player_energy.get('end', 0)}, minerals={player_minerals.get('end', 0)}")
+
+                # === PREPROCESS GATE: Skip NN pipeline if no activity ===
+                if self.preprocess_gate:
+                    preprocess_decision = self.preprocess_gate.evaluate(observation)
+                    if preprocess_decision.should_skip:
+                        logger.info(f"[PreprocessGate] SKIP: {preprocess_decision.reason} "
+                                   f"(workers={preprocess_decision.workers_count}, "
+                                   f"protectors={preprocess_decision.protectors_count})")
+                        # Return no-spawn decision without running NN
+                        return {
+                            "type": "spawn_decision",
+                            "timestamp": asyncio.get_event_loop().time(),
+                            "data": {
+                                "spawnChunk": -1,
+                                "spawnType": None,
+                                "confidence": 0.0,
+                                "skipped": True,
+                                "skipReason": preprocess_decision.reason
+                            }
+                        }
 
                 # Update dashboard game state
                 try:

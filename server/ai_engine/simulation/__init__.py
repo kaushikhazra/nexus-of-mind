@@ -12,6 +12,7 @@ from .metrics import GateMetrics, GateMetricsSample
 from .logging_utils import GateLogger, get_gate_logger
 from .config_loader import ConfigLoader, get_config_loader, load_simulation_config
 from .dashboard_metrics import DashboardMetrics, get_dashboard_metrics
+from .preprocess_gate import PreprocessGate, PreprocessDecision
 
 __all__ = [
     'SimulationGateConfig',
@@ -26,5 +27,7 @@ __all__ = [
     'get_config_loader',
     'load_simulation_config',
     'DashboardMetrics',
-    'get_dashboard_metrics'
+    'get_dashboard_metrics',
+    'PreprocessGate',
+    'PreprocessDecision',
 ]
