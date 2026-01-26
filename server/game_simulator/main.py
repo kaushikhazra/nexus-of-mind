@@ -38,7 +38,7 @@ if str(server_dir) not in sys.path:
 
 from game_simulator.config import SimulationConfig
 from game_simulator.runner import SimulationRunner
-from game_simulator.curriculum import CurriculumManager, create_default_curriculum
+from game_simulator.curriculum import CurriculumManager, create_default_curriculum, get_curriculum_preset, CURRICULUM_PRESETS
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -80,7 +80,10 @@ Examples:
   %(prog)s --turbo --ticks 10000             # Fast training run
   %(prog)s --config custom.yaml              # Custom configuration
   %(prog)s --url ws://remote:8000/ws         # Remote backend
-  %(prog)s --curriculum --ticks 5000         # Curriculum learning
+  %(prog)s --curriculum --ticks 20000        # Default curriculum
+  %(prog)s --curriculum-preset easy          # Easy curriculum preset
+  %(prog)s --curriculum-preset hard --turbo  # Hard curriculum in turbo mode
+  %(prog)s --curriculum-preset quick         # Quick test curriculum
   %(prog)s --continuous --turbo              # Run continuously until Ctrl+C
         """
     )
@@ -118,6 +121,14 @@ Examples:
         '--curriculum',
         action='store_true',
         help='Enable curriculum learning with default phases'
+    )
+
+    parser.add_argument(
+        '--curriculum-preset',
+        type=str,
+        choices=list(CURRICULUM_PRESETS.keys()),
+        metavar='PRESET',
+        help=f"Use a curriculum preset: {', '.join(CURRICULUM_PRESETS.keys())}"
     )
 
     # Continuous mode
@@ -187,6 +198,7 @@ async def run_simulation(
     num_ticks: int,
     websocket_url: str,
     use_curriculum: bool = False,
+    curriculum_preset: Optional[str] = None,
     continuous: bool = False
 ) -> None:
     """
@@ -196,7 +208,8 @@ async def run_simulation(
         config: Simulation configuration
         num_ticks: Number of ticks to run (ignored if continuous=True)
         websocket_url: WebSocket URL to connect to
-        use_curriculum: Whether to enable curriculum learning
+        use_curriculum: Whether to enable curriculum learning (uses 'default' preset)
+        curriculum_preset: Name of curriculum preset to use (overrides use_curriculum)
         continuous: If True, run indefinitely until interrupted
 
     Requirements satisfied:
@@ -204,10 +217,12 @@ async def run_simulation(
     """
     # Create curriculum manager if requested
     curriculum_manager = None
-    if use_curriculum:
-        curriculum_phases = create_default_curriculum()
+    preset_name = curriculum_preset or ('default' if use_curriculum else None)
+
+    if preset_name:
+        curriculum_phases = get_curriculum_preset(preset_name)
         curriculum_manager = CurriculumManager(curriculum_phases)
-        print("Curriculum learning enabled with default phases")
+        print(f"Curriculum learning enabled with '{preset_name}' preset ({len(curriculum_phases)} phases)")
     
     # Create simulation runner
     runner = SimulationRunner(config, curriculum_manager)
@@ -314,6 +329,7 @@ def main() -> None:
             num_ticks=args.ticks,
             websocket_url=args.url,
             use_curriculum=args.curriculum,
+            curriculum_preset=args.curriculum_preset,
             continuous=args.continuous
         ))
         

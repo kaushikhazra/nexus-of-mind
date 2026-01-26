@@ -294,3 +294,208 @@ def create_default_curriculum() -> List[CurriculumPhase]:
             flee_duration=3,
         ),
     ]
+
+
+def create_easy_curriculum() -> List[CurriculumPhase]:
+    """
+    Create an easy curriculum for initial NN training.
+
+    Slower protectors, more scared workers, longer phase durations.
+    Good for letting the NN learn basic patterns without too much pressure.
+    """
+    return [
+        CurriculumPhase(
+            name="easy-1",
+            duration=5000,
+            num_workers=4,
+            num_protectors=0,
+            protector_speed=0.8,
+            detection_radius=2,
+            kill_radius=1,
+            flee_radius=6,
+            flee_duration=10,
+        ),
+        CurriculumPhase(
+            name="easy-2",
+            duration=5000,
+            num_workers=6,
+            num_protectors=1,
+            protector_speed=1.0,
+            detection_radius=3,
+            kill_radius=1,
+            flee_radius=5,
+            flee_duration=8,
+        ),
+        CurriculumPhase(
+            name="easy-3",
+            duration=-1,
+            num_workers=8,
+            num_protectors=2,
+            protector_speed=1.2,
+            detection_radius=4,
+            kill_radius=1,
+            flee_radius=4,
+            flee_duration=6,
+        ),
+    ]
+
+
+def create_hard_curriculum() -> List[CurriculumPhase]:
+    """
+    Create a hard curriculum for advanced NN training.
+
+    Faster protectors, braver workers, shorter phase durations.
+    Forces the NN to learn precise timing and placement.
+    """
+    return [
+        CurriculumPhase(
+            name="hard-1",
+            duration=1500,
+            num_workers=6,
+            num_protectors=1,
+            protector_speed=1.5,
+            detection_radius=5,
+            kill_radius=2,
+            flee_radius=3,
+            flee_duration=4,
+        ),
+        CurriculumPhase(
+            name="hard-2",
+            duration=2000,
+            num_workers=10,
+            num_protectors=3,
+            protector_speed=1.8,
+            detection_radius=6,
+            kill_radius=2,
+            flee_radius=2,
+            flee_duration=3,
+        ),
+        CurriculumPhase(
+            name="hard-3",
+            duration=-1,
+            num_workers=15,
+            num_protectors=5,
+            protector_speed=2.2,
+            detection_radius=8,
+            kill_radius=3,
+            flee_radius=1,
+            flee_duration=2,
+        ),
+    ]
+
+
+def create_quick_curriculum() -> List[CurriculumPhase]:
+    """
+    Create a quick curriculum for fast testing.
+
+    Short phase durations (500 ticks each) to quickly cycle through phases.
+    Useful for testing phase transitions and debugging.
+    """
+    return [
+        CurriculumPhase(
+            name="quick-beginner",
+            duration=500,
+            num_workers=4,
+            num_protectors=0,
+            protector_speed=1.0,
+            detection_radius=3,
+            kill_radius=1,
+            flee_radius=5,
+            flee_duration=8,
+        ),
+        CurriculumPhase(
+            name="quick-intermediate",
+            duration=500,
+            num_workers=8,
+            num_protectors=2,
+            protector_speed=1.5,
+            detection_radius=5,
+            kill_radius=2,
+            flee_radius=3,
+            flee_duration=5,
+        ),
+        CurriculumPhase(
+            name="quick-master",
+            duration=-1,
+            num_workers=15,
+            num_protectors=5,
+            protector_speed=2.0,
+            detection_radius=7,
+            kill_radius=3,
+            flee_radius=2,
+            flee_duration=3,
+        ),
+    ]
+
+
+def create_beginner_only_curriculum() -> List[CurriculumPhase]:
+    """
+    Create a single-phase beginner curriculum (runs indefinitely).
+
+    Useful for initial NN training with no protectors.
+    """
+    return [
+        CurriculumPhase(
+            name="beginner",
+            duration=-1,
+            num_workers=4,
+            num_protectors=0,
+            protector_speed=1.0,
+            detection_radius=3,
+            kill_radius=1,
+            flee_radius=5,
+            flee_duration=8,
+        ),
+    ]
+
+
+def create_master_only_curriculum() -> List[CurriculumPhase]:
+    """
+    Create a single-phase master curriculum (runs indefinitely).
+
+    Maximum challenge - useful for testing trained NN performance.
+    """
+    return [
+        CurriculumPhase(
+            name="master",
+            duration=-1,
+            num_workers=15,
+            num_protectors=5,
+            protector_speed=2.0,
+            detection_radius=7,
+            kill_radius=3,
+            flee_radius=2,
+            flee_duration=3,
+        ),
+    ]
+
+
+# Available curriculum presets
+CURRICULUM_PRESETS = {
+    'default': create_default_curriculum,
+    'easy': create_easy_curriculum,
+    'hard': create_hard_curriculum,
+    'quick': create_quick_curriculum,
+    'beginner-only': create_beginner_only_curriculum,
+    'master-only': create_master_only_curriculum,
+}
+
+
+def get_curriculum_preset(name: str) -> List[CurriculumPhase]:
+    """
+    Get a curriculum preset by name.
+
+    Args:
+        name: Name of the preset (default, easy, hard, quick, beginner-only, master-only)
+
+    Returns:
+        List of curriculum phases for the preset
+
+    Raises:
+        ValueError: If preset name is not recognized
+    """
+    if name not in CURRICULUM_PRESETS:
+        available = ', '.join(CURRICULUM_PRESETS.keys())
+        raise ValueError(f"Unknown curriculum preset: '{name}'. Available: {available}")
+
+    return CURRICULUM_PRESETS[name]()
