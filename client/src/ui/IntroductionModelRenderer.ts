@@ -24,7 +24,8 @@ import {
     DefaultRenderingPipeline,
     Mesh,
     MeshBuilder,
-    Material
+    Material,
+    StandardMaterial
 } from '@babylonjs/core';
 import { MaterialManager } from '../rendering/MaterialManager';
 import { EmblemGeometry } from './components/EmblemGeometry';
@@ -123,19 +124,19 @@ const MODEL_PAGE_MAPPING: { [pageIndex: number]: { modelType: ModelConfig['model
     // Pages 11-14: Your Mission
     10: {
         modelType: 'orbital-system',
-        animation: { rotationSpeed: 0.5, additionalEffects: 'orbital' }
+        animation: { rotationSpeed: 0.3 }
     },
     11: {
         modelType: 'orbital-system',
-        animation: { rotationSpeed: 0.5, additionalEffects: 'orbital' }
+        animation: { rotationSpeed: 0.3 }
     },
     12: {
         modelType: 'orbital-system',
-        animation: { rotationSpeed: 0.5, additionalEffects: 'orbital' }
+        animation: { rotationSpeed: 0.3 }
     },
     13: {
         modelType: 'orbital-system',
-        animation: { rotationSpeed: 0.5, additionalEffects: 'orbital' }
+        animation: { rotationSpeed: 0.3 }
     }
 };
 
@@ -1821,47 +1822,100 @@ export class IntroductionModelRenderer {
 
     /**
      * Create optimized orbital system with performance considerations
+     * Same planet as Discovery page + black orbital orb
      * Requirements: 9.2, 9.6, 9.8 - Orbital system with performance optimization
      */
     private createOptimizedOrbitalSystem(useSimplified: boolean = false): AbstractMesh | null {
         if (!this.scene || !this.materialManager || !this.planetRenderer) return null;
 
         try {
-            // Create base desert planet with performance considerations
+            // Create container for the system
+            const system = new Mesh('orbitalSystem', this.scene);
+
+            // Create same desert planet as Discovery page (radius 1.8, no glow, no cloud)
+            // rotationSpeed: 0 so planet doesn't spin independently - whole system rotates together
             const planetConfig = {
-                radius: 2.0,
+                radius: 1.8,
                 textureType: 'desert' as const,
-                atmosphereGlow: !useSimplified,  // Disable glow in low performance mode
-                cloudLayer: false,               // No clouds for clearer view
-                rotationSpeed: 0.5
+                atmosphereGlow: false,
+                cloudLayer: false,
+                rotationSpeed: 0
             };
 
             const planet = this.planetRenderer.createDesertPlanet(planetConfig);
+            planet.parent = system;
 
-            if (!useSimplified) {
-                // Add orbiting mining ship only in normal performance mode
-                const orbitingShip = this.planetRenderer.createOrbitalSystem(planet);
-            }
+            // Create black orbital orb (slightly bigger)
+            const orbContainer = new Mesh('orbContainer', this.scene);
+            const orb = MeshBuilder.CreateSphere('orbitalOrb', {
+                diameter: 0.5,
+                segments: 16
+            }, this.scene);
 
-            return planet;
+            // Black matte material for the orb
+            const orbMaterial = new StandardMaterial('orbitalOrbMat', this.scene);
+            orbMaterial.diffuseColor = new Color3(0.05, 0.05, 0.05);
+            orbMaterial.emissiveColor = new Color3(0.02, 0.02, 0.02);
+            orbMaterial.specularColor = new Color3(0.1, 0.1, 0.1);
+            orbMaterial.specularPower = 8;
+            orb.material = orbMaterial;
+            orb.parent = orbContainer;
+
+            // Add tiny lights around the orb
+            const lightMaterial = new StandardMaterial('orbLightMat', this.scene);
+            lightMaterial.diffuseColor = new Color3(0, 0, 0);
+            lightMaterial.emissiveColor = new Color3(0, 1, 1); // Cyan glow
+            lightMaterial.specularColor = new Color3(0, 0, 0);
+            lightMaterial.disableLighting = true;
+
+            const lightPositions = [
+                new Vector3(0.28, 0, 0),      // Right
+                new Vector3(-0.28, 0, 0),     // Left
+                new Vector3(0, 0.28, 0),      // Top
+                new Vector3(0, -0.28, 0),     // Bottom
+                new Vector3(0, 0, 0.28),      // Front
+                new Vector3(0, 0, -0.28),     // Back
+            ];
+
+            lightPositions.forEach((pos, i) => {
+                const light = MeshBuilder.CreateSphere(`orbLight_${i}`, {
+                    diameter: 0.05,
+                    segments: 6
+                }, this.scene);
+                light.position = pos;
+                light.material = lightMaterial;
+                light.parent = orbContainer;
+            });
+
+            // Position orb container at orbital distance
+            const orbitRadius = 3.0;
+            orbContainer.position = new Vector3(orbitRadius, 0, 0);
+            orbContainer.parent = system;
+
+            // No separate orbital animation - orb rotates with the system (geosynchronous)
+
+            // Mark to skip LOD
+            (system as any).skipLOD = true;
+
+            return system;
         } catch (error) {
             console.warn('Failed to create optimized orbital system, using fallback:', error);
-            // Fallback to simple planet with optional orbiting object
+            // Fallback to simple planet with orbiting orb
             const system = new Mesh('orbitalSystemOptimizedFallback', this.scene);
-            
+
             // Central planet
-            const planet = Mesh.CreateSphere('centralPlanetOptimizedFallback', useSimplified ? 8 : 16, 2, this.scene);
+            const planet = Mesh.CreateSphere('centralPlanetOptimizedFallback', useSimplified ? 8 : 16, 3.6, this.scene);
             this.applyOptimizedMaterial(planet, 'desert_planet');
             planet.parent = system;
-            
-            if (!useSimplified) {
-                // Orbiting ship (simple box)
-                const ship = Mesh.CreateBox('orbitingShipOptimizedFallback', 0.5, this.scene);
-                this.applyOptimizedMaterial(ship, 'metallic_ship');
-                ship.position = new Vector3(4, 0, 0);
-                ship.parent = system;
-            }
-            
+
+            // Black orb
+            const orb = Mesh.CreateSphere('orbitalOrbFallback', 8, 0.3, this.scene);
+            const orbMat = new StandardMaterial('orbFallbackMat', this.scene);
+            orbMat.diffuseColor = new Color3(0.05, 0.05, 0.05);
+            orb.material = orbMat;
+            orb.position = new Vector3(3, 0, 0);
+            orb.parent = system;
+
             return system;
         }
     }
