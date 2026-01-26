@@ -287,6 +287,62 @@ class SimulationGate:
                 sent=(decision.decision == 'SEND'),
                 expected_reward=decision.expected_reward
             )
+
+            # Build observation summary for pipeline visualization
+            # Note: simulator uses 'miningWorkers', backend uses 'workersPresent'
+            workers = observation.get('miningWorkers', observation.get('workersPresent', []))
+            protectors = observation.get('protectors', [])
+            parasites_end = observation.get('parasitesEnd', [])
+            queen_energy = observation.get('queenEnergy', {})
+            player_energy = observation.get('playerEnergy', {})
+            player_minerals = observation.get('playerMinerals', {})
+
+            # Calculate player rates
+            energy_start = player_energy.get('start', 0)
+            energy_end = player_energy.get('end', 0)
+            energy_rate = 0.0
+            if max(energy_start, energy_end) > 0:
+                energy_rate = (energy_end - energy_start) / max(energy_start, energy_end)
+
+            mineral_start = player_minerals.get('start', 0)
+            mineral_end = player_minerals.get('end', 0)
+            mineral_rate = 0.0
+            if max(mineral_start, mineral_end) > 0:
+                mineral_rate = (mineral_end - mineral_start) / max(mineral_start, mineral_end)
+
+            # Extract chunk IDs for heatmap visualization
+            worker_chunks = [w.get('chunkId', -1) for w in workers if isinstance(w, dict)]
+            protector_chunks = [p.get('chunkId', -1) for p in protectors if isinstance(p, dict)]
+            parasite_chunks = [p.get('chunkId', -1) for p in parasites_end if isinstance(p, dict)]
+
+            observation_summary = {
+                'workers_count': len(workers),
+                'protectors_count': len(protectors),
+                'parasites_count': len(parasites_end),
+                'queen_energy': queen_energy.get('current', 0),
+                'player_energy_rate': round(energy_rate, 3),
+                'player_mineral_rate': round(mineral_rate, 3),
+                'worker_chunks': worker_chunks,
+                'protector_chunks': protector_chunks,
+                'parasite_chunks': parasite_chunks
+            }
+
+            nn_output = {
+                'chunk_id': spawn_chunk,
+                'spawn_type': spawn_type,
+                'confidence': round(nn_confidence, 3),
+                'nn_decision': 'no_spawn' if spawn_chunk == -1 else 'spawn'
+            }
+
+            # Record gate decision with pipeline data
+            dashboard.record_gate_decision(
+                decision=decision.decision,
+                reason=decision.reason,
+                expected_reward=decision.expected_reward,
+                components=decision.components,
+                observation_summary=observation_summary,
+                nn_inference=nn_output
+            )
         except Exception as e:
             logger.warning(f"Failed to record to dashboard metrics: {e}")
 

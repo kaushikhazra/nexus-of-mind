@@ -26,6 +26,16 @@ class NNDecisionRecord:
     timestamp: float
 
 
+@dataclass
+class GateDecisionRecord:
+    """Record of gate decision for analytics."""
+    decision: str  # 'SEND' or 'WAIT'
+    reason: str  # 'positive_reward', 'negative_reward', 'insufficient_energy'
+    expected_reward: float
+    components: Dict[str, float]
+    timestamp: float
+
+
 class DashboardMetrics:
     """
     Singleton class for collecting and aggregating dashboard metrics.
@@ -59,6 +69,11 @@ class DashboardMetrics:
         self.correct_no_spawn: int = 0
         self.missed_opportunities: int = 0
 
+        # Gate behavior tracking
+        self.gate_decisions: Deque[GateDecisionRecord] = deque(maxlen=100)
+        self.wait_streak: int = 0
+        self.last_action_time: float = time.time()
+
         # Training tracking
         self.loss_history: Deque[float] = deque(maxlen=1000)
         self.simulation_rewards: Deque[float] = deque(maxlen=500)
@@ -80,6 +95,9 @@ class DashboardMetrics:
 
         # Current game state (updated each observation)
         self.current_game_state: Dict = {}
+
+        # Pipeline visualization - stores the most recent decision details
+        self.last_pipeline: Optional[Dict] = None
 
         self._initialized = True
         self._data_lock = threading.Lock()
@@ -132,6 +150,90 @@ class DashboardMetrics:
             # Update confidence histogram
             bin_idx = min(int(confidence * 10), 9)
             self.confidence_bins[bin_idx] += 1
+
+    def record_gate_decision(
+        self,
+        decision: str,
+        reason: str,
+        expected_reward: float,
+        components: Dict[str, float],
+        observation_summary: Optional[Dict[str, Any]] = None,
+        nn_inference: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """
+        Record a simulation gate decision.
+
+        Args:
+            decision: 'SEND' or 'WAIT'
+            reason: Decision reason
+            expected_reward: Calculated expected reward
+            components: Breakdown of cost function components
+            observation_summary: Summary of observation data (for pipeline viz)
+            nn_inference: NN inference data (for pipeline viz)
+        """
+        with self._data_lock:
+            # Handle -inf by converting to a large negative number for JSON
+            safe_reward = expected_reward
+            if expected_reward == float('-inf'):
+                safe_reward = -1000.0
+
+            # Sanitize components (replace any inf/nan values)
+            safe_components = {}
+            for k, v in components.items():
+                if isinstance(v, (int, float)):
+                    if v == float('-inf') or v == float('inf') or v != v:  # nan check
+                        safe_components[k] = 0.0
+                    else:
+                        safe_components[k] = v
+                else:
+                    safe_components[k] = v
+
+            record = GateDecisionRecord(
+                decision=decision,
+                reason=reason,
+                expected_reward=safe_reward,
+                components=safe_components,
+                timestamp=time.time()
+            )
+            self.gate_decisions.append(record)
+
+            # Update wait streak
+            if decision == 'WAIT':
+                self.wait_streak += 1
+            else:
+                self.wait_streak = 0
+                self.last_action_time = time.time()
+
+            # Track no-spawn statistics
+            if nn_inference and nn_inference.get('nn_decision') == 'no_spawn':
+                self.no_spawn_decisions += 1
+                if decision == 'CORRECT_WAIT':
+                    self.correct_no_spawn += 1
+                elif decision == 'SHOULD_SPAWN':
+                    self.missed_opportunities += 1
+
+            # Store pipeline data for visualization (use sanitized components)
+            self.last_pipeline = {
+                'observation': observation_summary or {},
+                'nn_inference': nn_inference or {},
+                'gate_components': {
+                    **safe_components,
+                    'weights': {
+                        'survival': 0.4,
+                        'disruption': 0.5,
+                        'location': 0.1
+                    }
+                },
+                'combined_reward': {
+                    'expected_reward': round(safe_reward, 3),
+                    'formula': 'V × (0.4×S + 0.5×D + 0.1×L) + E'
+                },
+                'decision': {
+                    'action': decision,
+                    'reason': reason,
+                    'timestamp': time.time()
+                }
+            }
 
     def record_training_step(
         self,
@@ -205,6 +307,40 @@ class DashboardMetrics:
         with self._data_lock:
             current_time = time.time()
 
+            # Calculate gate statistics
+            recent_gate = list(self.gate_decisions)
+            total_decisions = len(recent_gate)
+            sent_count = sum(1 for d in recent_gate if d.decision == 'SEND')
+            pass_rate = sent_count / total_decisions if total_decisions > 0 else 0.0
+
+            # Decision reasons breakdown
+            reasons = {
+                'positive_reward': 0,
+                'negative_reward': 0,
+                'insufficient_energy': 0
+            }
+            for d in recent_gate:
+                if d.reason in reasons:
+                    reasons[d.reason] += 1
+
+            # Average components
+            avg_components = {
+                'survival': 0.0,
+                'disruption': 0.0,
+                'location': 0.0,
+                'exploration': 0.0
+            }
+            if recent_gate:
+                for comp in avg_components:
+                    values = [d.components.get(comp, 0.0) for d in recent_gate]
+                    avg_components[comp] = sum(values) / len(values) if values else 0.0
+
+            # Reward history from gate decisions (filter out -inf values)
+            reward_history = [
+                d.expected_reward for d in recent_gate
+                if d.expected_reward > -999
+            ][-50:]
+
             # Training statistics
             loss_list = list(self.loss_history)
             sim_rewards = list(self.simulation_rewards)
@@ -243,6 +379,14 @@ class DashboardMetrics:
                         )
                     }
                 },
+                'gate_behavior': {
+                    'pass_rate': round(pass_rate, 3),
+                    'decision_reasons': reasons,
+                    'avg_components': {k: round(v, 3) for k, v in avg_components.items()},
+                    'reward_history': [round(r, 3) for r in reward_history],
+                    'wait_streak': self.wait_streak,
+                    'time_since_last_action': round(current_time - self.last_action_time, 1)
+                },
                 'training': {
                     'loss_history': [round(l, 4) for l in loss_list],
                     'simulation_rewards': [round(r, 3) for r in sim_rewards],
@@ -265,7 +409,8 @@ class DashboardMetrics:
                     'history': [round(e, 3) for e in list(self.entropy_history)[-100:]],
                     'health': self._get_entropy_health()
                 },
-                'game_state': self.current_game_state.copy()
+                'game_state': self.current_game_state.copy(),
+                'pipeline': self.last_pipeline
             }
 
     def _get_entropy_health(self) -> str:
@@ -302,6 +447,10 @@ class DashboardMetrics:
             self.correct_no_spawn = 0
             self.missed_opportunities = 0
 
+            self.gate_decisions.clear()
+            self.wait_streak = 0
+            self.last_action_time = time.time()
+
             self.loss_history.clear()
             self.simulation_rewards.clear()
             self.real_rewards.clear()
@@ -316,6 +465,7 @@ class DashboardMetrics:
 
             self.start_time = time.time()
             self.current_game_state = {}
+            self.last_pipeline = None
 
             logger.info("DashboardMetrics reset")
 
