@@ -71,7 +71,8 @@ export class ProgressStorage {
             return { ...DEFAULT_PROGRESS };
 
         } catch (error) {
-            console.error('Error loading progress:', error);
+            // Backend not available - this is expected when running without the server
+            console.warn('Backend not available, using default progress. Start backend with: python -m server.main');
             return { ...DEFAULT_PROGRESS };
         }
     }
@@ -110,7 +111,8 @@ export class ProgressStorage {
             return false;
 
         } catch (error) {
-            console.error('Error saving progress:', error);
+            // Backend not available - progress won't be persisted
+            console.warn('Backend not available, progress not saved');
             return false;
         }
     }
@@ -147,7 +149,8 @@ export class ProgressStorage {
             return false;
 
         } catch (error) {
-            console.error('Error resetting progress:', error);
+            // Backend not available
+            console.warn('Backend not available, progress not reset');
             return false;
         }
     }
