@@ -159,6 +159,7 @@ export class TextColorizer {
             'Korenthi Empire',
             'The Energy Lords',
             'Energy Lords',
+            'Energy Lord',
             'Korenthi'
         ];
 

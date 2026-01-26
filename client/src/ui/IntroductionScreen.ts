@@ -663,7 +663,7 @@ export class IntroductionScreen {
         }
 
         if (this.skipCheckbox && this.skipLabel) {
-            // Larger touch target for checkbox
+            // Larger touch target for skip toggle
             const skipContainer = this.skipCheckbox.parentElement;
             if (skipContainer) {
                 skipContainer.style.cssText += `
@@ -673,17 +673,10 @@ export class IntroductionScreen {
                 `;
             }
 
-            // Enhanced checkbox size for touch
-            this.skipCheckbox.style.cssText += `
-                width: 20px;
-                height: 20px;
-                touch-action: manipulation;
-            `;
-
             // Larger label touch target
             this.skipLabel.style.cssText += `
                 font-size: 14px;
-                padding: 4px;
+                padding: 8px 12px;
                 touch-action: manipulation;
             `;
         }
@@ -950,18 +943,16 @@ export class IntroductionScreen {
             transition: all 0.3s ease;
         `;
 
-        // Custom styled checkbox with enhanced responsiveness (Requirements 6.3, 6.4)
+        // Hidden checkbox for state management (Requirements 6.3, 6.4)
         this.skipCheckbox = document.createElement('input') as HTMLInputElement;
         this.skipCheckbox.type = 'checkbox';
         this.skipCheckbox.id = 'skip-introduction-checkbox';
         this.skipCheckbox.style.cssText = `
-            width: 18px;
-            height: 18px;
-            accent-color: #00ffff;
-            cursor: pointer;
-            border: 2px solid #00ffff;
-            border-radius: 3px;
-            transition: all 0.15s ease;
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+            pointer-events: none;
         `;
 
         this.skipLabel = document.createElement('label') as HTMLLabelElement;
@@ -975,6 +966,7 @@ export class IntroductionScreen {
             letter-spacing: 0.5px;
             text-transform: uppercase;
             transition: all 0.15s ease;
+            padding: 4px 8px;
         `;
         this.skipLabel.textContent = "Don't show again";
 
@@ -1152,44 +1144,20 @@ export class IntroductionScreen {
         // Clear content
         this.contentElement.textContent = '';
 
-        // Set typewriter state to active (Requirement 6.1)
-        this.state.isTypewriterActive = true;
+        // TEMPORARILY DISABLED: Typewriter effect - display text immediately instead
+        this.state.isTypewriterActive = false;
+
+        // Apply text coloring to content (Requirements: 8.9, 8.10)
+        const colorizedContent = this.textColorizer.colorizeText(currentPage.content);
+
+        // Display content immediately (typewriter disabled for testing)
+        this.contentElement.innerHTML = colorizedContent;
 
         // Update button state for new page
         this.updateButtonState();
 
         // Load 3D model for current page (Requirements: 9.8)
         this.loadModelForCurrentPage();
-
-        // Initialize typewriter effect if not already created
-        if (!this.typewriterEffect) {
-            this.typewriterEffect = new TypewriterEffect(this.contentElement, {
-                speed: 60, // 60 characters per second for faster reading pace
-                onComplete: () => {
-                    // Enable next button when typewriter completes (Requirement 6.2)
-                    this.state.isTypewriterActive = false;
-                    this.updateButtonState();
-                    
-                    console.log(`Typewriter animation completed for page ${this.currentPageIndex + 1}`);
-                }
-            });
-        } else {
-            // Update the completion callback for existing typewriter
-            this.typewriterEffect.updateConfig({
-                onComplete: () => {
-                    this.state.isTypewriterActive = false;
-                    this.updateButtonState();
-                    
-                    console.log(`Typewriter animation completed for page ${this.currentPageIndex + 1}`);
-                }
-            });
-        }
-
-        // Apply text coloring to content before typewriter animation (Requirements: 8.9, 8.10)
-        const colorizedContent = this.textColorizer.colorizeText(currentPage.content);
-
-        // Start typewriter animation for current page content with coloring
-        this.typewriterEffect.typeText(colorizedContent);
 
         console.log(`Displaying page ${this.currentPageIndex + 1}: "${currentPage.title}"`);
     }
