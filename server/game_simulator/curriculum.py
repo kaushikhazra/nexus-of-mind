@@ -198,7 +198,7 @@ class CurriculumManager:
                 f"ticks_in_phase={self.ticks_in_phase})")
 
 
-def _create_warmup_phase(duration: int = 50) -> CurriculumPhase:
+def _create_warmup_phase(duration: int = 500) -> CurriculumPhase:
     """
     Create a warmup phase with 0 workers and 0 protectors.
 
@@ -206,7 +206,7 @@ def _create_warmup_phase(duration: int = 50) -> CurriculumPhase:
     The preprocess gate will skip NN inference during this phase.
 
     Args:
-        duration: Duration in ticks (default 50 = ~5 seconds in turbo)
+        duration: Duration in ticks (default 500 = several seconds even in turbo mode)
 
     Returns:
         Warmup curriculum phase
@@ -248,7 +248,7 @@ def create_default_curriculum() -> List[CurriculumPhase]:
     """
     return [
         # Phase 0: Warmup - No units, preprocess gate will skip
-        _create_warmup_phase(50),
+        _create_warmup_phase(),
         # Phase 1: Beginner - Easy for NN to learn basics
         CurriculumPhase(
             name="beginner",
@@ -332,7 +332,7 @@ def create_easy_curriculum() -> List[CurriculumPhase]:
     Good for letting the NN learn basic patterns without too much pressure.
     """
     return [
-        _create_warmup_phase(50),
+        _create_warmup_phase(),
         CurriculumPhase(
             name="easy-1",
             duration=5000,
@@ -377,7 +377,7 @@ def create_hard_curriculum() -> List[CurriculumPhase]:
     Forces the NN to learn precise timing and placement.
     """
     return [
-        _create_warmup_phase(50),
+        _create_warmup_phase(),
         CurriculumPhase(
             name="hard-1",
             duration=1500,
@@ -422,7 +422,7 @@ def create_quick_curriculum() -> List[CurriculumPhase]:
     Useful for testing phase transitions and debugging.
     """
     return [
-        _create_warmup_phase(30),  # Shorter warmup for quick testing
+        _create_warmup_phase(200),  # Shorter warmup for quick testing
         CurriculumPhase(
             name="quick-beginner",
             duration=500,
@@ -467,7 +467,7 @@ def create_beginner_only_curriculum() -> List[CurriculumPhase]:
     Useful for initial NN training with no protectors.
     """
     return [
-        _create_warmup_phase(50),
+        _create_warmup_phase(),
         CurriculumPhase(
             name="beginner",
             duration=-1,
@@ -490,7 +490,7 @@ def create_master_only_curriculum() -> List[CurriculumPhase]:
     Useful for testing trained NN performance.
     """
     return [
-        _create_warmup_phase(50),
+        _create_warmup_phase(),
         CurriculumPhase(
             name="master",
             duration=-1,
