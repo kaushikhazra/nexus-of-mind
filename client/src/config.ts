@@ -13,13 +13,13 @@ const isLocalhost = typeof window !== 'undefined' &&
 export const BACKEND_CONFIG = {
     // WebSocket URL for real-time communication with AI backend
     WEBSOCKET_URL: isLocalhost
-        ? 'ws://localhost:8000/ws'
-        : `wss://${typeof window !== 'undefined' ? window.location.host : 'localhost:8000'}/ws`,
+        ? 'ws://localhost:8010/ws'
+        : `wss://${typeof window !== 'undefined' ? window.location.host : 'localhost:8010'}/ws`,
 
     // HTTP URL for REST API calls
     HTTP_URL: isLocalhost
-        ? 'http://localhost:8000'
-        : `https://${typeof window !== 'undefined' ? window.location.host : 'localhost:8000'}`,
+        ? 'http://localhost:8010'
+        : `https://${typeof window !== 'undefined' ? window.location.host : 'localhost:8010'}`,
 
     // Health check endpoint
     HEALTH_ENDPOINT: '/health'
