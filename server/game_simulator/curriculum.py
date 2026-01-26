@@ -198,11 +198,37 @@ class CurriculumManager:
                 f"ticks_in_phase={self.ticks_in_phase})")
 
 
+def _create_warmup_phase(duration: int = 50) -> CurriculumPhase:
+    """
+    Create a warmup phase with 0 workers and 0 protectors.
+
+    This simulates the game starting empty before units spawn.
+    The preprocess gate will skip NN inference during this phase.
+
+    Args:
+        duration: Duration in ticks (default 50 = ~5 seconds in turbo)
+
+    Returns:
+        Warmup curriculum phase
+    """
+    return CurriculumPhase(
+        name="warmup",
+        duration=duration,
+        num_workers=0,
+        num_protectors=0,
+        protector_speed=1.0,
+        detection_radius=3,
+        kill_radius=1,
+        flee_radius=5,
+        flee_duration=8,
+    )
+
+
 def create_default_curriculum() -> List[CurriculumPhase]:
     """
     Create a comprehensive curriculum with progressive behavioral challenge.
 
-    Phases represent different player skill levels with varying behavioral parameters:
+    Starts with a warmup phase (0 workers, 0 protectors), then progresses through:
     - Beginner: Easy - slow protectors, small detection, scared workers
     - Novice: Learning - slightly faster, workers less scared
     - Intermediate: Balanced - moderate challenge across all parameters
@@ -221,6 +247,8 @@ def create_default_curriculum() -> List[CurriculumPhase]:
         List of curriculum phases
     """
     return [
+        # Phase 0: Warmup - No units, preprocess gate will skip
+        _create_warmup_phase(50),
         # Phase 1: Beginner - Easy for NN to learn basics
         CurriculumPhase(
             name="beginner",
@@ -300,10 +328,11 @@ def create_easy_curriculum() -> List[CurriculumPhase]:
     """
     Create an easy curriculum for initial NN training.
 
-    Slower protectors, more scared workers, longer phase durations.
+    Starts with warmup, then slower protectors, more scared workers, longer phase durations.
     Good for letting the NN learn basic patterns without too much pressure.
     """
     return [
+        _create_warmup_phase(50),
         CurriculumPhase(
             name="easy-1",
             duration=5000,
@@ -344,10 +373,11 @@ def create_hard_curriculum() -> List[CurriculumPhase]:
     """
     Create a hard curriculum for advanced NN training.
 
-    Faster protectors, braver workers, shorter phase durations.
+    Starts with warmup, then faster protectors, braver workers, shorter phase durations.
     Forces the NN to learn precise timing and placement.
     """
     return [
+        _create_warmup_phase(50),
         CurriculumPhase(
             name="hard-1",
             duration=1500,
@@ -388,10 +418,11 @@ def create_quick_curriculum() -> List[CurriculumPhase]:
     """
     Create a quick curriculum for fast testing.
 
-    Short phase durations (500 ticks each) to quickly cycle through phases.
+    Starts with warmup, then short phase durations (500 ticks each) to quickly cycle through phases.
     Useful for testing phase transitions and debugging.
     """
     return [
+        _create_warmup_phase(30),  # Shorter warmup for quick testing
         CurriculumPhase(
             name="quick-beginner",
             duration=500,
@@ -430,11 +461,13 @@ def create_quick_curriculum() -> List[CurriculumPhase]:
 
 def create_beginner_only_curriculum() -> List[CurriculumPhase]:
     """
-    Create a single-phase beginner curriculum (runs indefinitely).
+    Create a beginner curriculum with warmup then beginner phase (runs indefinitely).
 
+    Starts with warmup (0 workers, 0 protectors), then transitions to beginner.
     Useful for initial NN training with no protectors.
     """
     return [
+        _create_warmup_phase(50),
         CurriculumPhase(
             name="beginner",
             duration=-1,
@@ -451,11 +484,13 @@ def create_beginner_only_curriculum() -> List[CurriculumPhase]:
 
 def create_master_only_curriculum() -> List[CurriculumPhase]:
     """
-    Create a single-phase master curriculum (runs indefinitely).
+    Create a master curriculum with warmup then master phase (runs indefinitely).
 
-    Maximum challenge - useful for testing trained NN performance.
+    Starts with warmup (0 workers, 0 protectors), then transitions to maximum challenge.
+    Useful for testing trained NN performance.
     """
     return [
+        _create_warmup_phase(50),
         CurriculumPhase(
             name="master",
             duration=-1,
