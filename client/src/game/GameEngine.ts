@@ -31,6 +31,7 @@ import { LiberationManager } from './LiberationManager';
 import { QueenGrowthUI } from '../ui/QueenGrowthUI';
 import { TerritoryVisualUI } from '../ui/TerritoryVisualUI';
 import { AdaptiveQueenIntegration, createAdaptiveQueenIntegration } from './AdaptiveQueenIntegration';
+import { getWebSocketUrl, getHealthUrl } from '../config';
 import { SpatialIndex } from './SpatialIndex';
 import { AdvancedDynamicTexture } from '@babylonjs/gui';
 import { EnergyLordsManager, EnergyLordsEvent } from './systems/EnergyLordsManager';
@@ -625,7 +626,7 @@ export class GameEngine {
                 territoryManager: this.territoryManager,
                 gameState: this.gameState,
                 guiTexture: this.guiTexture,
-                websocketUrl: 'ws://localhost:8000/ws',
+                websocketUrl: getWebSocketUrl(),
                 enableLearning: enableLearning
             });
 
@@ -650,7 +651,7 @@ export class GameEngine {
      */
     private async checkAIBackendAvailability(): Promise<boolean> {
         try {
-            const response = await fetch('http://localhost:8000/health', {
+            const response = await fetch(getHealthUrl(), {
                 method: 'GET',
                 timeout: 5000
             } as any);

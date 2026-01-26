@@ -13,6 +13,7 @@ import { GameState } from './GameState';
 import { GameEngine } from './GameEngine';
 import { ObservationCollector } from './systems/ObservationCollector';
 import { ObservationData, SpawnDecision } from './types/ObservationTypes';
+import { getWebSocketUrl } from '../config';
 
 export interface AdaptiveQueenIntegrationConfig {
     gameEngine: GameEngine;
@@ -43,8 +44,8 @@ export class AdaptiveQueenIntegration {
     private currentTerritoryId: string = '';
     private useChunkObservations: boolean = true; // Feature flag for chunk-based system
 
-    // Default WebSocket URL for AI backend
-    private readonly DEFAULT_WEBSOCKET_URL = 'ws://localhost:8000/ws';
+    // Default WebSocket URL for AI backend (from config)
+    private readonly DEFAULT_WEBSOCKET_URL = getWebSocketUrl();
 
     constructor(config: AdaptiveQueenIntegrationConfig) {
         this.gameEngine = config.gameEngine;
@@ -510,7 +511,7 @@ export async function createAdaptiveQueenIntegration(config: AdaptiveQueenIntegr
  */
 export async function checkAIBackendAvailability(websocketUrl?: string): Promise<boolean> {
     const testClient = new WebSocketClient({
-        url: websocketUrl || 'ws://localhost:8000/ws',
+        url: websocketUrl || getWebSocketUrl(),
         clientId: 'test_client',
         maxReconnectAttempts: 1
     });

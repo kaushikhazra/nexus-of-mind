@@ -13,6 +13,7 @@ import { GameState } from '../GameState';
 import { TerritoryManager } from '../TerritoryManager';
 import { AdaptiveQueenIntegration, createAdaptiveQueenIntegration, checkAIBackendAvailability } from '../AdaptiveQueenIntegration';
 import { AdaptiveQueen } from '../entities/AdaptiveQueen';
+import { getWebSocketUrl } from '../../config';
 
 /**
  * Example class showing AdaptiveQueen integration
@@ -47,7 +48,7 @@ export class AdaptiveQueenExample {
     public async initializeWithAI(): Promise<void> {
         try {
             // Check if AI backend is available
-            const backendAvailable = await checkAIBackendAvailability('ws://localhost:8000/ws');
+            const backendAvailable = await checkAIBackendAvailability(getWebSocketUrl());
             
             if (!backendAvailable) {
                 console.warn('🧠 AI backend not available, falling back to standard Queens');
@@ -64,7 +65,7 @@ export class AdaptiveQueenExample {
                 territoryManager: this.territoryManager,
                 gameState: this.gameState,
                 guiTexture: this.guiTexture,
-                websocketUrl: 'ws://localhost:8000/ws',
+                websocketUrl: getWebSocketUrl(),
                 enableLearning: true
             });
             

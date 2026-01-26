@@ -6,6 +6,7 @@
  */
 
 import { SavedProgress } from '../types/EnergyLordsTypes';
+import { getBackendUrl } from '../../config';
 
 /**
  * API response structure
@@ -33,7 +34,7 @@ export class ProgressStorage {
     private baseUrl: string;
     private playerId: string;
 
-    constructor(baseUrl: string = 'http://localhost:8000', playerId: string = 'default') {
+    constructor(baseUrl: string = getBackendUrl(), playerId: string = 'default') {
         this.baseUrl = baseUrl;
         this.playerId = playerId;
     }

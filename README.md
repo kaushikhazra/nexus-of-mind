@@ -89,6 +89,13 @@ npm run serve
 - 🔄 **AI Opponent**: Self-learning AI with strategic adaptation
 - 🔄 **Combat System**: Energy-based weapons and shield mechanics
 
+### Developer Notes
+> **Reset Introduction Screen**: If you clicked "Don't show again" and want to see the introduction again, open browser console (F12) and run:
+> ```javascript
+> localStorage.removeItem('skipIntroduction');
+> ```
+> Then refresh the page.
+
 ## 🏗️ Technical Architecture
 
 ### Frontend (Game Client)

@@ -8,6 +8,7 @@
 import { EnergyManager } from '../EnergyManager';
 import { ThresholdMonitor } from './ThresholdMonitor';
 import { ProgressStorage } from './ProgressStorage';
+import { getBackendUrl } from '../../config';
 import {
     SavedProgress,
     ProgressState,
@@ -60,7 +61,7 @@ export class EnergyLordsManager {
 
     constructor(
         energyManager: EnergyManager,
-        backendUrl: string = 'http://localhost:8000',
+        backendUrl: string = getBackendUrl(),
         playerId: string = 'default'
     ) {
         this.energyManager = energyManager;
