@@ -35,8 +35,8 @@ class Application {
      */
     public async init(): Promise<void> {
         try {
-            // Initialize preference manager
-            this.preferenceManager = new PreferenceManager({ storageKey: 'nexus-of-mind-preferences' });
+            // Initialize preference manager (must match IntroductionScreen's key)
+            this.preferenceManager = new PreferenceManager({ storageKey: 'skipIntroduction' });
 
             // Check if introduction should be shown
             const shouldShowIntroduction = !this.preferenceManager.getSkipIntroduction();

@@ -1091,38 +1091,39 @@ export class IntroductionScreen {
     }
 
     /**
-     * Handle skip checkbox change with enhanced state management
+     * Handle skip checkbox change - immediately skips to game
      * Requirements: 3.1, 3.2, 6.3, 6.4
      */
     private handleSkipCheckboxChange(): void {
         if (!this.skipCheckbox) return;
 
-        // Update state immediately (Requirement 6.2)
-        this.state.skipIntroduction = this.skipCheckbox.checked;
-        
-        // Save preference to storage (Requirements: 3.2, 3.3)
+        // Only act when checked (skip button pressed)
+        if (!this.skipCheckbox.checked) {
+            // If unchecked, just update visual state
+            if (this.skipLabel) {
+                this.skipLabel.style.color = 'rgba(0, 255, 255, 0.9)';
+                this.skipLabel.style.textShadow = 'none';
+            }
+            return;
+        }
+
+        // Update state
+        this.state.skipIntroduction = true;
+
+        // Save preference to storage so next refresh skips intro entirely
         try {
-            const success = this.preferenceManager.setSkipIntroduction(this.skipCheckbox.checked);
+            const success = this.preferenceManager.setSkipIntroduction(true);
             if (!success) {
                 console.warn('Failed to save skip introduction preference');
             }
         } catch (error) {
             console.error('Error saving skip introduction preference:', error);
         }
-        
-        // Provide visual feedback
-        if (this.skipLabel) {
-            if (this.skipCheckbox.checked) {
-                this.skipLabel.style.color = '#00ff88'; // Green when checked
-                this.skipLabel.style.textShadow = '0 0 5px rgba(0, 255, 136, 0.5)';
-            } else {
-                this.skipLabel.style.color = 'rgba(0, 255, 255, 0.9)'; // Default cyan
-                this.skipLabel.style.textShadow = 'none';
-            }
-        }
 
-        // Log state change for debugging
-        console.log('Skip introduction preference changed:', this.state.skipIntroduction);
+        console.log('Skip introduction - going directly to game');
+
+        // Immediately skip the rest of the story and go to game
+        this.handleComplete();
     }
 
     /**
