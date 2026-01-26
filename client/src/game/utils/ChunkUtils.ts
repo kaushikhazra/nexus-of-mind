@@ -19,6 +19,7 @@ export const CHUNK_SIZE = 64;           // World units per chunk
 export const CHUNKS_PER_AXIS = 16;      // 16x16 grid
 export const TOTAL_CHUNKS = 256;        // 16 × 16
 export const TERRITORY_SIZE = 1024;     // 16 × 64
+export const CENTER_CHUNK_ID = 136;     // Grid (8,8) = world (0,0)
 
 /**
  * Convert chunk ID to chunk grid coordinates

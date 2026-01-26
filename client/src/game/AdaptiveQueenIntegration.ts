@@ -162,11 +162,13 @@ export class AdaptiveQueenIntegration {
      */
     private setupObservationCallbacks(): void {
         this.observationCollector.onObservationReady((data: ObservationData) => {
-            console.log('🧠 Observation ready, sending to backend...', {
-                workers: data.miningWorkers?.length || 0,
-                protectors: data.protectors?.length || 0,
-                parasitesEnd: data.parasitesEnd?.length || 0
-            });
+            console.log('🧠 Observation ready, sending to backend...');
+            console.log('  Workers mining:', data.miningWorkers?.map(w => `chunk ${w.chunkId}`).join(', ') || 'none');
+            console.log('  Workers present:', data.workersPresent?.map(w => `chunk ${w.chunkId}`).join(', ') || 'none');
+            console.log('  Protectors:', data.protectors?.map(p => `chunk ${p.chunkId}`).join(', ') || 'none');
+            console.log('  Parasites:', data.parasitesEnd?.map(p => `chunk ${p.chunkId} (${p.type})`).join(', ') || 'none');
+            console.log('  Queen energy:', data.queenEnergy?.current, '/', data.queenEnergy?.max);
+            console.log('  Hive chunk:', data.hiveChunk);
             this.sendObservationToBackend(data);
         });
     }

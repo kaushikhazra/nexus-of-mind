@@ -16,6 +16,9 @@ import { IntroductionScreen } from './ui/IntroductionScreen';
 import { PreferenceManager } from './ui/PreferenceManager';
 import { Vector3 } from '@babylonjs/core';
 
+// Debug utilities (exposes chunkDebug to console)
+import './game/utils/ChunkDebugVisualizer';
+
 /**
  * Application initialization and startup
  */
