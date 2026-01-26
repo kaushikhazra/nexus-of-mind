@@ -470,6 +470,27 @@ def create_master_only_curriculum() -> List[CurriculumPhase]:
     ]
 
 
+def create_empty_curriculum() -> List[CurriculumPhase]:
+    """
+    Create a single-phase curriculum with NO workers and NO protectors.
+
+    Used to test preprocess gate - NN should NOT run when there's no activity.
+    """
+    return [
+        CurriculumPhase(
+            name="empty",
+            duration=-1,
+            num_workers=0,
+            num_protectors=0,
+            protector_speed=1.0,
+            detection_radius=3,
+            kill_radius=1,
+            flee_radius=5,
+            flee_duration=8,
+        ),
+    ]
+
+
 # Available curriculum presets
 CURRICULUM_PRESETS = {
     'default': create_default_curriculum,
@@ -478,6 +499,7 @@ CURRICULUM_PRESETS = {
     'quick': create_quick_curriculum,
     'beginner-only': create_beginner_only_curriculum,
     'master-only': create_master_only_curriculum,
+    'empty': create_empty_curriculum,
 }
 
 
