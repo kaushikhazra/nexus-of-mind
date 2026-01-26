@@ -6,6 +6,7 @@ the complexity of the simulation to help the NN learn incrementally.
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import List, Optional
 import logging
 
@@ -16,9 +17,12 @@ logger = logging.getLogger(__name__)
 class CurriculumPhase:
     """Configuration for a curriculum learning phase with behavioral parameters."""
     name: str
-    duration: int  # Ticks (-1 for infinite)
+    duration: int  # Ticks (-1 for infinite, ignored if duration_seconds is set)
     num_workers: int
     num_protectors: int
+
+    # Time-based duration (takes precedence over tick-based if set)
+    duration_seconds: Optional[float] = None  # Real wall-clock seconds
 
     # Behavioral parameters (None = use base config default)
     protector_speed: Optional[float] = None
@@ -30,8 +34,13 @@ class CurriculumPhase:
 
     def __post_init__(self):
         """Validate phase configuration."""
-        if self.duration < -1 or self.duration == 0:
-            raise ValueError(f"Invalid duration {self.duration}. Must be positive or -1 for infinite.")
+        # Only validate tick duration if time-based duration is not set
+        if self.duration_seconds is None:
+            if self.duration < -1 or self.duration == 0:
+                raise ValueError(f"Invalid duration {self.duration}. Must be positive or -1 for infinite.")
+        else:
+            if self.duration_seconds <= 0:
+                raise ValueError(f"duration_seconds must be positive, got {self.duration_seconds}")
         if self.num_workers < 0:
             raise ValueError(f"Invalid num_workers {self.num_workers}. Must be non-negative.")
         if self.num_protectors < 0:
@@ -54,24 +63,25 @@ class CurriculumPhase:
 
 class CurriculumManager:
     """Manages curriculum learning progression through phases."""
-    
+
     def __init__(self, phases: List[CurriculumPhase]):
         """
         Initialize curriculum manager with phases.
-        
+
         Args:
             phases: List of curriculum phases in order
-            
+
         Raises:
             ValueError: If phases list is empty
         """
         if not phases:
             raise ValueError("Phases list cannot be empty")
-            
+
         self.phases = phases
         self.current_phase_index = 0
         self.ticks_in_phase = 0
-        
+        self.phase_start_time: datetime = datetime.now()  # Track phase start time
+
         logger.info(f"Initialized curriculum with {len(phases)} phases")
         logger.info(f"Starting phase: {self.get_current_phase().name}")
     
@@ -82,66 +92,94 @@ class CurriculumManager:
     def get_phase_progress(self) -> dict:
         """
         Get progress information for the current phase.
-        
+
         Returns:
             Dictionary with phase progress information
         """
         current = self.get_current_phase()
+        elapsed_seconds = (datetime.now() - self.phase_start_time).total_seconds()
+
+        # Calculate progress ratio based on duration type
+        if current.duration_seconds is not None:
+            progress_ratio = elapsed_seconds / current.duration_seconds
+        elif current.duration > 0:
+            progress_ratio = self.ticks_in_phase / current.duration
+        else:
+            progress_ratio = None
+
         return {
             "phase_index": self.current_phase_index,
             "phase_name": current.name,
             "ticks_in_phase": self.ticks_in_phase,
+            "elapsed_seconds": elapsed_seconds,
             "phase_duration": current.duration,
-            "progress_ratio": (
-                self.ticks_in_phase / current.duration 
-                if current.duration > 0 
-                else None
-            ),
+            "phase_duration_seconds": current.duration_seconds,
+            "progress_ratio": progress_ratio,
             "is_final_phase": self.current_phase_index == len(self.phases) - 1
         }
     
     def tick(self) -> Optional[CurriculumPhase]:
         """
         Advance tick counter and check for phase transitions.
-        
+
+        Supports both tick-based and time-based duration:
+        - If duration_seconds is set, uses wall-clock time
+        - Otherwise, uses tick count
+
         Returns:
             New phase if transition occurred, None otherwise
         """
         self.ticks_in_phase += 1
         current = self.get_current_phase()
-        
-        # Check if we should transition to next phase
-        if current.duration > 0 and self.ticks_in_phase >= current.duration:
-            # Only transition if not in final phase
-            if self.current_phase_index < len(self.phases) - 1:
-                old_phase = current.name
-                self.current_phase_index += 1
-                self.ticks_in_phase = 0
-                new_phase = self.get_current_phase()
-                
-                logger.info(f"Phase transition: {old_phase} -> {new_phase.name}")
-                logger.info(f"New phase config: workers={new_phase.num_workers}, "
-                           f"protectors={new_phase.num_protectors}, "
-                           f"duration={new_phase.duration}")
-                # Log behavioral parameters if set
-                behavioral_params = []
-                if new_phase.protector_speed is not None:
-                    behavioral_params.append(f"protector_speed={new_phase.protector_speed}")
-                if new_phase.detection_radius is not None:
-                    behavioral_params.append(f"detection_radius={new_phase.detection_radius}")
-                if new_phase.kill_radius is not None:
-                    behavioral_params.append(f"kill_radius={new_phase.kill_radius}")
-                if new_phase.flee_radius is not None:
-                    behavioral_params.append(f"flee_radius={new_phase.flee_radius}")
-                if new_phase.flee_duration is not None:
-                    behavioral_params.append(f"flee_duration={new_phase.flee_duration}")
-                if new_phase.worker_speed is not None:
-                    behavioral_params.append(f"worker_speed={new_phase.worker_speed}")
-                if behavioral_params:
-                    logger.info(f"Behavioral params: {', '.join(behavioral_params)}")
-                
-                return new_phase
-        
+
+        # Determine if we should transition
+        should_transition = False
+
+        if current.duration_seconds is not None:
+            # Time-based duration: check elapsed wall-clock time
+            elapsed = (datetime.now() - self.phase_start_time).total_seconds()
+            if elapsed >= current.duration_seconds:
+                should_transition = True
+        elif current.duration > 0:
+            # Tick-based duration
+            if self.ticks_in_phase >= current.duration:
+                should_transition = True
+
+        # Perform transition if needed
+        if should_transition and self.current_phase_index < len(self.phases) - 1:
+            old_phase = current.name
+            elapsed_time = (datetime.now() - self.phase_start_time).total_seconds()
+
+            self.current_phase_index += 1
+            self.ticks_in_phase = 0
+            self.phase_start_time = datetime.now()  # Reset timer for new phase
+            new_phase = self.get_current_phase()
+
+            logger.info(f"Phase transition: {old_phase} -> {new_phase.name} "
+                       f"(after {elapsed_time:.2f}s, {self.ticks_in_phase} ticks)")
+            logger.info(f"New phase config: workers={new_phase.num_workers}, "
+                       f"protectors={new_phase.num_protectors}, "
+                       f"duration={new_phase.duration}"
+                       f"{f', duration_seconds={new_phase.duration_seconds}' if new_phase.duration_seconds else ''}")
+            # Log behavioral parameters if set
+            behavioral_params = []
+            if new_phase.protector_speed is not None:
+                behavioral_params.append(f"protector_speed={new_phase.protector_speed}")
+            if new_phase.detection_radius is not None:
+                behavioral_params.append(f"detection_radius={new_phase.detection_radius}")
+            if new_phase.kill_radius is not None:
+                behavioral_params.append(f"kill_radius={new_phase.kill_radius}")
+            if new_phase.flee_radius is not None:
+                behavioral_params.append(f"flee_radius={new_phase.flee_radius}")
+            if new_phase.flee_duration is not None:
+                behavioral_params.append(f"flee_duration={new_phase.flee_duration}")
+            if new_phase.worker_speed is not None:
+                behavioral_params.append(f"worker_speed={new_phase.worker_speed}")
+            if behavioral_params:
+                logger.info(f"Behavioral params: {', '.join(behavioral_params)}")
+
+            return new_phase
+
         return None
     
     def reset(self) -> None:
@@ -149,7 +187,8 @@ class CurriculumManager:
         old_phase = self.get_current_phase().name if self.phases else "None"
         self.current_phase_index = 0
         self.ticks_in_phase = 0
-        
+        self.phase_start_time = datetime.now()
+
         if self.phases:
             new_phase = self.get_current_phase().name
             logger.info(f"Curriculum reset: {old_phase} -> {new_phase}")
@@ -159,26 +198,27 @@ class CurriculumManager:
     def skip_to_phase(self, phase_index: int) -> CurriculumPhase:
         """
         Skip to a specific phase by index.
-        
+
         Args:
             phase_index: Index of phase to skip to
-            
+
         Returns:
             The new current phase
-            
+
         Raises:
             IndexError: If phase_index is out of range
         """
         if phase_index < 0 or phase_index >= len(self.phases):
             raise IndexError(f"Phase index {phase_index} out of range [0, {len(self.phases)-1}]")
-        
+
         old_phase = self.get_current_phase().name
         self.current_phase_index = phase_index
         self.ticks_in_phase = 0
+        self.phase_start_time = datetime.now()
         new_phase = self.get_current_phase()
-        
+
         logger.info(f"Skipped to phase {phase_index}: {old_phase} -> {new_phase.name}")
-        
+
         return new_phase
     
     def get_all_phases(self) -> List[CurriculumPhase]:
@@ -198,24 +238,27 @@ class CurriculumManager:
                 f"ticks_in_phase={self.ticks_in_phase})")
 
 
-def _create_warmup_phase(duration: int = 500) -> CurriculumPhase:
+def _create_warmup_phase(duration_seconds: float = 5.0) -> CurriculumPhase:
     """
     Create a warmup phase with 0 workers and 0 protectors.
 
     This simulates the game starting empty before units spawn.
     The preprocess gate will skip NN inference during this phase.
 
+    Uses time-based duration for hardware-independent timing.
+
     Args:
-        duration: Duration in ticks (default 500 = several seconds even in turbo mode)
+        duration_seconds: Duration in real wall-clock seconds (default 5.0)
 
     Returns:
         Warmup curriculum phase
     """
     return CurriculumPhase(
         name="warmup",
-        duration=duration,
+        duration=1,  # Ignored when duration_seconds is set
         num_workers=0,
         num_protectors=0,
+        duration_seconds=duration_seconds,
         protector_speed=1.0,
         detection_radius=3,
         kill_radius=1,
@@ -422,7 +465,7 @@ def create_quick_curriculum() -> List[CurriculumPhase]:
     Useful for testing phase transitions and debugging.
     """
     return [
-        _create_warmup_phase(200),  # Shorter warmup for quick testing
+        _create_warmup_phase(2.0),  # Shorter warmup (2 seconds) for quick testing
         CurriculumPhase(
             name="quick-beginner",
             duration=500,
