@@ -288,7 +288,7 @@ export class StoryContentParser {
             },
             {
                 title: "The Challenge",
-                content: "Undeterred by this obstacle, their greatest minds have developed an ingenious solution: a remote orbital mining system. Using quantum tunneling technology - made possible by their Artificial Consciousness - they can operate sophisticated mining equipment from the safety of their home worlds.",
+                content: "Undeterred by this obstacle, their greatest minds have developed an ingenious solution: a remote mining system. Using quantum tunneling technology - made possible by their Artificial Consciousness - they can operate sophisticated mining equipment from the safety of their home worlds.",
                 isLastPage: false,
                 pageNumber: 6,
                 metadata: this.DEFAULT_METADATA

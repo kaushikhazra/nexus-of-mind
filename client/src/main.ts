@@ -94,7 +94,7 @@ class Application {
             }
 
             // Update loading progress
-            this.updateLoadingProgress(25, 'Initializing Quantum Engine...');
+            this.updateLoadingProgress(25, 'Initializing Quantum Tunnel...');
 
             // Initialize game engine
             this.gameEngine = new GameEngine(this.canvas);

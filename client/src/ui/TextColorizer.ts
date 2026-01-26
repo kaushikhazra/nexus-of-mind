@@ -178,7 +178,7 @@ export class TextColorizer {
             'quantum tunneling',
             'consciousness interfaces',
             'quantum-linked consciousness interfaces',
-            'remote orbital mining system'
+            'remote mining system'
         ];
 
         technologyTerms.forEach(term => {
