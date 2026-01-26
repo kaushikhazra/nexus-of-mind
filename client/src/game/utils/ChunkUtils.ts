@@ -211,3 +211,97 @@ export function normalizeChunkId(chunkId: number): number {
 
     return chunkId / (TOTAL_CHUNKS - 1); // 0-255 → 0-1
 }
+
+// ==================== Territory-Aware Chunk Conversion ====================
+// These methods handle the coordinate transformation between:
+// - World space: Centered around territory center (can be negative)
+// - Chunk space: [0, 1024] range divided into 16x16 chunks of 64 units each
+
+/**
+ * Convert world coordinates to chunk ID (for outgoing observations)
+ *
+ * Formula: worldPosition → chunkSpace → chunkId
+ *   chunkSpace = worldPosition - territoryCenter + 512
+ *   chunkId = floor(chunkSpace / 64)
+ *
+ * @param worldX World X coordinate
+ * @param worldZ World Z coordinate
+ * @param territoryCenter Territory center position {x, z}
+ * @returns Chunk ID (0-255) or -1 if out of bounds
+ */
+export function coordinateToChunk(
+    worldX: number,
+    worldZ: number,
+    territoryCenter: { x: number; z: number }
+): number {
+    // Convert world space to chunk space [0, 1024]
+    const chunkSpaceX = worldX - territoryCenter.x + (TERRITORY_SIZE / 2);
+    const chunkSpaceZ = worldZ - territoryCenter.z + (TERRITORY_SIZE / 2);
+
+    // Convert chunk space to grid position
+    const chunkX = Math.floor(chunkSpaceX / CHUNK_SIZE);
+    const chunkZ = Math.floor(chunkSpaceZ / CHUNK_SIZE);
+
+    // Bounds check
+    if (chunkX < 0 || chunkX >= CHUNKS_PER_AXIS ||
+        chunkZ < 0 || chunkZ >= CHUNKS_PER_AXIS) {
+        return -1;
+    }
+
+    // Convert grid to chunk ID
+    return chunkZ * CHUNKS_PER_AXIS + chunkX;
+}
+
+/**
+ * Convert chunk ID to world coordinates (for incoming spawn decisions)
+ *
+ * Formula: chunkId → chunkSpace → worldPosition
+ *   chunkSpace = (chunkGrid * 64) + 32  (center of chunk)
+ *   worldPosition = chunkSpace - 512 + territoryCenter
+ *
+ * @param chunkId Chunk ID (0-255)
+ * @param territoryCenter Territory center position {x, z}
+ * @param randomize If true, returns random position within chunk; if false, returns center
+ * @param padding Padding from chunk edges when randomizing (default: 5)
+ * @returns World position as Vector3, or null if invalid chunk ID
+ */
+export function chunkToCoordinate(
+    chunkId: number,
+    territoryCenter: { x: number; z: number },
+    randomize: boolean = true,
+    padding: number = 5
+): Vector3 | null {
+    // Validate chunk ID
+    if (chunkId < 0 || chunkId >= TOTAL_CHUNKS) {
+        return null;
+    }
+
+    // Convert chunk ID to grid position
+    const chunkX = chunkId % CHUNKS_PER_AXIS;
+    const chunkZ = Math.floor(chunkId / CHUNKS_PER_AXIS);
+
+    // Calculate position in chunk space [0, 1024]
+    let chunkSpaceX: number;
+    let chunkSpaceZ: number;
+
+    if (randomize) {
+        // Random position within chunk (with padding)
+        const minX = chunkX * CHUNK_SIZE + padding;
+        const maxX = (chunkX + 1) * CHUNK_SIZE - padding;
+        const minZ = chunkZ * CHUNK_SIZE + padding;
+        const maxZ = (chunkZ + 1) * CHUNK_SIZE - padding;
+
+        chunkSpaceX = minX + Math.random() * (maxX - minX);
+        chunkSpaceZ = minZ + Math.random() * (maxZ - minZ);
+    } else {
+        // Center of chunk
+        chunkSpaceX = chunkX * CHUNK_SIZE + (CHUNK_SIZE / 2);
+        chunkSpaceZ = chunkZ * CHUNK_SIZE + (CHUNK_SIZE / 2);
+    }
+
+    // Convert chunk space to world space
+    const worldX = chunkSpaceX - (TERRITORY_SIZE / 2) + territoryCenter.x;
+    const worldZ = chunkSpaceZ - (TERRITORY_SIZE / 2) + territoryCenter.z;
+
+    return new Vector3(worldX, 0, worldZ);
+}
