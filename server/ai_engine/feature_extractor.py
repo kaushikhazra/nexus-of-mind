@@ -20,6 +20,7 @@ Feature Layout (29 total):
 """
 
 import logging
+import random
 from typing import Dict, Any, List, Tuple, Optional
 from dataclasses import dataclass
 from collections import defaultdict
@@ -158,6 +159,11 @@ class FeatureExtractor:
             key=lambda x: x[1],
             reverse=True
         )[:self.config.top_chunks]
+
+        # Shuffle to prevent NN from learning "index 0 = most workers" bias
+        # This forces NN to learn from actual feature values, not position
+        sorted_chunks = list(sorted_chunks)
+        random.shuffle(sorted_chunks)
 
         # Count protectors per chunk
         protectors_by_chunk = defaultdict(int)

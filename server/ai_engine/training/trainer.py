@@ -298,7 +298,11 @@ class ContinuousTrainer:
     def _save_model_version(self) -> None:
         """Save model version to metadata file."""
         try:
-            metadata_path = self.model.model_path.replace('.weights.h5', '_metadata.json')
+            # Handle both .pt (PyTorch) and .weights.h5 (TensorFlow) paths
+            if self.model.model_path.endswith('.pt'):
+                metadata_path = self.model.model_path.replace('.pt', '_metadata.json')
+            else:
+                metadata_path = self.model.model_path.replace('.weights.h5', '_metadata.json')
 
             # Load existing metadata
             metadata = {}
@@ -322,7 +326,11 @@ class ContinuousTrainer:
     def _load_model_version(self) -> int:
         """Load model version from metadata file."""
         try:
-            metadata_path = self.model.model_path.replace('.weights.h5', '_metadata.json')
+            # Handle both .pt (PyTorch) and .weights.h5 (TensorFlow) paths
+            if self.model.model_path.endswith('.pt'):
+                metadata_path = self.model.model_path.replace('.pt', '_metadata.json')
+            else:
+                metadata_path = self.model.model_path.replace('.weights.h5', '_metadata.json')
 
             if os.path.exists(metadata_path):
                 import json

@@ -177,11 +177,22 @@ class DashboardMetrics:
             if expected_reward == float('-inf'):
                 safe_reward = -1000.0
 
+            # Sanitize components (replace any inf/nan values)
+            safe_components = {}
+            for k, v in components.items():
+                if isinstance(v, (int, float)):
+                    if v == float('-inf') or v == float('inf') or v != v:  # nan check
+                        safe_components[k] = 0.0
+                    else:
+                        safe_components[k] = v
+                else:
+                    safe_components[k] = v
+
             record = GateDecisionRecord(
                 decision=decision,
                 reason=reason,
                 expected_reward=safe_reward,
-                components=components.copy(),
+                components=safe_components,
                 timestamp=time.time()
             )
             self.gate_decisions.append(record)
@@ -201,12 +212,12 @@ class DashboardMetrics:
                 elif decision == 'SHOULD_SPAWN':
                     self.missed_opportunities += 1
 
-            # Store pipeline data for visualization
+            # Store pipeline data for visualization (use sanitized components)
             self.last_pipeline = {
                 'observation': observation_summary or {},
                 'nn_inference': nn_inference or {},
                 'gate_components': {
-                    **components,
+                    **safe_components,
                     'weights': {
                         'survival': 0.4,
                         'disruption': 0.5,
@@ -394,7 +405,7 @@ class DashboardMetrics:
                     'max': round(self.max_entropy, 3),
                     'ratio': round(self.current_entropy / self.max_entropy, 3) if self.max_entropy > 0 else 0,
                     'effective_actions': round(self.effective_actions, 1),
-                    'total_actions': 257,
+                    'total_actions': 5,  # 5 chunks (no NO_SPAWN - Gate handles that)
                     'history': [round(e, 3) for e in list(self.entropy_history)[-100:]],
                     'health': self._get_entropy_health()
                 },
