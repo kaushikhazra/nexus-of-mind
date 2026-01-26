@@ -2,16 +2,24 @@
  * Application Configuration
  *
  * Centralizes environment-specific configuration values.
- * Uses environment variables with sensible defaults for local development.
+ * Detects environment based on hostname for easy deployment.
  */
+
+// Detect if running locally
+const isLocalhost = typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
 // Backend server configuration
 export const BACKEND_CONFIG = {
     // WebSocket URL for real-time communication with AI backend
-    WEBSOCKET_URL: process.env.WEBSOCKET_URL || 'ws://localhost:8000/ws',
+    WEBSOCKET_URL: isLocalhost
+        ? 'ws://localhost:8000/ws'
+        : `wss://${typeof window !== 'undefined' ? window.location.host : 'localhost:8000'}/ws`,
 
     // HTTP URL for REST API calls
-    HTTP_URL: process.env.BACKEND_URL || 'http://localhost:8000',
+    HTTP_URL: isLocalhost
+        ? 'http://localhost:8000'
+        : `https://${typeof window !== 'undefined' ? window.location.host : 'localhost:8000'}`,
 
     // Health check endpoint
     HEALTH_ENDPOINT: '/health'
