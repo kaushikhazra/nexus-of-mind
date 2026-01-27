@@ -10,7 +10,7 @@ import logging
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from ai_engine.simulation.dashboard_metrics import get_dashboard_metrics
+from ai_engine.decision_gate.dashboard_metrics import get_dashboard_metrics
 
 logger = logging.getLogger(__name__)
 

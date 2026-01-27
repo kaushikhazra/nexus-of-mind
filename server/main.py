@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 
 from ai_engine.ai_engine import AIEngine
 from ai_engine.neural_network import QueenBehaviorNetwork
-from ai_engine.simulation.dashboard_metrics import get_dashboard_metrics
+from ai_engine.decision_gate.dashboard_metrics import get_dashboard_metrics
 from websocket.connection_manager import ConnectionManager
 from websocket.message_handler import MessageHandler
 from logging_config import initialize_logging, get_logger, log_ai_event, log_websocket_event, request_logging_context

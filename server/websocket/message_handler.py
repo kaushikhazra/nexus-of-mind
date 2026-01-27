@@ -21,8 +21,8 @@ from ai_engine.feature_extractor import FeatureExtractor
 from ai_engine.nn_model import NNModel
 from ai_engine.reward_calculator import RewardCalculator
 from ai_engine.config import get_config
-from ai_engine.simulation import SimulationGate, SimulationGateConfig, get_gate_logger, PreprocessGate
-from ai_engine.simulation.dashboard_metrics import get_dashboard_metrics
+from ai_engine.decision_gate import SimulationGate, SimulationGateConfig, get_gate_logger, PreprocessGate
+from ai_engine.decision_gate.dashboard_metrics import get_dashboard_metrics
 
 # New continuous training module (gate as cost function)
 from ai_engine.training import (

@@ -18,7 +18,7 @@ from pathlib import Path
 server_dir = Path(__file__).parent
 sys.path.insert(0, str(server_dir))
 
-from ai_engine.simulation.dashboard_metrics import DashboardMetrics
+from ai_engine.decision_gate.dashboard_metrics import DashboardMetrics
 
 
 def test_dashboard_api():
@@ -57,7 +57,7 @@ def test_dashboard_metrics_no_spawn():
     
     try:
         # Get dashboard metrics instance
-        from ai_engine.simulation.dashboard_metrics import get_dashboard_metrics
+        from ai_engine.decision_gate.dashboard_metrics import get_dashboard_metrics
         metrics = get_dashboard_metrics()
         
         # Test recording a no-spawn decision using correct method names
@@ -136,7 +136,7 @@ def test_dashboard_metrics_should_spawn():
     
     try:
         # Get dashboard metrics instance
-        from ai_engine.simulation.dashboard_metrics import get_dashboard_metrics
+        from ai_engine.decision_gate.dashboard_metrics import get_dashboard_metrics
         metrics = get_dashboard_metrics()
         
         # Test recording a should-spawn decision (NN said no-spawn but gate disagrees)

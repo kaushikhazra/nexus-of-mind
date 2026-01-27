@@ -1,8 +1,8 @@
 """
-Simulation-Gated Inference Module
+Decision Gate Module
 
-Provides predictive cost function that evaluates NN spawn decisions
-before execution using known game dynamics.
+Evaluates and filters NN spawn decisions before execution using
+predictive cost functions based on known game dynamics.
 """
 
 from .config import SimulationGateConfig

@@ -13,7 +13,7 @@ import numpy as np
 # Add server to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from ai_engine.simulation.components.gpu_utils import (
+from ai_engine.decision_gate.components.gpu_utils import (
     GPUCostFunction,
     get_gpu_cost_function,
     get_device,
@@ -191,11 +191,11 @@ class TestGPUCostFunction:
         gpu_fn = GPUCostFunction(device='cpu')
 
         # Single calculations using original functions
-        from ai_engine.simulation.components import (
+        from ai_engine.decision_gate.components import (
             calculate_survival_probability,
             calculate_worker_disruption
         )
-        from ai_engine.simulation import SimulationGateConfig
+        from ai_engine.decision_gate import SimulationGateConfig
 
         config = SimulationGateConfig()
         spawn_chunks = np.array([50, 100, 150])
@@ -245,11 +245,11 @@ class TestPerformanceBatch:
         batch_time = time.perf_counter() - start
 
         # Single loop timing
-        from ai_engine.simulation.components import (
+        from ai_engine.decision_gate.components import (
             calculate_survival_probability,
             calculate_worker_disruption
         )
-        from ai_engine.simulation import SimulationGateConfig
+        from ai_engine.decision_gate import SimulationGateConfig
 
         config = SimulationGateConfig()
 

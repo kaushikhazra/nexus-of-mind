@@ -20,8 +20,8 @@ sys.path.insert(0, str(server_dir))
 
 from ai_engine.nn_model import NNModel, NO_SPAWN_CHUNK
 from ai_engine.feature_extractor import FeatureExtractor
-from ai_engine.simulation.gate import SimulationGate
-from ai_engine.simulation.config import SimulationGateConfig
+from ai_engine.decision_gate.gate import SimulationGate
+from ai_engine.decision_gate.config import SimulationGateConfig
 
 
 def test_no_spawn_training_positive():
