@@ -6,6 +6,7 @@ the complexity of the simulation to help the NN learn incrementally.
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import List, Optional
 import logging
 
@@ -14,42 +15,73 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class CurriculumPhase:
-    """Configuration for a curriculum learning phase."""
+    """Configuration for a curriculum learning phase with behavioral parameters."""
     name: str
-    duration: int  # Ticks (-1 for infinite)
+    duration: int  # Ticks (-1 for infinite, ignored if duration_seconds is set)
     num_workers: int
     num_protectors: int
-    
+
+    # Time-based duration (takes precedence over tick-based if set)
+    duration_seconds: Optional[float] = None  # Real wall-clock seconds
+
+    # Behavioral parameters (None = use base config default)
+    protector_speed: Optional[float] = None
+    detection_radius: Optional[int] = None
+    kill_radius: Optional[int] = None
+    flee_radius: Optional[int] = None
+    flee_duration: Optional[int] = None
+    worker_speed: Optional[float] = None
+
     def __post_init__(self):
         """Validate phase configuration."""
-        if self.duration < -1 or self.duration == 0:
-            raise ValueError(f"Invalid duration {self.duration}. Must be positive or -1 for infinite.")
+        # Only validate tick duration if time-based duration is not set
+        if self.duration_seconds is None:
+            if self.duration < -1 or self.duration == 0:
+                raise ValueError(f"Invalid duration {self.duration}. Must be positive or -1 for infinite.")
+        else:
+            if self.duration_seconds <= 0:
+                raise ValueError(f"duration_seconds must be positive, got {self.duration_seconds}")
         if self.num_workers < 0:
             raise ValueError(f"Invalid num_workers {self.num_workers}. Must be non-negative.")
         if self.num_protectors < 0:
             raise ValueError(f"Invalid num_protectors {self.num_protectors}. Must be non-negative.")
 
+        # Validate optional behavioral parameters
+        if self.protector_speed is not None and self.protector_speed <= 0:
+            raise ValueError(f"protector_speed must be positive, got {self.protector_speed}")
+        if self.detection_radius is not None and self.detection_radius < 0:
+            raise ValueError(f"detection_radius must be non-negative, got {self.detection_radius}")
+        if self.kill_radius is not None and self.kill_radius < 0:
+            raise ValueError(f"kill_radius must be non-negative, got {self.kill_radius}")
+        if self.flee_radius is not None and self.flee_radius < 0:
+            raise ValueError(f"flee_radius must be non-negative, got {self.flee_radius}")
+        if self.flee_duration is not None and self.flee_duration <= 0:
+            raise ValueError(f"flee_duration must be positive, got {self.flee_duration}")
+        if self.worker_speed is not None and self.worker_speed <= 0:
+            raise ValueError(f"worker_speed must be positive, got {self.worker_speed}")
+
 
 class CurriculumManager:
     """Manages curriculum learning progression through phases."""
-    
+
     def __init__(self, phases: List[CurriculumPhase]):
         """
         Initialize curriculum manager with phases.
-        
+
         Args:
             phases: List of curriculum phases in order
-            
+
         Raises:
             ValueError: If phases list is empty
         """
         if not phases:
             raise ValueError("Phases list cannot be empty")
-            
+
         self.phases = phases
         self.current_phase_index = 0
         self.ticks_in_phase = 0
-        
+        self.phase_start_time: datetime = datetime.now()  # Track phase start time
+
         logger.info(f"Initialized curriculum with {len(phases)} phases")
         logger.info(f"Starting phase: {self.get_current_phase().name}")
     
@@ -60,50 +92,94 @@ class CurriculumManager:
     def get_phase_progress(self) -> dict:
         """
         Get progress information for the current phase.
-        
+
         Returns:
             Dictionary with phase progress information
         """
         current = self.get_current_phase()
+        elapsed_seconds = (datetime.now() - self.phase_start_time).total_seconds()
+
+        # Calculate progress ratio based on duration type
+        if current.duration_seconds is not None:
+            progress_ratio = elapsed_seconds / current.duration_seconds
+        elif current.duration > 0:
+            progress_ratio = self.ticks_in_phase / current.duration
+        else:
+            progress_ratio = None
+
         return {
             "phase_index": self.current_phase_index,
             "phase_name": current.name,
             "ticks_in_phase": self.ticks_in_phase,
+            "elapsed_seconds": elapsed_seconds,
             "phase_duration": current.duration,
-            "progress_ratio": (
-                self.ticks_in_phase / current.duration 
-                if current.duration > 0 
-                else None
-            ),
+            "phase_duration_seconds": current.duration_seconds,
+            "progress_ratio": progress_ratio,
             "is_final_phase": self.current_phase_index == len(self.phases) - 1
         }
     
     def tick(self) -> Optional[CurriculumPhase]:
         """
         Advance tick counter and check for phase transitions.
-        
+
+        Supports both tick-based and time-based duration:
+        - If duration_seconds is set, uses wall-clock time
+        - Otherwise, uses tick count
+
         Returns:
             New phase if transition occurred, None otherwise
         """
         self.ticks_in_phase += 1
         current = self.get_current_phase()
-        
-        # Check if we should transition to next phase
-        if current.duration > 0 and self.ticks_in_phase >= current.duration:
-            # Only transition if not in final phase
-            if self.current_phase_index < len(self.phases) - 1:
-                old_phase = current.name
-                self.current_phase_index += 1
-                self.ticks_in_phase = 0
-                new_phase = self.get_current_phase()
-                
-                logger.info(f"Phase transition: {old_phase} -> {new_phase.name}")
-                logger.info(f"New phase config: workers={new_phase.num_workers}, "
-                           f"protectors={new_phase.num_protectors}, "
-                           f"duration={new_phase.duration}")
-                
-                return new_phase
-        
+
+        # Determine if we should transition
+        should_transition = False
+
+        if current.duration_seconds is not None:
+            # Time-based duration: check elapsed wall-clock time
+            elapsed = (datetime.now() - self.phase_start_time).total_seconds()
+            if elapsed >= current.duration_seconds:
+                should_transition = True
+        elif current.duration > 0:
+            # Tick-based duration
+            if self.ticks_in_phase >= current.duration:
+                should_transition = True
+
+        # Perform transition if needed
+        if should_transition and self.current_phase_index < len(self.phases) - 1:
+            old_phase = current.name
+            elapsed_time = (datetime.now() - self.phase_start_time).total_seconds()
+
+            self.current_phase_index += 1
+            self.ticks_in_phase = 0
+            self.phase_start_time = datetime.now()  # Reset timer for new phase
+            new_phase = self.get_current_phase()
+
+            logger.info(f"Phase transition: {old_phase} -> {new_phase.name} "
+                       f"(after {elapsed_time:.2f}s, {self.ticks_in_phase} ticks)")
+            logger.info(f"New phase config: workers={new_phase.num_workers}, "
+                       f"protectors={new_phase.num_protectors}, "
+                       f"duration={new_phase.duration}"
+                       f"{f', duration_seconds={new_phase.duration_seconds}' if new_phase.duration_seconds else ''}")
+            # Log behavioral parameters if set
+            behavioral_params = []
+            if new_phase.protector_speed is not None:
+                behavioral_params.append(f"protector_speed={new_phase.protector_speed}")
+            if new_phase.detection_radius is not None:
+                behavioral_params.append(f"detection_radius={new_phase.detection_radius}")
+            if new_phase.kill_radius is not None:
+                behavioral_params.append(f"kill_radius={new_phase.kill_radius}")
+            if new_phase.flee_radius is not None:
+                behavioral_params.append(f"flee_radius={new_phase.flee_radius}")
+            if new_phase.flee_duration is not None:
+                behavioral_params.append(f"flee_duration={new_phase.flee_duration}")
+            if new_phase.worker_speed is not None:
+                behavioral_params.append(f"worker_speed={new_phase.worker_speed}")
+            if behavioral_params:
+                logger.info(f"Behavioral params: {', '.join(behavioral_params)}")
+
+            return new_phase
+
         return None
     
     def reset(self) -> None:
@@ -111,7 +187,8 @@ class CurriculumManager:
         old_phase = self.get_current_phase().name if self.phases else "None"
         self.current_phase_index = 0
         self.ticks_in_phase = 0
-        
+        self.phase_start_time = datetime.now()
+
         if self.phases:
             new_phase = self.get_current_phase().name
             logger.info(f"Curriculum reset: {old_phase} -> {new_phase}")
@@ -121,26 +198,27 @@ class CurriculumManager:
     def skip_to_phase(self, phase_index: int) -> CurriculumPhase:
         """
         Skip to a specific phase by index.
-        
+
         Args:
             phase_index: Index of phase to skip to
-            
+
         Returns:
             The new current phase
-            
+
         Raises:
             IndexError: If phase_index is out of range
         """
         if phase_index < 0 or phase_index >= len(self.phases):
             raise IndexError(f"Phase index {phase_index} out of range [0, {len(self.phases)-1}]")
-        
+
         old_phase = self.get_current_phase().name
         self.current_phase_index = phase_index
         self.ticks_in_phase = 0
+        self.phase_start_time = datetime.now()
         new_phase = self.get_current_phase()
-        
+
         logger.info(f"Skipped to phase {phase_index}: {old_phase} -> {new_phase.name}")
-        
+
         return new_phase
     
     def get_all_phases(self) -> List[CurriculumPhase]:
@@ -160,62 +238,364 @@ class CurriculumManager:
                 f"ticks_in_phase={self.ticks_in_phase})")
 
 
+def _create_warmup_phase(duration_seconds: float = 5.0) -> CurriculumPhase:
+    """
+    Create a warmup phase with 0 workers and 0 protectors.
+
+    This simulates the game starting empty before units spawn.
+    The preprocess gate will skip NN inference during this phase.
+
+    Uses time-based duration for hardware-independent timing.
+
+    Args:
+        duration_seconds: Duration in real wall-clock seconds (default 5.0)
+
+    Returns:
+        Warmup curriculum phase
+    """
+    return CurriculumPhase(
+        name="warmup",
+        duration=1,  # Ignored when duration_seconds is set
+        num_workers=0,
+        num_protectors=0,
+        duration_seconds=duration_seconds,
+        protector_speed=1.0,
+        detection_radius=3,
+        kill_radius=1,
+        flee_radius=5,
+        flee_duration=8,
+    )
+
+
 def create_default_curriculum() -> List[CurriculumPhase]:
     """
-    Create a comprehensive curriculum simulating player skill progression.
+    Create a comprehensive curriculum with progressive behavioral challenge.
 
-    Phases represent different player skill levels:
-    - Beginner: New players, no defenses
-    - Novice: Learning to build defenses
-    - Intermediate: Typical casual player
-    - Advanced: Experienced player with good economy
-    - Expert: Skilled player with strong defenses
-    - Master: Pro-level play with maximum pressure
+    Starts with a warmup phase (0 workers, 0 protectors), then progresses through:
+    - Beginner: Easy - slow protectors, small detection, scared workers
+    - Novice: Learning - slightly faster, workers less scared
+    - Intermediate: Balanced - moderate challenge across all parameters
+    - Advanced: Challenging - faster protectors, braver workers
+    - Expert: Hard - high speed, large detection, precise placement needed
+    - Master: Maximum - fastest protectors, largest detection, bravest workers
+
+    Challenge progression:
+    - Protector speed: 1.0 -> 2.0 (faster = less disruption time)
+    - Detection radius: 3 -> 7 (larger = harder to hide parasites)
+    - Kill radius: 1 -> 3 (larger = faster kills)
+    - Flee radius: 5 -> 2 (smaller = braver workers, need precise placement)
+    - Flee duration: 8 -> 3 (shorter = workers recover faster)
 
     Returns:
         List of curriculum phases
     """
     return [
-        # Phase 1: Beginner - Learn to disrupt undefended workers
+        # Phase 0: Warmup - No units, preprocess gate will skip
+        _create_warmup_phase(),
+        # Phase 1: Beginner - Easy for NN to learn basics
         CurriculumPhase(
             name="beginner",
-            duration=2000,  # ~3 min turbo
+            duration=2000,
             num_workers=4,
-            num_protectors=0
+            num_protectors=0,
+            protector_speed=1.0,
+            detection_radius=3,
+            kill_radius=1,
+            flee_radius=5,
+            flee_duration=8,
         ),
-        # Phase 2: Novice - Handle light defense
+        # Phase 2: Novice - Introduce light defense
         CurriculumPhase(
             name="novice",
-            duration=3000,  # ~5 min turbo
+            duration=3000,
             num_workers=6,
-            num_protectors=1
+            num_protectors=1,
+            protector_speed=1.2,
+            detection_radius=4,
+            kill_radius=1,
+            flee_radius=4,
+            flee_duration=7,
         ),
-        # Phase 3: Intermediate - Typical player
+        # Phase 3: Intermediate - Balanced challenge
         CurriculumPhase(
             name="intermediate",
-            duration=4000,  # ~7 min turbo
+            duration=4000,
             num_workers=8,
-            num_protectors=2
+            num_protectors=2,
+            protector_speed=1.5,
+            detection_radius=5,
+            kill_radius=2,
+            flee_radius=3,
+            flee_duration=5,
         ),
-        # Phase 4: Advanced - Strong economy
+        # Phase 4: Advanced - Stronger defense
         CurriculumPhase(
             name="advanced",
-            duration=5000,  # ~8 min turbo
+            duration=5000,
             num_workers=10,
-            num_protectors=3
+            num_protectors=3,
+            protector_speed=1.7,
+            detection_radius=5,
+            kill_radius=2,
+            flee_radius=3,
+            flee_duration=4,
         ),
-        # Phase 5: Expert - Heavy defenses
+        # Phase 5: Expert - High challenge
         CurriculumPhase(
             name="expert",
-            duration=6000,  # ~10 min turbo
+            duration=6000,
             num_workers=12,
-            num_protectors=4
+            num_protectors=4,
+            protector_speed=1.8,
+            detection_radius=6,
+            kill_radius=2,
+            flee_radius=2,
+            flee_duration=3,
         ),
-        # Phase 6: Master - Maximum difficulty (runs indefinitely)
+        # Phase 6: Master - Maximum challenge (runs indefinitely)
         CurriculumPhase(
             name="master",
-            duration=-1,  # Run indefinitely
+            duration=-1,
             num_workers=15,
-            num_protectors=5
-        )
+            num_protectors=5,
+            protector_speed=2.0,
+            detection_radius=7,
+            kill_radius=3,
+            flee_radius=2,
+            flee_duration=3,
+        ),
     ]
+
+
+def create_easy_curriculum() -> List[CurriculumPhase]:
+    """
+    Create an easy curriculum for initial NN training.
+
+    Starts with warmup, then slower protectors, more scared workers, longer phase durations.
+    Good for letting the NN learn basic patterns without too much pressure.
+    """
+    return [
+        _create_warmup_phase(),
+        CurriculumPhase(
+            name="easy-1",
+            duration=5000,
+            num_workers=4,
+            num_protectors=0,
+            protector_speed=0.8,
+            detection_radius=2,
+            kill_radius=1,
+            flee_radius=6,
+            flee_duration=10,
+        ),
+        CurriculumPhase(
+            name="easy-2",
+            duration=5000,
+            num_workers=6,
+            num_protectors=1,
+            protector_speed=1.0,
+            detection_radius=3,
+            kill_radius=1,
+            flee_radius=5,
+            flee_duration=8,
+        ),
+        CurriculumPhase(
+            name="easy-3",
+            duration=-1,
+            num_workers=8,
+            num_protectors=2,
+            protector_speed=1.2,
+            detection_radius=4,
+            kill_radius=1,
+            flee_radius=4,
+            flee_duration=6,
+        ),
+    ]
+
+
+def create_hard_curriculum() -> List[CurriculumPhase]:
+    """
+    Create a hard curriculum for advanced NN training.
+
+    Starts with warmup, then faster protectors, braver workers, shorter phase durations.
+    Forces the NN to learn precise timing and placement.
+    """
+    return [
+        _create_warmup_phase(),
+        CurriculumPhase(
+            name="hard-1",
+            duration=1500,
+            num_workers=6,
+            num_protectors=1,
+            protector_speed=1.5,
+            detection_radius=5,
+            kill_radius=2,
+            flee_radius=3,
+            flee_duration=4,
+        ),
+        CurriculumPhase(
+            name="hard-2",
+            duration=2000,
+            num_workers=10,
+            num_protectors=3,
+            protector_speed=1.8,
+            detection_radius=6,
+            kill_radius=2,
+            flee_radius=2,
+            flee_duration=3,
+        ),
+        CurriculumPhase(
+            name="hard-3",
+            duration=-1,
+            num_workers=15,
+            num_protectors=5,
+            protector_speed=2.2,
+            detection_radius=8,
+            kill_radius=3,
+            flee_radius=1,
+            flee_duration=2,
+        ),
+    ]
+
+
+def create_quick_curriculum() -> List[CurriculumPhase]:
+    """
+    Create a quick curriculum for fast testing.
+
+    Starts with warmup, then short phase durations (500 ticks each) to quickly cycle through phases.
+    Useful for testing phase transitions and debugging.
+    """
+    return [
+        _create_warmup_phase(2.0),  # Shorter warmup (2 seconds) for quick testing
+        CurriculumPhase(
+            name="quick-beginner",
+            duration=500,
+            num_workers=4,
+            num_protectors=0,
+            protector_speed=1.0,
+            detection_radius=3,
+            kill_radius=1,
+            flee_radius=5,
+            flee_duration=8,
+        ),
+        CurriculumPhase(
+            name="quick-intermediate",
+            duration=500,
+            num_workers=8,
+            num_protectors=2,
+            protector_speed=1.5,
+            detection_radius=5,
+            kill_radius=2,
+            flee_radius=3,
+            flee_duration=5,
+        ),
+        CurriculumPhase(
+            name="quick-master",
+            duration=-1,
+            num_workers=15,
+            num_protectors=5,
+            protector_speed=2.0,
+            detection_radius=7,
+            kill_radius=3,
+            flee_radius=2,
+            flee_duration=3,
+        ),
+    ]
+
+
+def create_beginner_only_curriculum() -> List[CurriculumPhase]:
+    """
+    Create a beginner curriculum with warmup then beginner phase (runs indefinitely).
+
+    Starts with warmup (0 workers, 0 protectors), then transitions to beginner.
+    Useful for initial NN training with no protectors.
+    """
+    return [
+        _create_warmup_phase(),
+        CurriculumPhase(
+            name="beginner",
+            duration=-1,
+            num_workers=4,
+            num_protectors=0,
+            protector_speed=1.0,
+            detection_radius=3,
+            kill_radius=1,
+            flee_radius=5,
+            flee_duration=8,
+        ),
+    ]
+
+
+def create_master_only_curriculum() -> List[CurriculumPhase]:
+    """
+    Create a master curriculum with warmup then master phase (runs indefinitely).
+
+    Starts with warmup (0 workers, 0 protectors), then transitions to maximum challenge.
+    Useful for testing trained NN performance.
+    """
+    return [
+        _create_warmup_phase(),
+        CurriculumPhase(
+            name="master",
+            duration=-1,
+            num_workers=15,
+            num_protectors=5,
+            protector_speed=2.0,
+            detection_radius=7,
+            kill_radius=3,
+            flee_radius=2,
+            flee_duration=3,
+        ),
+    ]
+
+
+def create_empty_curriculum() -> List[CurriculumPhase]:
+    """
+    Create a single-phase curriculum with NO workers and NO protectors.
+
+    Used to test preprocess gate - NN should NOT run when there's no activity.
+    """
+    return [
+        CurriculumPhase(
+            name="empty",
+            duration=-1,
+            num_workers=0,
+            num_protectors=0,
+            protector_speed=1.0,
+            detection_radius=3,
+            kill_radius=1,
+            flee_radius=5,
+            flee_duration=8,
+        ),
+    ]
+
+
+# Available curriculum presets
+CURRICULUM_PRESETS = {
+    'default': create_default_curriculum,
+    'easy': create_easy_curriculum,
+    'hard': create_hard_curriculum,
+    'quick': create_quick_curriculum,
+    'beginner-only': create_beginner_only_curriculum,
+    'master-only': create_master_only_curriculum,
+    'empty': create_empty_curriculum,
+}
+
+
+def get_curriculum_preset(name: str) -> List[CurriculumPhase]:
+    """
+    Get a curriculum preset by name.
+
+    Args:
+        name: Name of the preset (default, easy, hard, quick, beginner-only, master-only)
+
+    Returns:
+        List of curriculum phases for the preset
+
+    Raises:
+        ValueError: If preset name is not recognized
+    """
+    if name not in CURRICULUM_PRESETS:
+        available = ', '.join(CURRICULUM_PRESETS.keys())
+        raise ValueError(f"Unknown curriculum preset: '{name}'. Available: {available}")
+
+    return CURRICULUM_PRESETS[name]()

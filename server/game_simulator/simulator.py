@@ -108,9 +108,45 @@ class Simulator:
                 if self.state.protectors:
                     removed_protector = self.state.protectors.pop()
                     logger.debug(f"Removed protector from chunk {removed_protector.chunk}")
-        
+
+        # Apply behavioral parameters (if specified in phase)
+        behavioral_changes = []
+
+        if phase.protector_speed is not None:
+            old_val = self.config.protector_speed
+            self.config.protector_speed = phase.protector_speed
+            behavioral_changes.append(f"protector_speed: {old_val} -> {phase.protector_speed}")
+
+        if phase.detection_radius is not None:
+            old_val = self.config.detection_radius
+            self.config.detection_radius = phase.detection_radius
+            behavioral_changes.append(f"detection_radius: {old_val} -> {phase.detection_radius}")
+
+        if phase.kill_radius is not None:
+            old_val = self.config.kill_radius
+            self.config.kill_radius = phase.kill_radius
+            behavioral_changes.append(f"kill_radius: {old_val} -> {phase.kill_radius}")
+
+        if phase.flee_radius is not None:
+            old_val = self.config.flee_radius
+            self.config.flee_radius = phase.flee_radius
+            behavioral_changes.append(f"flee_radius: {old_val} -> {phase.flee_radius}")
+
+        if phase.flee_duration is not None:
+            old_val = self.config.flee_duration
+            self.config.flee_duration = phase.flee_duration
+            behavioral_changes.append(f"flee_duration: {old_val} -> {phase.flee_duration}")
+
+        if phase.worker_speed is not None:
+            old_val = self.config.worker_speed
+            self.config.worker_speed = phase.worker_speed
+            behavioral_changes.append(f"worker_speed: {old_val} -> {phase.worker_speed}")
+
         logger.info(f"Applied phase config: {len(self.state.workers)} workers, "
                    f"{len(self.state.protectors)} protectors")
+
+        if behavioral_changes:
+            logger.info(f"Behavioral parameter changes: {', '.join(behavioral_changes)}")
     
     def tick(self) -> Optional[CurriculumPhase]:
         """
