@@ -1,8 +1,8 @@
 /**
  * ObservationTypes - Type definitions for Queen NN observation data
  *
- * The observation system collects raw data from the game state every 15 seconds
- * and sends it to the backend for preprocessing into 28 normalized features.
+ * The observation system collects raw data from the game state every 5 seconds
+ * and sends it to the backend for preprocessing into 29 normalized features.
  *
  * Data flow:
  * Frontend (raw data) → Backend (preprocessing) → NN (28 features) → Decision
@@ -90,7 +90,7 @@ export interface ParasiteSnapshot {
 }
 
 /**
- * Complete observation data sent to backend every 15 seconds
+ * Complete observation data sent to backend every 5 seconds
  *
  * Backend will preprocess this into 29 normalized features:
  * - 25 values: Top 5 chunks × 5 values each
@@ -156,7 +156,7 @@ export interface SpawnDecision {
  * Configuration for observation collection
  */
 export interface ObservationConfig {
-    /** Observation window duration in seconds (default: 15) */
+    /** Observation window duration in seconds (default: 5) */
     windowDuration: number;
     /** Chunk size in world units (default: 64) */
     chunkSize: number;
@@ -168,7 +168,7 @@ export interface ObservationConfig {
  * Default observation configuration
  */
 export const DEFAULT_OBSERVATION_CONFIG: ObservationConfig = {
-    windowDuration: 15,
+    windowDuration: 5,
     chunkSize: 64,
     chunksPerAxis: 16
 };

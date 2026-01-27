@@ -1,11 +1,11 @@
 /**
  * ObservationCollector - Chunk-based observation collection for Queen NN
  *
- * Collects raw game state data every 15 seconds and formats it for backend
+ * Collects raw game state data every 5 seconds and formats it for backend
  * preprocessing. The backend converts this into 29 normalized features for the NN.
  *
  * Key responsibilities:
- * - Track 15-second observation windows
+ * - Track 5-second observation windows
  * - Collect mining worker positions and chunk IDs (O(1) via UnitManager Set)
  * - Collect protector positions and chunk IDs
  * - Track parasite counts at window start/end for rate calculation
