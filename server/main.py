@@ -20,14 +20,11 @@ from ai_engine.neural_network import QueenBehaviorNetwork
 from ai_engine.decision_gate.dashboard_metrics import get_dashboard_metrics
 from websocket.connection_manager import ConnectionManager
 from websocket.message_handler import MessageHandler
-from logging_config import initialize_logging, get_logger, log_ai_event, log_websocket_event, request_logging_context
 from routes.progress_routes import router as progress_router
 from routes.dashboard_routes import router as dashboard_router
 from database.energy_lords import init_db
 
-# Initialize comprehensive logging
-initialize_logging()
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 # Global instances
 ai_engine: AIEngine = None
@@ -37,83 +34,51 @@ message_handler: MessageHandler = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan manager for startup and shutdown with enhanced logging"""
+    """Application lifespan manager for startup and shutdown"""
     global ai_engine, connection_manager, message_handler
-    
-    startup_id = str(uuid.uuid4())
-    
-    with request_logging_context(f"startup_{startup_id}") as startup_logger:
-        startup_logger.info("Starting Adaptive Queen Intelligence AI Backend...")
-        
-        # Log system information
-        log_ai_event("system_startup", {
-            "startup_id": startup_id,
-            "python_version": os.sys.version,
-            "environment": os.getenv("ENVIRONMENT", "development"),
-            "gpu_enabled": os.getenv("ENABLE_GPU", "false").lower() == "true"
-        })
-        
-        # Initialize Energy Lords database
-        try:
-            init_db()
-            startup_logger.info("Energy Lords database initialized successfully")
-        except Exception as e:
-            startup_logger.warning(f"Failed to initialize Energy Lords database: {e}")
 
-        # Initialize AI Engine with GPU acceleration if available
-        try:
-            ai_engine = AIEngine()
-            await ai_engine.initialize()
-            startup_logger.info("AI Engine initialized successfully")
-            
-            log_ai_event("ai_engine_initialized", {
-                "gpu_available": ai_engine.neural_network.use_gpu if ai_engine.neural_network else False,
-                "components_initialized": [
-                    "neural_network", "death_analyzer", "player_behavior", 
-                    "strategy_generator", "memory_manager", "adaptive_difficulty"
-                ]
-            })
-            
-        except Exception as e:
-            startup_logger.error(f"Failed to initialize AI Engine: {e}")
-            log_ai_event("ai_engine_initialization_failed", {"error": str(e)}, "ERROR")
-            raise
-        
-        # Initialize WebSocket connection manager
-        connection_manager = ConnectionManager()
-        startup_logger.info("WebSocket connection manager initialized")
-        
-        # Initialize message handler
-        message_handler = MessageHandler(ai_engine)
-        startup_logger.info("Message handler initialized")
-        
-        log_ai_event("backend_startup_complete", {
-            "startup_id": startup_id,
-            "components": ["ai_engine", "connection_manager", "message_handler"]
-        })
-        
-        startup_logger.info("Backend initialization complete")
-    
+    logger.info("Starting Adaptive Queen Intelligence AI Backend...")
+
+    # Initialize Energy Lords database
+    try:
+        init_db()
+        logger.info("Energy Lords database initialized successfully")
+    except Exception as e:
+        logger.warning(f"Failed to initialize Energy Lords database: {e}")
+
+    # Initialize AI Engine with GPU acceleration if available
+    try:
+        ai_engine = AIEngine()
+        await ai_engine.initialize()
+        logger.info("AI Engine initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize AI Engine: {e}")
+        raise
+
+    # Initialize WebSocket connection manager
+    connection_manager = ConnectionManager()
+    logger.info("WebSocket connection manager initialized")
+
+    # Initialize message handler
+    message_handler = MessageHandler(ai_engine)
+    logger.info("Message handler initialized")
+
+    logger.info("Backend initialization complete")
+
     yield
-    
+
     # Cleanup on shutdown
-    shutdown_id = str(uuid.uuid4())
-    
-    with request_logging_context(f"shutdown_{shutdown_id}") as shutdown_logger:
-        shutdown_logger.info("Shutting down AI Backend...")
-        
-        # Shutdown connection manager first
-        if connection_manager:
-            await connection_manager.shutdown()
-            shutdown_logger.info("Connection manager shutdown complete")
-        
-        # Then cleanup AI engine
-        if ai_engine:
-            await ai_engine.cleanup()
-            shutdown_logger.info("AI engine cleanup complete")
-        
-        log_ai_event("backend_shutdown_complete", {"shutdown_id": shutdown_id})
-        shutdown_logger.info("Backend shutdown complete")
+    logger.info("Shutting down AI Backend...")
+
+    if connection_manager:
+        await connection_manager.shutdown()
+        logger.info("Connection manager shutdown complete")
+
+    if ai_engine:
+        await ai_engine.cleanup()
+        logger.info("AI engine cleanup complete")
+
+    logger.info("Backend shutdown complete")
 
 
 # Create FastAPI application
@@ -155,7 +120,6 @@ async def root():
         }
     }
     
-    log_ai_event("health_check", system_info)
     return system_info
 
 
@@ -205,7 +169,6 @@ async def health_check():
     except ImportError:
         pass
     
-    log_ai_event("detailed_health_check", health_data)
     return health_data
 
 
@@ -262,231 +225,89 @@ async def trigger_system_test():
         )
     
     test_id = str(uuid.uuid4())
-    
-    with request_logging_context(f"system_test_{test_id}") as test_logger:
-        test_logger.info("Starting system test")
-        
-        try:
-            # Test AI engine components
-            test_results = {
-                "test_id": test_id,
-                "timestamp": asyncio.get_event_loop().time(),
-                "tests": {}
+    logger.info("Starting system test")
+
+    try:
+        test_results = {
+            "test_id": test_id,
+            "timestamp": asyncio.get_event_loop().time(),
+            "tests": {}
+        }
+
+        # Test neural network
+        if ai_engine.neural_network:
+            test_results["tests"]["neural_network"] = {
+                "status": "available",
+                "gpu_enabled": ai_engine.neural_network.use_gpu
             }
-            
-            # Test neural network
-            if ai_engine.neural_network:
-                test_results["tests"]["neural_network"] = {
-                    "status": "available",
-                    "gpu_enabled": ai_engine.neural_network.use_gpu
-                }
-            else:
-                test_results["tests"]["neural_network"] = {"status": "unavailable"}
-            
-            # Test connection manager
-            if connection_manager:
-                test_results["tests"]["connection_manager"] = {
-                    "status": "active",
-                    "active_connections": len(connection_manager.active_connections)
-                }
-            else:
-                test_results["tests"]["connection_manager"] = {"status": "unavailable"}
-            
-            # Test message handler
-            if message_handler:
-                test_results["tests"]["message_handler"] = {"status": "active"}
-            else:
-                test_results["tests"]["message_handler"] = {"status": "unavailable"}
-            
-            test_results["overall_status"] = "passed"
-            
-            log_ai_event("system_test_completed", test_results)
-            test_logger.info("System test completed successfully")
-            
-            return test_results
-            
-        except Exception as e:
-            test_results = {
-                "test_id": test_id,
-                "overall_status": "failed",
-                "error": str(e)
+        else:
+            test_results["tests"]["neural_network"] = {"status": "unavailable"}
+
+        # Test connection manager
+        if connection_manager:
+            test_results["tests"]["connection_manager"] = {
+                "status": "active",
+                "active_connections": len(connection_manager.active_connections)
             }
-            
-            log_ai_event("system_test_failed", test_results, "ERROR")
-            test_logger.error(f"System test failed: {e}")
-            
-            return JSONResponse(status_code=500, content=test_results)
+        else:
+            test_results["tests"]["connection_manager"] = {"status": "unavailable"}
+
+        # Test message handler
+        if message_handler:
+            test_results["tests"]["message_handler"] = {"status": "active"}
+        else:
+            test_results["tests"]["message_handler"] = {"status": "unavailable"}
+
+        test_results["overall_status"] = "passed"
+        logger.info("System test completed successfully")
+
+        return test_results
+
+    except Exception as e:
+        test_results = {
+            "test_id": test_id,
+            "overall_status": "failed",
+            "error": str(e)
+        }
+        logger.error(f"System test failed: {e}")
+
+        return JSONResponse(status_code=500, content=test_results)
 
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """Main WebSocket endpoint for client-backend communication with comprehensive logging"""
+    """Main WebSocket endpoint for client-backend communication"""
     client_id = None
-    connection_start = asyncio.get_event_loop().time()
-    
+    message_count = 0
+
     try:
         client_id = await connection_manager.connect(websocket)
-        log_websocket_event("client_connected", client_id, {
-            "endpoint": "main",
-            "connection_time": connection_start
-        })
-        
+
         # Send queued messages if this is a reconnection
-        queued_count = await connection_manager.send_queued_messages(client_id)
-        if queued_count > 0:
-            log_websocket_event("queued_messages_sent", client_id, {
-                "message_count": queued_count
-            })
-        
-        message_count = 0
-        
+        await connection_manager.send_queued_messages(client_id)
+
         while True:
             try:
-                # Receive message from client with timeout
                 data = await asyncio.wait_for(websocket.receive_json(), timeout=30.0)
                 message_count += 1
-                
-                # Log message received
-                log_websocket_event("message_received", client_id, {
-                    "message_type": data.get("type", "unknown"),
-                    "message_count": message_count,
-                    "timestamp": data.get("timestamp")
-                })
-                
-                # Process message through message handler
+
                 response = await message_handler.handle_message(data, client_id)
-                
-                # Send response back to client
+
                 if response:
                     await websocket.send_json(response)
-                    log_websocket_event("response_sent", client_id, {
-                        "response_type": response.get("type", "unknown"),
-                        "message_count": message_count
-                    })
-                    
+
             except asyncio.TimeoutError:
-                # Send ping to check if connection is still alive
                 ping_message = {
                     "type": "ping",
                     "timestamp": asyncio.get_event_loop().time()
                 }
                 await websocket.send_json(ping_message)
-                log_websocket_event("ping_sent", client_id)
-                
-    except WebSocketDisconnect:
-        connection_duration = asyncio.get_event_loop().time() - connection_start
-        log_websocket_event("client_disconnected_normal", client_id or "unknown", {
-            "connection_duration": connection_duration,
-            "messages_processed": message_count
-        })
-        
-    except Exception as e:
-        connection_duration = asyncio.get_event_loop().time() - connection_start
-        log_websocket_event("client_disconnected_error", client_id or "unknown", {
-            "error": str(e),
-            "connection_duration": connection_duration,
-            "messages_processed": message_count
-        })
-        
-        # Send error message if connection is still active
-        try:
-            error_response = {
-                "type": "error",
-                "timestamp": asyncio.get_event_loop().time(),
-                "data": {
-                    "error": "Connection error occurred",
-                    "errorCode": "CONNECTION_ERROR",
-                    "retryable": True
-                }
-            }
-            await websocket.send_json(error_response)
-        except:
-            pass  # Connection already closed
-            
-    finally:
-        if client_id:
-            connection_manager.disconnect(websocket, client_id)
 
-
-@app.websocket("/ws/{client_id}")
-async def websocket_endpoint_with_id(websocket: WebSocket, client_id: str):
-    """WebSocket endpoint with explicit client ID for reconnection with comprehensive logging"""
-    connection_start = asyncio.get_event_loop().time()
-    message_count = 0
-    
-    try:
-        await connection_manager.connect(websocket, client_id)
-        log_websocket_event("client_reconnected", client_id, {
-            "endpoint": "explicit_id",
-            "connection_time": connection_start
-        })
-        
-        # Send queued messages for reconnection
-        queued_count = await connection_manager.send_queued_messages(client_id)
-        if queued_count > 0:
-            log_websocket_event("reconnection_messages_sent", client_id, {
-                "message_count": queued_count
-            })
-        
-        # Send reconnection confirmation
-        reconnect_confirmation = {
-            "type": "reconnect_confirmation",
-            "timestamp": asyncio.get_event_loop().time(),
-            "data": {
-                "clientId": client_id,
-                "status": "reconnected",
-                "queuedMessages": queued_count
-            }
-        }
-        await websocket.send_json(reconnect_confirmation)
-        
-        while True:
-            try:
-                data = await asyncio.wait_for(websocket.receive_json(), timeout=30.0)
-                message_count += 1
-                
-                log_websocket_event("message_received", client_id, {
-                    "message_type": data.get("type", "unknown"),
-                    "message_count": message_count,
-                    "reconnection": True
-                })
-                
-                response = await message_handler.handle_message(data, client_id)
-                
-                if response:
-                    await websocket.send_json(response)
-                    log_websocket_event("response_sent", client_id, {
-                        "response_type": response.get("type", "unknown"),
-                        "message_count": message_count,
-                        "reconnection": True
-                    })
-                    
-            except asyncio.TimeoutError:
-                # Send ping to check connection
-                ping_message = {
-                    "type": "ping", 
-                    "timestamp": asyncio.get_event_loop().time()
-                }
-                await websocket.send_json(ping_message)
-                log_websocket_event("ping_sent", client_id, {"reconnection": True})
-                
     except WebSocketDisconnect:
-        connection_duration = asyncio.get_event_loop().time() - connection_start
-        log_websocket_event("client_disconnected_normal", client_id, {
-            "connection_duration": connection_duration,
-            "messages_processed": message_count,
-            "reconnection": True
-        })
-        
+        pass
+
     except Exception as e:
-        connection_duration = asyncio.get_event_loop().time() - connection_start
-        log_websocket_event("client_disconnected_error", client_id, {
-            "error": str(e),
-            "connection_duration": connection_duration,
-            "messages_processed": message_count,
-            "reconnection": True
-        })
-        
+        logger.error(f"WebSocket error for client {client_id}: {e}")
         try:
             error_response = {
                 "type": "error",
@@ -500,7 +321,71 @@ async def websocket_endpoint_with_id(websocket: WebSocket, client_id: str):
             await websocket.send_json(error_response)
         except:
             pass
-            
+
+    finally:
+        if client_id:
+            connection_manager.disconnect(websocket, client_id)
+
+
+@app.websocket("/ws/{client_id}")
+async def websocket_endpoint_with_id(websocket: WebSocket, client_id: str):
+    """WebSocket endpoint with explicit client ID for reconnection"""
+    message_count = 0
+
+    try:
+        await connection_manager.connect(websocket, client_id)
+
+        # Send queued messages for reconnection
+        queued_count = await connection_manager.send_queued_messages(client_id)
+
+        # Send reconnection confirmation
+        reconnect_confirmation = {
+            "type": "reconnect_confirmation",
+            "timestamp": asyncio.get_event_loop().time(),
+            "data": {
+                "clientId": client_id,
+                "status": "reconnected",
+                "queuedMessages": queued_count
+            }
+        }
+        await websocket.send_json(reconnect_confirmation)
+
+        while True:
+            try:
+                data = await asyncio.wait_for(websocket.receive_json(), timeout=30.0)
+                message_count += 1
+
+                response = await message_handler.handle_message(data, client_id)
+
+                if response:
+                    await websocket.send_json(response)
+
+            except asyncio.TimeoutError:
+                ping_message = {
+                    "type": "ping",
+                    "timestamp": asyncio.get_event_loop().time()
+                }
+                await websocket.send_json(ping_message)
+
+    except WebSocketDisconnect:
+        pass
+
+    except Exception as e:
+        logger.error(f"WebSocket error for client {client_id}: {e}")
+        try:
+            error_response = {
+                "type": "error",
+                "timestamp": asyncio.get_event_loop().time(),
+                "data": {
+                    "error": "Connection error occurred",
+                    "errorCode": "CONNECTION_ERROR",
+                    "retryable": True
+                }
+            }
+            await websocket.send_json(error_response)
+        except:
+            pass
+
     finally:
         connection_manager.disconnect(websocket, client_id)
 
@@ -557,7 +442,6 @@ async def reset_database():
         db.reset_progress('default')
 
         logger.info("Database reset via /reset-db endpoint")
-        log_ai_event("database_reset", {"source": "http_endpoint"})
 
         return {
             "status": "success",
@@ -619,8 +503,6 @@ async def reset_neural_network():
             dashboard.model_version = 0
         results['dashboard_model_version'] = dashboard.model_version
         logger.info(f"Dashboard model version updated to: {dashboard.model_version}")
-
-        log_ai_event("neural_network_reset", results)
 
         return {
             "status": "success",
