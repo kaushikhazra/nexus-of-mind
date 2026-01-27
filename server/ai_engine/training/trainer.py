@@ -95,11 +95,24 @@ class ContinuousTrainer:
         logger.info("[Training] Stopped background trainer")
 
     def _training_loop(self) -> None:
-        """Main training loop - runs until stopped."""
-        logger.info("[Training] Training loop started")
+        """
+        Main training loop - runs until stopped.
+
+        Behavior: Wait for min_batch_size, drain all, train, repeat.
+        - Waits until buffer has >= min_batch_size experiences
+        - Drains ALL experiences from buffer
+        - Trains on all of them (exhausts the batch)
+        - Waits for buffer to fill up again
+        """
+        logger.info("[Training] Training loop started (train-once-and-remove mode)")
 
         while self._running:
-            loop_start = time.time()
+            # Wait until buffer has enough experiences
+            while self._running and len(self.buffer) < self.config.min_batch_size:
+                time.sleep(self.config.training_interval)
+
+            if not self._running:
+                break
 
             try:
                 self._training_step()
@@ -108,28 +121,21 @@ class ContinuousTrainer:
                 self._metrics.record_error()
                 # Continue running - don't crash on single error
 
-            # Sleep for remaining interval
-            elapsed = time.time() - loop_start
-            sleep_time = max(0, self.config.training_interval - elapsed)
-
-            if sleep_time == 0 and elapsed > self.config.training_interval * 1.5:
-                logger.warning(
-                    f"[Training] Step took {elapsed:.2f}s, "
-                    f"exceeds interval {self.config.training_interval}s"
-                )
-
-            time.sleep(sleep_time)
-
         logger.info("[Training] Training loop stopped")
 
     def _training_step(self) -> None:
-        """Execute single training step."""
+        """
+        Execute single training step.
+
+        Drains ALL experiences from buffer and trains on them.
+        After training, experiences are removed (not reused).
+        """
         step_start = time.time()
 
-        # Sample batch from buffer
-        batch = self.buffer.sample(self.config.batch_size)
+        # Drain all experiences from buffer (train once, then remove)
+        batch = self.buffer.drain()
 
-        if len(batch) < self.config.min_batch_size:
+        if len(batch) == 0:
             return
 
         # Train on each experience in batch (only those with actual_reward)
@@ -185,7 +191,7 @@ class ContinuousTrainer:
 
         logger.info(
             f"[Training] v{self._model_version}: loss={avg_loss:.4f}, "
-            f"trained={trained_count}/{len(batch)}, avg_reward={avg_training_reward:.3f}, "
+            f"trained={trained_count} (drained {len(batch)}), avg_reward={avg_training_reward:.3f}, "
             f"time={step_time:.1f}ms"
         )
 

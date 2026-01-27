@@ -7,7 +7,7 @@ Processes raw observation data from frontend into NN-ready features.
 Feature Layout (29 total):
 - Top 5 Chunks (25): 5 chunks × 5 features each
   - Normalized chunk ID (0-1)
-  - Mining worker density (0-1)
+  - Worker presence density (0-1) - uses workersPresent, not miningWorkers
   - Protector density (0-1)
   - Energy parasite rate (-1 to +1, scaled to 0-1)
   - Combat parasite rate (-1 to +1, scaled to 0-1)
@@ -68,7 +68,7 @@ class FeatureExtractor:
         for i in range(self.config.top_chunks):
             names.extend([
                 f'chunk_{i}_id',
-                f'chunk_{i}_worker_density',
+                f'chunk_{i}_worker_presence',
                 f'chunk_{i}_protector_density',
                 f'chunk_{i}_energy_parasite_rate',
                 f'chunk_{i}_combat_parasite_rate'
@@ -131,29 +131,33 @@ class FeatureExtractor:
 
     def _extract_chunk_features(self, obs: Dict[str, Any], features: np.ndarray) -> None:
         """
-        Extract features for top 5 chunks by mining worker density.
+        Extract features for top 5 chunks by worker presence density.
+
+        Uses workersPresent (all workers in territory) rather than miningWorkers
+        to capture all threats - workers traveling, fleeing, or idle are still
+        valid targets for the Queen's parasites.
 
         For each of the top 5 chunks:
         - Normalized chunk ID
-        - Mining worker density
+        - Worker density (presence-based)
         - Protector density
         - Energy parasite rate
         - Combat parasite rate
         """
-        mining_workers = obs.get('miningWorkers', [])
+        workers_present = obs.get('workersPresent', [])
         protectors = obs.get('protectors', [])
         parasites_start = obs.get('parasitesStart', [])
         parasites_end = obs.get('parasitesEnd', [])
 
-        # Count workers per chunk
+        # Count workers per chunk (using workersPresent for territorial awareness)
         workers_by_chunk = defaultdict(int)
-        for worker in mining_workers:
+        for worker in workers_present:
             chunk_id = worker.get('chunkId', -1)
             if chunk_id >= 0:
                 workers_by_chunk[chunk_id] += 1
 
         # Get top 5 chunks by worker count
-        total_workers = len(mining_workers)
+        total_workers = len(workers_present)
         sorted_chunks = sorted(
             workers_by_chunk.items(),
             key=lambda x: x[1],

@@ -1,22 +1,20 @@
-# Continuous Training Loop Configuration
-# Gate IS the cost function - gate_signal at inference is ground truth
+# Continuous Training Configuration for SIMULATOR
+# Higher throughput settings for fast observation rates
 
 # Training loop
-training_interval: 1.0      # Seconds between checking buffer (not between training)
+training_interval: 1.0      # Seconds between checking buffer
 batch_size: 32              # Legacy - not used with drain() model
 
-# Throughput management: min_batch_size balances observation rate vs training
-# Real game (15s ticks): 4 (~1 minute of data)
-# Simulator normal (1s ticks): 16-20
-# Simulator turbo: 32-64
-min_batch_size: 4           # Default for real game, increase for simulator
+# Throughput management: higher threshold for simulator's fast data rate
+# Sim normal (1s ticks): needs ~20 seconds of data
+# Sim turbo: needs larger batches to avoid overwhelming
+min_batch_size: 32          # Simulator mode - faster observations
 
 # Replay buffer
 buffer_capacity: 10000      # Max experiences stored
 lock_timeout: 5.0           # Seconds to wait for lock
 
 # Reward weighting (for SEND actions with actual_reward)
-# training_reward = gate_weight * gate_signal + actual_weight * actual_reward
 gate_weight: 0.3            # Weight for gate_signal
 actual_weight: 0.7          # Weight for actual_reward
 

@@ -111,6 +111,8 @@ class ExperienceReplayBuffer:
 
         Includes both SEND and WAIT experiences.
         Called from training thread.
+
+        Note: For "train once and remove" behavior, use drain() instead.
         """
         acquired = self._lock.acquire(timeout=self.lock_timeout)
         if not acquired:
@@ -124,6 +126,30 @@ class ExperienceReplayBuffer:
             # Random sample (without replacement)
             sample_size = min(batch_size, len(self._buffer))
             return random.sample(list(self._buffer), sample_size)
+        finally:
+            self._lock.release()
+
+    def drain(self) -> List[Experience]:
+        """
+        Remove and return ALL experiences from buffer.
+
+        Used for "train once, then remove" behavior.
+        Returns all experiences and clears the buffer.
+        Called from training thread when buffer >= min_batch_size.
+        """
+        acquired = self._lock.acquire(timeout=self.lock_timeout)
+        if not acquired:
+            logger.warning("[Buffer] Failed to acquire lock for drain()")
+            return []
+
+        try:
+            if len(self._buffer) == 0:
+                return []
+
+            # Get all experiences and clear buffer
+            all_experiences = list(self._buffer)
+            self._buffer.clear()
+            return all_experiences
         finally:
             self._lock.release()
 

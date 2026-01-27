@@ -1,0 +1,45 @@
+# Game Simulator Configuration
+# Controls simulation behavior, entity counts, and timing
+
+# Map settings (16x16 = 256 chunks to match NN output space)
+grid_size: 16
+queen_chunk: 136        # Center of map (row 8, col 8)
+base_chunk: 137         # Worker depot/base location (near queen)
+mining_spots: [18, 29, 45, 67, 123, 189, 234]
+
+# Workers
+num_workers: 8
+worker_speed: 1.0
+flee_radius: 3
+flee_duration: 5
+mining_rate: 1.0
+mining_duration: 10     # Ticks to mine before returning to base
+
+# Protectors
+num_protectors: 3
+protector_speed: 1.5
+detection_radius: 5
+kill_radius: 2
+
+# Queen energy
+queen_start_energy: 50
+queen_max_energy: 100
+queen_energy_regen: 3.0
+energy_parasite_cost: 8
+combat_parasite_cost: 15
+
+# Parasites
+disruption_radius: 3
+
+# Player resources
+player_start_energy: 100
+player_start_minerals: 50
+energy_per_mining: 0.5
+minerals_per_mining: 0.3
+
+# Simulation timing
+tick_interval: 1.0      # Seconds between ticks (ignored in turbo mode)
+turbo_mode: false       # Run at max speed with no delays
+
+# NOTE: For simulator runs, use continuous_training_sim.yaml on the server
+# It has higher min_batch_size (32) to handle faster observation rate

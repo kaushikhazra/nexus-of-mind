@@ -519,7 +519,7 @@ export class GameEngine {
             return;
         }
 
-        // Create HUD container (positioned below Defense window which is at top: 320px)
+        // Create HUD container (positioned below Defense window which is at top: 300px)
         let hudContainer = document.getElementById('energy-lords-hud');
         if (!hudContainer) {
             hudContainer = document.createElement('div');

@@ -55,9 +55,9 @@ export class ProtectorCreationUI {
             this.container.id = this.config.containerId;
             this.container.style.cssText = `
                 position: fixed;
-                top: 320px;
+                top: 280px;
                 left: 20px;
-                z-index: 1000;
+                z-index: 1100;
             `;
             document.body.appendChild(this.container);
         }

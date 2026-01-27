@@ -40,6 +40,11 @@ from game_simulator.config import SimulationConfig
 from game_simulator.runner import SimulationRunner
 from game_simulator.curriculum import CurriculumManager, create_default_curriculum, get_curriculum_preset, CURRICULUM_PRESETS
 
+# Default config path
+DEFAULT_CONFIG_PATH = os.path.join(
+    os.path.dirname(__file__), '..', 'ai_engine', 'configs', 'game_simulator.yaml'
+)
+
 
 def setup_logging(verbose: bool = False) -> None:
     """
@@ -157,31 +162,30 @@ Examples:
 def load_config(config_path: Optional[str], turbo_override: bool = False) -> SimulationConfig:
     """
     Load simulation configuration from file or use defaults.
-    
+
     Args:
-        config_path: Path to YAML config file, or None for defaults
+        config_path: Path to YAML config file, or None for default config
         turbo_override: If True, override turbo_mode setting
-        
+
     Returns:
         Loaded and validated configuration
-        
+
     Raises:
         FileNotFoundError: If config file doesn't exist
         ValueError: If config is invalid
-        
+
     Requirements satisfied:
     - 9.3: Load config from file
     """
-    if config_path:
-        # Load from specified file
-        if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Configuration file not found: {config_path}")
-        
-        print(f"Loading configuration from: {config_path}")
-        config = SimulationConfig.from_yaml(config_path)
+    # Use default config path if not specified
+    effective_path = config_path or DEFAULT_CONFIG_PATH
+
+    if os.path.exists(effective_path):
+        print(f"Loading configuration from: {effective_path}")
+        config = SimulationConfig.from_yaml(effective_path)
     else:
-        # Use default configuration
-        print("Using default configuration")
+        # Fall back to hardcoded defaults if config file not found
+        print("Config file not found, using hardcoded defaults")
         config = SimulationConfig()
     
     # Apply turbo mode override if specified

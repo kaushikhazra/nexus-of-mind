@@ -64,7 +64,7 @@ export class EnergyLordsHUD {
             this.container.id = this.config.containerId;
             this.container.style.cssText = `
                 position: fixed;
-                top: 420px;
+                top: 500px;
                 left: 20px;
                 z-index: 1000;
             `;

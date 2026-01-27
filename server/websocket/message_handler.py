@@ -6,6 +6,7 @@ Enhanced with validation, serialization, and error handling
 import asyncio
 import json
 import logging
+import os
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import jsonschema
@@ -156,8 +157,10 @@ class MessageHandler:
         self.background_trainer = None
 
         try:
-            # Load config
-            config_path = Path(__file__).parent.parent / "ai_engine" / "configs" / "continuous_training.yaml"
+            # Load config (use TRAINING_CONFIG env var to override, e.g., "continuous_training_sim.yaml")
+            config_name = os.environ.get("TRAINING_CONFIG", "continuous_training.yaml")
+            config_path = Path(__file__).parent.parent / "ai_engine" / "configs" / config_name
+            logger.info(f"[BackgroundTraining] Loading config from: {config_path}")
             training_config = ContinuousTrainingConfig.from_yaml(config_path)
 
             if not training_config.enabled:
@@ -925,6 +928,9 @@ class MessageHandler:
                 logger.warning(f"[Observation] Missing observation data from client {client_id}")
                 return self._create_error_response("Missing observation data", error_code="MISSING_DATA")
 
+            # Log raw observation data from frontend
+            logger.info(f"[RAW] {json.dumps(observation)}")
+
             # Check components are available
             if not self.feature_extractor or not self.nn_model:
                 logger.warning(f"[Observation] NN components not available for client {client_id}")
@@ -1043,10 +1049,9 @@ class MessageHandler:
                 else:
                     logger.info(f"[Observation] First observation for territory - no reward calculation")
 
-                # Extract features (28 normalized values)
+                # Extract features (29 normalized values)
                 features = self.feature_extractor.extract(observation)
-                logger.info(f"[Observation] Features extracted: {len(features)} values, "
-                           f"first 5: {[f'{f:.3f}' for f in features[:5]]}")
+                logger.info(f"[FEATURES] {','.join(f'{f:.4f}' for f in features)}")
 
                 # Run NN inference with timeout (2s for first inference, then fast)
                 spawn_decision = await asyncio.wait_for(

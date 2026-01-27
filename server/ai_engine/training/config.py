@@ -16,9 +16,9 @@ class ContinuousTrainingConfig:
     """Configuration for continuous training loop."""
 
     # Training loop
-    training_interval: float = 1.0  # Seconds between training steps
-    batch_size: int = 32  # Target batch size
-    min_batch_size: int = 1  # Minimum samples to train (low for dynamic responsiveness)
+    training_interval: float = 1.0  # Seconds between checking buffer
+    batch_size: int = 32  # Legacy - not used with drain() model
+    min_batch_size: int = 4  # Real game: 4 (~1 min at 15s ticks), Sim: 32 (override in game_simulator.yaml)
 
     # Replay buffer
     buffer_capacity: int = 10000  # Max experiences stored

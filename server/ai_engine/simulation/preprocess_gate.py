@@ -2,7 +2,7 @@
 Preprocess Gate
 
 Early-stage gate that runs BEFORE NN inference to skip unnecessary processing
-when there's no active mining in the game.
+when there are no workers present in the Queen's territory.
 
 This saves compute by bypassing the entire NN pipeline when spawning is pointless.
 """
@@ -28,7 +28,7 @@ class PreprocessGate:
     Early gate that checks if NN inference should be skipped entirely.
 
     Scenarios where we skip:
-    1. No workers actively mining = no mining activity to disrupt
+    1. No workers present in territory = no threats to respond to
 
     This runs BEFORE feature extraction and NN inference to save compute.
     """
@@ -37,7 +37,7 @@ class PreprocessGate:
         """Initialize preprocess gate."""
         self.stats = {
             'total_checks': 0,
-            'skipped_no_mining': 0,
+            'skipped_no_workers': 0,
             'passed_through': 0,
         }
         logger.info("PreprocessGate initialized")
@@ -63,14 +63,14 @@ class PreprocessGate:
         protectors = observation.get('protectors', [])
         total_protectors = len(protectors)
 
-        # Check for no mining activity condition
-        # Skip if no workers are actively mining - parasites exist to disrupt mining operations
-        if len(workers_mining) == 0:
-            self.stats['skipped_no_mining'] += 1
-            logger.debug(f"[PreprocessGate] SKIP: no active mining (mining=0, present={len(workers_present)}, protectors={total_protectors})")
+        # Check for no workers in territory condition
+        # Skip if no workers are present - parasites defend territory from all intruders
+        if len(workers_present) == 0:
+            self.stats['skipped_no_workers'] += 1
+            logger.debug(f"[PreprocessGate] SKIP: no workers in territory (present=0, protectors={total_protectors})")
             return PreprocessDecision(
                 should_skip=True,
-                reason='no_mining',
+                reason='no_workers',
                 workers_count=total_workers,
                 protectors_count=total_protectors
             )
@@ -89,7 +89,7 @@ class PreprocessGate:
         total = self.stats['total_checks']
         return {
             'total_checks': total,
-            'skipped_no_mining': self.stats['skipped_no_mining'],
+            'skipped_no_workers': self.stats['skipped_no_workers'],
             'passed_through': self.stats['passed_through'],
-            'skip_rate': self.stats['skipped_no_mining'] / max(1, total),
+            'skip_rate': self.stats['skipped_no_workers'] / max(1, total),
         }
