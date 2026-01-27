@@ -69,6 +69,11 @@ models/
 *.pkl
 *.joblib
 
+# Exception: track baseline PyTorch model
+!server/models/
+!server/models/*.pt
+!server/models/*_metadata.json
+
 # Data directories (generated/temporary data)
 data/
 data_backups/

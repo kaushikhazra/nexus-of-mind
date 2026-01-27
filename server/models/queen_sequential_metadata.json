@@ -1,0 +1,18 @@
+{
+  "framework": "pytorch",
+  "architecture": "five_nn_sequential",
+  "architecture_version": 3,
+  "input_size": 29,
+  "total_parameters": 822,
+  "device": "cuda",
+  "nn_config": {
+    "nn1_energy_suit": "10->8->5 Sigmoid",
+    "nn2_combat_suit": "10->8->5 Sigmoid",
+    "nn3_type": "10->8->2 Softmax",
+    "nn4_chunk": "15->12->8->5 Softmax",
+    "nn5_quantity": "7->8->5 Softmax"
+  },
+  "no_spawn_option": false,
+  "model_version": 62200,
+  "total_training_steps": 62200
+}

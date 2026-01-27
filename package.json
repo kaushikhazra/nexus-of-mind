@@ -11,14 +11,14 @@
     "clean": "rimraf dist .cache node_modules/.cache",
     "clean:full": "rimraf node_modules dist .cache && npm install",
     "rebuild": "npm run clean && npm run build",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
-    "test:e2e:headed": "playwright test --headed",
-    "test:e2e:debug": "playwright test --debug",
-    "test:e2e:report": "playwright show-report"
+    "test": "cd client && jest",
+    "test:watch": "cd client && jest --watch",
+    "test:coverage": "cd client && jest --coverage",
+    "test:e2e": "cd client && playwright test",
+    "test:e2e:ui": "cd client && playwright test --ui",
+    "test:e2e:headed": "cd client && playwright test --headed",
+    "test:e2e:debug": "cd client && playwright test --debug",
+    "test:e2e:report": "cd client && playwright show-report"
   },
   "keywords": [
     "game",

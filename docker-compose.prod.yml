@@ -7,8 +7,8 @@ services:
   # Python AI Backend Service (Production)
   ai-backend:
     build:
-      context: ./server
-      dockerfile: Dockerfile.prod
+      context: .
+      dockerfile: server/Dockerfile.prod
     container_name: nexus-ai-backend-prod
     ports:
       - "8000:8000"

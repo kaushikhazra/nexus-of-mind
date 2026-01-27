@@ -1,4 +1,0 @@
-# file: C:\Projects\DKH-RTS-Game-Nesus-Of-Mind\server\ai_engine\performance_monitor.py
-# hypothesis_version: 6.150.1
-
-[0.0, 0.1, 0.5, 0.8, 1.0, 1.5, 2.0, 5.0, 25.0, 60.0, 120, 128, 200, 512, 1000, 1024, 2048, 4096, 8192, '/', 'GPU', 'averages', 'balanced', 'batch_size', 'cpu_usage_percent', 'critical_fps_impact', 'device_name', 'error', 'fps_impact', 'generation', 'gpu_acceleration', 'max_epochs', 'max_memory_mb', 'max_model_size_mb', 'memory_delta_mb', 'memory_usage_mb', 'metrics_count', 'no_data', 'optimization_level', 'optimized_config', 'patience', 'performance_issues', 'performance_metrics', 'performance_warnings', 'performing_well', 'status', 'success', 'system_resources', 'target_fps', 'thresholds', 'timestamp', 'training_config', 'training_success', 'training_time', 'use_mixed_precision', 'warning_fps_impact']

@@ -1,7 +1,7 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  roots: ['<rootDir>/client/src'],
+  roots: ['<rootDir>/src'],
   testMatch: [
     '**/__tests__/**/*.ts',
     '**/?(*.)+(spec|test).ts'
@@ -10,8 +10,8 @@ module.exports = {
     '^.+\\.ts$': 'ts-jest',
   },
   collectCoverageFrom: [
-    'client/src/**/*.ts',
-    '!client/src/**/*.d.ts',
+    'src/**/*.ts',
+    '!src/**/*.d.ts',
   ],
   moduleNameMapper: {
     '^@babylonjs/core$': '<rootDir>/jest.babylon-mock.js',

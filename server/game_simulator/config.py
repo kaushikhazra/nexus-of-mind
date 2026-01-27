@@ -49,7 +49,7 @@ class SimulationConfig:
     minerals_per_mining: float = 0.3
 
     # Simulation
-    tick_interval: float = 0.1
+    tick_interval: float = 1.0
     turbo_mode: bool = False
 
     def __repr__(self) -> str:
