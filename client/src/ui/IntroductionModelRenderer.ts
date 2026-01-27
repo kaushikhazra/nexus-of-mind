@@ -8,12 +8,12 @@
  * Requirements: 9.5, 9.6, 9.8, 9.9
  */
 
-import { 
-    Engine, 
-    Scene, 
-    ArcRotateCamera, 
-    Vector3, 
-    HemisphericLight, 
+import {
+    Engine,
+    Scene,
+    ArcRotateCamera,
+    Vector3,
+    HemisphericLight,
     DirectionalLight,
     Color3,
     Color4,
@@ -23,7 +23,9 @@ import {
     PostProcessRenderPipeline,
     DefaultRenderingPipeline,
     Mesh,
-    Material
+    MeshBuilder,
+    Material,
+    StandardMaterial
 } from '@babylonjs/core';
 import { MaterialManager } from '../rendering/MaterialManager';
 import { EmblemGeometry } from './components/EmblemGeometry';
@@ -33,7 +35,7 @@ import { TerrainRenderer } from './components/TerrainRenderer';
 
 export interface ModelConfig {
     pageIndex: number;
-    modelType: 'empire-emblem' | 'desert-planet' | 'terrain-closeup' | 'energy-lords-emblem' | 'parasites' | 'orbital-system';
+    modelType: 'empire-emblem' | 'desert-planet' | 'terrain-closeup' | 'radiation-sign' | 'energy-lords-emblem' | 'parasites' | 'orbital-system';
     containerWidth: number;
     containerHeight: number;
 }
@@ -64,31 +66,77 @@ export interface ErrorState {
 /**
  * Page-to-model mapping configuration
  * Requirements: 9.2 - Contextually appropriate 3D models for each story page
+ *
+ * Story structure (14 pages, each paragraph is a page):
+ * - Pages 1-2: The Empire and the Crisis → empire-emblem
+ * - Pages 3-4: The Discovery → desert-planet
+ * - Pages 5-6: The Challenge → terrain-closeup
+ * - Pages 7-8: The Energy Lords → energy-lords-emblem
+ * - Pages 9-10: The Threat → parasites
+ * - Pages 11-14: Your Mission → orbital-system
  */
 const MODEL_PAGE_MAPPING: { [pageIndex: number]: { modelType: ModelConfig['modelType'], animation: ModelAnimation } } = {
-    0: { // Page 1: The Empire and the Crisis
+    // Pages 1-2: The Empire and the Crisis
+    0: {
         modelType: 'empire-emblem',
         animation: { rotationSpeed: 0.5 }
     },
-    1: { // Page 2: The Discovery
+    1: {
+        modelType: 'empire-emblem',
+        animation: { rotationSpeed: 0.5 }
+    },
+    // Pages 3-4: The Discovery
+    2: {
         modelType: 'desert-planet',
         animation: { rotationSpeed: 0.5 }
     },
-    2: { // Page 3: The Challenge
-        modelType: 'terrain-closeup',
+    3: {
+        modelType: 'desert-planet',
+        animation: { rotationSpeed: 0.5 }
+    },
+    // Pages 5-6: The Challenge (radiation warning sign for hostile environment)
+    4: {
+        modelType: 'radiation-sign',
+        animation: { rotationSpeed: 0.4 }
+    },
+    5: {
+        modelType: 'radiation-sign',
+        animation: { rotationSpeed: 0.4 }
+    },
+    // Pages 7-8: The Energy Lords
+    6: {
+        modelType: 'energy-lords-emblem',
+        animation: { rotationSpeed: 0.5 }
+    },
+    7: {
+        modelType: 'energy-lords-emblem',
+        animation: { rotationSpeed: 0.5 }
+    },
+    // Pages 9-10: The Threat
+    8: {
+        modelType: 'parasites',
+        animation: { rotationSpeed: 0.4 }
+    },
+    9: {
+        modelType: 'parasites',
+        animation: { rotationSpeed: 0.4 }
+    },
+    // Pages 11-14: Your Mission
+    10: {
+        modelType: 'orbital-system',
         animation: { rotationSpeed: 0.3 }
     },
-    3: { // Page 4: The Energy Lords
-        modelType: 'energy-lords-emblem',
-        animation: { rotationSpeed: 0.5, additionalEffects: 'pulsing' }
-    },
-    4: { // Page 5: The Threat
-        modelType: 'parasites',
-        animation: { rotationSpeed: 0.4, additionalEffects: 'writhing' }
-    },
-    5: { // Page 6: Your Mission
+    11: {
         modelType: 'orbital-system',
-        animation: { rotationSpeed: 0.5, additionalEffects: 'orbital' }
+        animation: { rotationSpeed: 0.3 }
+    },
+    12: {
+        modelType: 'orbital-system',
+        animation: { rotationSpeed: 0.3 }
+    },
+    13: {
+        modelType: 'orbital-system',
+        animation: { rotationSpeed: 0.3 }
     }
 };
 
@@ -216,7 +264,32 @@ class LODSystem {
     }
 
     public dispose(): void {
+        // Dispose all LOD meshes (except the original high-detail mesh which is disposed elsewhere)
+        this.lodLevels.forEach((levels) => {
+            for (const level of levels) {
+                // Only dispose medium and low complexity clones, not the original high-detail mesh
+                if (level.complexity !== 'high' && level.mesh && !level.mesh.isDisposed()) {
+                    level.mesh.dispose(false, true);
+                }
+            }
+        });
         this.lodLevels.clear();
+    }
+
+    /**
+     * Clear LOD levels for a specific model type
+     */
+    public clearModelLOD(modelType: string): void {
+        const levels = this.lodLevels.get(modelType);
+        if (levels) {
+            for (const level of levels) {
+                // Only dispose medium and low complexity clones
+                if (level.complexity !== 'high' && level.mesh && !level.mesh.isDisposed()) {
+                    level.mesh.dispose(false, true);
+                }
+            }
+            this.lodLevels.delete(modelType);
+        }
     }
 }
 
@@ -1293,19 +1366,24 @@ export class IntroductionModelRenderer {
             // Check cache first for efficient loading
             const cacheKey = `${modelConfig.modelType}_${pageIndex}`;
             let model: AbstractMesh | null = this.modelCache.get(cacheKey) || null;
-            
+
             if (model && !model.isDisposed()) {
                 // Use cached model
                 console.log(`Using cached model for page ${pageIndex}: ${modelConfig.modelType}`);
                 model.setEnabled(true);
                 this.currentModel = model;
             } else {
+                // Remove disposed model from cache if it exists
+                if (model && model.isDisposed()) {
+                    this.modelCache.delete(cacheKey);
+                }
+
                 // Create new model with performance considerations
                 model = await this.createOptimizedModelByType(modelConfig.modelType, pageIndex);
                 if (!model) {
                     throw new Error(`Failed to create model of type: ${modelConfig.modelType}`);
                 }
-                
+
                 // Cache the model for future use
                 this.modelCache.set(cacheKey, model);
                 this.currentModel = model;
@@ -1314,16 +1392,16 @@ export class IntroductionModelRenderer {
             // Set current page
             this.currentPageIndex = pageIndex;
 
-            // Apply LOD system if available
-            if (this.lodSystem && this.camera) {
+            // Apply LOD system if available (skip for models marked with skipLOD)
+            if (this.lodSystem && this.camera && !(model as any).skipLOD) {
                 const lodLevels = this.lodSystem.createLODLevels(model, modelConfig.modelType);
                 this.lodSystem.registerLODLevels(modelConfig.modelType, lodLevels);
-                
+
                 // Use appropriate LOD level based on performance mode
-                const targetLOD = this.isLowPerformanceMode ? 
+                const targetLOD = this.isLowPerformanceMode ?
                     lodLevels.find(l => l.complexity === 'medium') || lodLevels[0] :
                     lodLevels[0]; // Use highest quality in normal mode
-                
+
                 if (targetLOD && targetLOD.mesh !== model) {
                     this.switchToLODModel(targetLOD);
                 }
@@ -1432,6 +1510,8 @@ export class IntroductionModelRenderer {
                 return this.createOptimizedDesertPlanet(useSimplified);
             case 'terrain-closeup':
                 return this.createOptimizedTerrainCloseup(useSimplified);
+            case 'radiation-sign':
+                return this.createOptimizedRadiationSign(useSimplified);
             case 'energy-lords-emblem':
                 return this.createOptimizedEnergyLordsEmblem(useSimplified);
             case 'parasites':
@@ -1545,20 +1625,15 @@ export class IntroductionModelRenderer {
 
     /**
      * Create organic parasite models using ParasiteRenderer component
+     * Uses the actual in-game multi-ring worm parasite model
      * Requirements: 9.2, 9.3 - Organic parasite models with dark materials and red pulsing effects
      */
     private createParasiteModels(): AbstractMesh | null {
         if (!this.scene || !this.materialManager || !this.parasiteRenderer) return null;
 
         try {
-            // Create parasite group with multiple organic shapes
-            const parasiteGroup = this.parasiteRenderer.createParasiteGroup({
-                count: 4, // Multiple parasites for visual interest
-                organicShapes: ['blob', 'tendril', 'spore', 'cluster'], // Variety of shapes
-                pulsing: true, // Enable red vein pulsing effects
-                writhing: true, // Enable organic writhing animations
-                redVeins: true // Enable red vein textures
-            });
+            // Create ring worm parasites (matching actual game model)
+            const parasiteGroup = this.parasiteRenderer.createRingWormGroup(3);
 
             return parasiteGroup;
         } catch (error) {
@@ -1658,6 +1733,40 @@ export class IntroductionModelRenderer {
     }
 
     /**
+     * Create optimized radiation warning sign for "The Challenge" pages
+     * Represents the hostile/toxic environment of the planet
+     */
+    private createOptimizedRadiationSign(useSimplified: boolean = false): AbstractMesh | null {
+        if (!this.scene || !this.materialManager || !this.emblemGeometry) return null;
+
+        try {
+            const radiationSign = this.emblemGeometry.createRadiationSign();
+
+            if (radiationSign) {
+                // Position the sign
+                radiationSign.position.y = 0;
+
+                // Mark to skip LOD (prevents cloning issues)
+                (radiationSign as any).skipLOD = true;
+
+                return radiationSign;
+            }
+
+            return null;
+        } catch (error) {
+            console.error('Failed to create radiation sign:', error);
+            // Fallback to a simple warning shape
+            const fallback = MeshBuilder.CreateCylinder('radiationFallback', {
+                height: 0.3,
+                diameter: 2.5,
+                tessellation: 3
+            }, this.scene);
+            this.applyOptimizedMaterial(fallback, 'gold_glow');
+            return fallback;
+        }
+    }
+
+    /**
      * Create optimized Energy Lords emblem with performance considerations
      * Requirements: 9.2, 9.3, 9.6, 9.8 - Energy Lords emblem with performance optimization
      */
@@ -1684,79 +1793,129 @@ export class IntroductionModelRenderer {
 
     /**
      * Create optimized parasite models with performance considerations
+     * Uses the actual in-game multi-ring worm parasite model
      * Requirements: 9.2, 9.3, 9.6, 9.8 - Parasite models with performance optimization
      */
     private createOptimizedParasiteModels(useSimplified: boolean = false): AbstractMesh | null {
         if (!this.scene || !this.materialManager || !this.parasiteRenderer) return null;
 
         try {
-            // Configure parasites based on performance mode
-            const parasiteConfig: ParasiteConfig = {
-                count: useSimplified ? 2 : 4,                    // Fewer parasites in low performance mode
-                organicShapes: useSimplified ? 
-                    ['blob', 'spore'] :                          // Simpler shapes in low performance mode
-                    ['blob', 'tendril', 'spore', 'cluster'],
-                pulsing: !useSimplified,                         // Disable pulsing in low performance mode
-                writhing: !useSimplified,                        // Disable writhing in low performance mode
-                redVeins: !useSimplified                         // Disable veins in low performance mode
-            };
+            // Use the ring worm model (matching the actual game parasites)
+            const parasiteCount = useSimplified ? 2 : 3;
+            const parasiteGroup = this.parasiteRenderer.createRingWormGroup(parasiteCount);
 
-            return this.parasiteRenderer.createParasiteGroup(parasiteConfig);
+            // Mark to skip LOD to prevent cloning issues
+            (parasiteGroup as any).skipLOD = true;
+
+            return parasiteGroup;
         } catch (error) {
             console.warn('Failed to create optimized parasite models, using fallback:', error);
-            
+
             // Fallback to simple placeholder
             const parasite = Mesh.CreateSphere('parasiteModelOptimizedFallback', useSimplified ? 8 : 12, 2, this.scene);
             parasite.scaling = new Vector3(1.2, 0.8, 1.0);
             this.applyOptimizedMaterial(parasite, 'red_organic');
-            
+
             return parasite;
         }
     }
 
     /**
      * Create optimized orbital system with performance considerations
+     * Same planet as Discovery page + black orbital orb
      * Requirements: 9.2, 9.6, 9.8 - Orbital system with performance optimization
      */
     private createOptimizedOrbitalSystem(useSimplified: boolean = false): AbstractMesh | null {
         if (!this.scene || !this.materialManager || !this.planetRenderer) return null;
 
         try {
-            // Create base desert planet with performance considerations
+            // Create container for the system
+            const system = new Mesh('orbitalSystem', this.scene);
+
+            // Create same desert planet as Discovery page (radius 1.8, no glow, no cloud)
+            // rotationSpeed: 0 so planet doesn't spin independently - whole system rotates together
             const planetConfig = {
-                radius: 2.0,
+                radius: 1.8,
                 textureType: 'desert' as const,
-                atmosphereGlow: !useSimplified,  // Disable glow in low performance mode
-                cloudLayer: false,               // No clouds for clearer view
-                rotationSpeed: 0.5
+                atmosphereGlow: false,
+                cloudLayer: false,
+                rotationSpeed: 0
             };
 
             const planet = this.planetRenderer.createDesertPlanet(planetConfig);
+            planet.parent = system;
 
-            if (!useSimplified) {
-                // Add orbiting mining ship only in normal performance mode
-                const orbitingShip = this.planetRenderer.createOrbitalSystem(planet);
-            }
+            // Create black orbital orb (slightly bigger)
+            const orbContainer = new Mesh('orbContainer', this.scene);
+            const orb = MeshBuilder.CreateSphere('orbitalOrb', {
+                diameter: 0.5,
+                segments: 16
+            }, this.scene);
 
-            return planet;
+            // Black matte material for the orb
+            const orbMaterial = new StandardMaterial('orbitalOrbMat', this.scene);
+            orbMaterial.diffuseColor = new Color3(0.05, 0.05, 0.05);
+            orbMaterial.emissiveColor = new Color3(0.02, 0.02, 0.02);
+            orbMaterial.specularColor = new Color3(0.1, 0.1, 0.1);
+            orbMaterial.specularPower = 8;
+            orb.material = orbMaterial;
+            orb.parent = orbContainer;
+
+            // Add tiny lights around the orb
+            const lightMaterial = new StandardMaterial('orbLightMat', this.scene);
+            lightMaterial.diffuseColor = new Color3(0, 0, 0);
+            lightMaterial.emissiveColor = new Color3(0, 1, 1); // Cyan glow
+            lightMaterial.specularColor = new Color3(0, 0, 0);
+            lightMaterial.disableLighting = true;
+
+            const lightPositions = [
+                new Vector3(0.28, 0, 0),      // Right
+                new Vector3(-0.28, 0, 0),     // Left
+                new Vector3(0, 0.28, 0),      // Top
+                new Vector3(0, -0.28, 0),     // Bottom
+                new Vector3(0, 0, 0.28),      // Front
+                new Vector3(0, 0, -0.28),     // Back
+            ];
+
+            lightPositions.forEach((pos, i) => {
+                const light = MeshBuilder.CreateSphere(`orbLight_${i}`, {
+                    diameter: 0.05,
+                    segments: 6
+                }, this.scene);
+                light.position = pos;
+                light.material = lightMaterial;
+                light.parent = orbContainer;
+            });
+
+            // Position orb container at orbital distance
+            const orbitRadius = 3.0;
+            orbContainer.position = new Vector3(orbitRadius, 0, 0);
+            orbContainer.parent = system;
+
+            // No separate orbital animation - orb rotates with the system (geosynchronous)
+
+            // Mark to skip LOD
+            (system as any).skipLOD = true;
+
+            return system;
         } catch (error) {
             console.warn('Failed to create optimized orbital system, using fallback:', error);
-            // Fallback to simple planet with optional orbiting object
+            // Fallback to simple planet with orbiting orb
             const system = new Mesh('orbitalSystemOptimizedFallback', this.scene);
-            
+
             // Central planet
-            const planet = Mesh.CreateSphere('centralPlanetOptimizedFallback', useSimplified ? 8 : 16, 2, this.scene);
+            const planet = Mesh.CreateSphere('centralPlanetOptimizedFallback', useSimplified ? 8 : 16, 3.6, this.scene);
             this.applyOptimizedMaterial(planet, 'desert_planet');
             planet.parent = system;
-            
-            if (!useSimplified) {
-                // Orbiting ship (simple box)
-                const ship = Mesh.CreateBox('orbitingShipOptimizedFallback', 0.5, this.scene);
-                this.applyOptimizedMaterial(ship, 'metallic_ship');
-                ship.position = new Vector3(4, 0, 0);
-                ship.parent = system;
-            }
-            
+
+            // Black orb
+            const orb = Mesh.CreateSphere('orbitalOrbFallback', 8, 0.3, this.scene);
+            const orbMat = new StandardMaterial('orbFallbackMat', this.scene);
+            orbMat.diffuseColor = new Color3(0.05, 0.05, 0.05);
+            orb.material = orbMat;
+            orb.position = new Vector3(3, 0, 0);
+            orb.parent = system;
+
             return system;
         }
     }
@@ -2009,19 +2168,38 @@ export class IntroductionModelRenderer {
     private clearCurrentModel(): void {
         // Stop current animation
         this.stopAnimation();
-        
+
         // Dispose animation group
         if (this.currentAnimationGroup) {
             this.currentAnimationGroup.dispose();
             this.currentAnimationGroup = null;
         }
-        
-        // Dispose current model
+
+        // Clear LOD levels for current model type
+        if (this.currentPageIndex >= 0 && this.lodSystem) {
+            const modelConfig = MODEL_PAGE_MAPPING[this.currentPageIndex];
+            if (modelConfig) {
+                this.lodSystem.clearModelLOD(modelConfig.modelType);
+            }
+        }
+
+        // Dispose current model and all child meshes recursively
         if (this.currentModel) {
-            this.currentModel.dispose();
+            // Get all descendant meshes first
+            const descendants = this.currentModel.getChildMeshes(false);
+
+            // Dispose each child mesh
+            for (const child of descendants) {
+                if (child && !child.isDisposed()) {
+                    child.dispose(false, true);
+                }
+            }
+
+            // Dispose the parent mesh
+            this.currentModel.dispose(false, true);
             this.currentModel = null;
         }
-        
+
         this.currentPageIndex = -1;
     }
 

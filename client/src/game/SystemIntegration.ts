@@ -14,6 +14,7 @@ import { WebSocketClient } from '../networking/WebSocketClient';
 import { Logger, LogCategory, integrationLogger } from '../utils/Logger';
 import { DebugUI } from '../ui/DebugUI';
 import { AdvancedDynamicTexture } from '@babylonjs/gui';
+import { getBackendUrl } from '../config';
 
 export interface SystemIntegrationConfig {
     gameEngine: GameEngine;
@@ -89,7 +90,7 @@ export class SystemIntegration {
             enableConsole: true,
             enableStorage: true,
             enableRemote: this.enableAILearning,
-            remoteEndpoint: config.websocketUrl?.replace('ws://', 'http://').replace('wss://', 'https://') || 'http://localhost:8000'
+            remoteEndpoint: config.websocketUrl?.replace('ws://', 'http://').replace('wss://', 'https://') || getBackendUrl()
         });
         
         integrationLogger.info('SystemIntegration created', {

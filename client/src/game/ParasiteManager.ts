@@ -23,7 +23,7 @@ import { TerritoryManager, Territory } from './TerritoryManager';
 import { Queen } from './entities/Queen';
 import { SpatialIndex } from './SpatialIndex';
 import { GameEngine } from './GameEngine';
-import { chunkIdToRandomPosition, positionToChunkId } from './utils/ChunkUtils';
+import { chunkToCoordinate, positionToChunkId } from './utils/ChunkUtils';
 
 export interface TerritorialParasiteConfig {
     territory: Territory;
@@ -392,26 +392,20 @@ export class ParasiteManager {
             return false;
         }
 
-        // Convert chunk to random position within chunk
-        const chunkPosition = chunkIdToRandomPosition(chunkId, 5);
-        if (!chunkPosition) {
+        // Get territory center for coordinate conversion
+        const territory = queen.getTerritory();
+        const territoryCenter = {
+            x: territory.centerPosition.x,
+            z: territory.centerPosition.z
+        };
+
+        // Convert chunk ID to world coordinates using unified formula
+        const spawnPosition = chunkToCoordinate(chunkId, territoryCenter, true, 5);
+        if (!spawnPosition) {
             console.log(`🐛 FAIL: Could not convert chunk ${chunkId} to position`);
             return false;
         }
-
-        // Get territory to offset chunk position
-        // Chunk system assumes [0, 1024] but territory is centered at its position
-        const territory = queen.getTerritory();
-        const territoryCenter = territory.centerPosition;
-
-        // Offset chunk position to be relative to territory center
-        // Chunk (0-1024) -> Territory-relative (-512 to 512) + territory center
-        const spawnPosition = new Vector3(
-            chunkPosition.x - 512 + territoryCenter.x,
-            0,
-            chunkPosition.z - 512 + territoryCenter.z
-        );
-        console.log(`🐛 Chunk ${chunkId} → territory-relative (${spawnPosition.x.toFixed(1)}, ${spawnPosition.z.toFixed(1)})`);
+        console.log(`🐛 Chunk ${chunkId} → world (${spawnPosition.x.toFixed(1)}, ${spawnPosition.z.toFixed(1)})`);
 
         // Get terrain height at spawn position
         if (this.terrainGenerator && this.terrainGenerator.getHeightAtPosition) {

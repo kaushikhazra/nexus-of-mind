@@ -16,6 +16,9 @@ import { IntroductionScreen } from './ui/IntroductionScreen';
 import { PreferenceManager } from './ui/PreferenceManager';
 import { Vector3 } from '@babylonjs/core';
 
+// Debug utilities (exposes chunkDebug to console)
+import './game/utils/ChunkDebugVisualizer';
+
 /**
  * Application initialization and startup
  */
@@ -35,8 +38,8 @@ class Application {
      */
     public async init(): Promise<void> {
         try {
-            // Initialize preference manager
-            this.preferenceManager = new PreferenceManager({ storageKey: 'nexus-of-mind-preferences' });
+            // Initialize preference manager (must match IntroductionScreen's key)
+            this.preferenceManager = new PreferenceManager({ storageKey: 'skipIntroduction' });
 
             // Check if introduction should be shown
             const shouldShowIntroduction = !this.preferenceManager.getSkipIntroduction();
@@ -94,7 +97,7 @@ class Application {
             }
 
             // Update loading progress
-            this.updateLoadingProgress(25, 'Initializing Quantum Engine...');
+            this.updateLoadingProgress(25, 'Initializing Quantum Tunnel...');
 
             // Initialize game engine
             this.gameEngine = new GameEngine(this.canvas);

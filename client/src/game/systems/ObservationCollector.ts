@@ -32,6 +32,7 @@ import { Protector } from '../entities/Protector';
 import { Queen } from '../entities/Queen';
 import { EnergyParasite } from '../entities/EnergyParasite';
 import { CombatParasite } from '../entities/CombatParasite';
+import { coordinateToChunk } from '../utils/ChunkUtils';
 
 export class ObservationCollector {
     private config: ObservationConfig;
@@ -39,6 +40,10 @@ export class ObservationCollector {
     // Window tracking
     private windowStartTime: number = 0;
     private isWindowActive: boolean = false;
+
+    // Current territory context
+    private currentTerritoryId: string = '';
+    private territoryCenter: { x: number; z: number } = { x: 0, z: 0 };
 
     // Snapshots at window boundaries
     private startSnapshot: ParasiteSnapshot | null = null;
@@ -62,11 +67,34 @@ export class ObservationCollector {
     public startWindow(territoryId: string): void {
         this.windowStartTime = performance.now();
         this.isWindowActive = true;
+        this.currentTerritoryId = territoryId;
+
+        // Cache territory center for chunk calculations
+        this.updateTerritoryCenter(territoryId);
 
         // Capture start snapshots
         this.startSnapshot = this.captureParasiteSnapshot();
         this.playerEnergyStart = this.getPlayerEnergy();
         this.playerMineralsStart = this.getPlayerMinerals();
+    }
+
+    /**
+     * Update cached territory center position
+     */
+    private updateTerritoryCenter(territoryId: string): void {
+        if (!this.gameEngine) {
+            this.gameEngine = GameEngine.getInstance();
+        }
+
+        const territoryManager = this.gameEngine?.getTerritoryManager();
+        const territory = territoryManager?.getTerritory(territoryId);
+
+        if (territory?.centerPosition) {
+            this.territoryCenter = {
+                x: territory.centerPosition.x,
+                z: territory.centerPosition.z
+            };
+        }
     }
 
     /**
@@ -346,19 +374,10 @@ export class ObservationCollector {
     }
 
     /**
-     * Calculate chunk ID from world position
+     * Calculate chunk ID from world position using territory-aware conversion
      */
     private calculateChunkId(x: number, z: number): number {
-        const chunkX = Math.floor(x / this.config.chunkSize);
-        const chunkZ = Math.floor(z / this.config.chunkSize);
-
-        // Bounds check
-        if (chunkX < 0 || chunkX >= this.config.chunksPerAxis ||
-            chunkZ < 0 || chunkZ >= this.config.chunksPerAxis) {
-            return -1;
-        }
-
-        return chunkZ * this.config.chunksPerAxis + chunkX;
+        return coordinateToChunk(x, z, this.territoryCenter);
     }
 
     /**

@@ -13,6 +13,7 @@ import { GameState } from './GameState';
 import { GameEngine } from './GameEngine';
 import { ObservationCollector } from './systems/ObservationCollector';
 import { ObservationData, SpawnDecision } from './types/ObservationTypes';
+import { getWebSocketUrl } from '../config';
 
 export interface AdaptiveQueenIntegrationConfig {
     gameEngine: GameEngine;
@@ -43,8 +44,8 @@ export class AdaptiveQueenIntegration {
     private currentTerritoryId: string = '';
     private useChunkObservations: boolean = true; // Feature flag for chunk-based system
 
-    // Default WebSocket URL for AI backend
-    private readonly DEFAULT_WEBSOCKET_URL = 'ws://localhost:8000/ws';
+    // Default WebSocket URL for AI backend (from config)
+    private readonly DEFAULT_WEBSOCKET_URL = getWebSocketUrl();
 
     constructor(config: AdaptiveQueenIntegrationConfig) {
         this.gameEngine = config.gameEngine;
@@ -161,11 +162,13 @@ export class AdaptiveQueenIntegration {
      */
     private setupObservationCallbacks(): void {
         this.observationCollector.onObservationReady((data: ObservationData) => {
-            console.log('🧠 Observation ready, sending to backend...', {
-                workers: data.miningWorkers?.length || 0,
-                protectors: data.protectors?.length || 0,
-                parasitesEnd: data.parasitesEnd?.length || 0
-            });
+            console.log('🧠 Observation ready, sending to backend...');
+            console.log('  Workers mining:', data.miningWorkers?.map(w => `chunk ${w.chunkId}`).join(', ') || 'none');
+            console.log('  Workers present:', data.workersPresent?.map(w => `chunk ${w.chunkId}`).join(', ') || 'none');
+            console.log('  Protectors:', data.protectors?.map(p => `chunk ${p.chunkId}`).join(', ') || 'none');
+            console.log('  Parasites:', data.parasitesEnd?.map(p => `chunk ${p.chunkId} (${p.type})`).join(', ') || 'none');
+            console.log('  Queen energy:', data.queenEnergy?.current, '/', data.queenEnergy?.max);
+            console.log('  Hive chunk:', data.hiveChunk);
             this.sendObservationToBackend(data);
         });
     }
@@ -510,7 +513,7 @@ export async function createAdaptiveQueenIntegration(config: AdaptiveQueenIntegr
  */
 export async function checkAIBackendAvailability(websocketUrl?: string): Promise<boolean> {
     const testClient = new WebSocketClient({
-        url: websocketUrl || 'ws://localhost:8000/ws',
+        url: websocketUrl || getWebSocketUrl(),
         clientId: 'test_client',
         maxReconnectAttempts: 1
     });

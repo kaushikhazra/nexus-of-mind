@@ -159,6 +159,7 @@ export class TextColorizer {
             'Korenthi Empire',
             'The Energy Lords',
             'Energy Lords',
+            'Energy Lord',
             'Korenthi'
         ];
 
@@ -177,7 +178,7 @@ export class TextColorizer {
             'quantum tunneling',
             'consciousness interfaces',
             'quantum-linked consciousness interfaces',
-            'remote orbital mining system'
+            'remote mining system'
         ];
 
         technologyTerms.forEach(term => {

@@ -62,6 +62,72 @@ export class ParasiteRenderer {
     }
 
     /**
+     * Create multi-ring worm parasite (copied from game's Parasite.ts)
+     * This is the actual in-game parasite model with torus segments
+     */
+    public createRingWormParasite(name: string = 'ringWormParasite', segmentCount: number = 6): AbstractMesh {
+        const parasiteGroup = new Mesh(name, this.scene);
+
+        // Configuration (matching game's Parasite.ts)
+        const baseScale = 1.5; // Slightly larger for intro screen visibility
+        const baseSpacing = 0.3;
+
+        // Bronze/brown parasite material (matching MaterialManager.getParasiteMaterial)
+        const parasiteMaterial = new StandardMaterial(`${name}_material`, this.scene);
+        parasiteMaterial.diffuseColor = new Color3(0.4, 0.25, 0.15); // Bronze/brown
+        parasiteMaterial.emissiveColor = new Color3(0.08, 0.04, 0.02); // Subtle bronze glow
+        parasiteMaterial.specularColor = new Color3(0.3, 0.2, 0.1); // Metallic reflections
+        parasiteMaterial.specularPower = 16;
+
+        // Create segments (torus rings) - tapers from head to tail
+        for (let i = 0; i < segmentCount; i++) {
+            // Size multiplier: tapers from 1.0 at head to smaller at tail
+            const sizeMultiplier = 1.0 - (i * 0.12);
+            const ringDiameter = 0.8 * sizeMultiplier * baseScale;
+            const ringThickness = 0.2 * sizeMultiplier * baseScale;
+
+            const segment = MeshBuilder.CreateTorus(`${name}_segment_${i}`, {
+                diameter: ringDiameter,
+                thickness: ringThickness,
+                tessellation: 16 // Higher tessellation for intro screen quality
+            }, this.scene);
+
+            segment.material = parasiteMaterial;
+            segment.parent = parasiteGroup;
+
+            // Position along Z axis (negative Z = towards tail)
+            segment.position = new Vector3(0, 0, -i * baseSpacing * baseScale);
+            segment.rotation.x = Math.PI / 2; // Face forward
+        }
+
+        return parasiteGroup;
+    }
+
+    /**
+     * Create a single ring worm parasite for the introduction screen
+     * Tilted towards the camera for better visibility
+     */
+    public createRingWormGroup(count: number = 1): AbstractMesh {
+        const groupContainer = new Mesh('ringWormGroup', this.scene);
+
+        // Create single parasite with 6 segments
+        const parasite = this.createRingWormParasite('ringWorm_0', 6);
+
+        // Center position
+        parasite.position = new Vector3(0, 0, 0);
+
+        // Flip 180 degrees so big ring (head) faces camera, then tilt 20 degrees downward
+        const tiltAngle = 20 * (Math.PI / 180); // Convert 20 degrees to radians
+        parasite.rotation = new Vector3(tiltAngle, Math.PI, 0);
+
+        parasite.parent = groupContainer;
+
+        // Note: Animation is handled by IntroductionModelRenderer via MODEL_PAGE_MAPPING
+
+        return groupContainer;
+    }
+
+    /**
      * Create group of organic parasite models with various shapes
      * Requirements: 9.2, 9.3 - Organic parasite models with dark materials and red pulsing effects
      */
