@@ -16,6 +16,7 @@ import { UIManager, UIComponents } from './UIManager';
 import { AdaptiveQueenIntegration, createAdaptiveQueenIntegration } from '../AdaptiveQueenIntegration';
 import { FPSCounter } from '../../ui/FPSCounter';
 import { CoordinateDisplay } from '../../ui/CoordinateDisplay';
+import { HelpWindow } from '../../ui/help';
 import { getWebSocketUrl } from '../../config';
 import { Protector } from '../entities/Protector';
 
@@ -38,6 +39,7 @@ export class GameEngine {
     // Advanced systems
     private adaptiveQueenIntegration: AdaptiveQueenIntegration | null = null;
     private guiTexture: AdvancedDynamicTexture | null = null;
+    private helpWindow: HelpWindow | null = null;
 
     // Throttling for spatial index checks
     private lastDetectionCheckTime: number = 0;
@@ -106,6 +108,11 @@ export class GameEngine {
             const combatSystem = this.systemManager.getCombatSystem();
             if (combatSystem && this.guiTexture) {
                 combatSystem.setSharedUI(this.guiTexture);
+            }
+
+            // Initialize in-game help window (H key to open, Escape to close)
+            if (this.guiTexture) {
+                this.helpWindow = new HelpWindow(this.guiTexture);
             }
 
             // Complete territory manager initialization
@@ -351,6 +358,7 @@ export class GameEngine {
     public getTerritoryVisualUI() { return this.uiComponents?.territoryVisualUI || null; }
     public getAdaptiveQueenIntegration() { return this.adaptiveQueenIntegration; }
     public getGUITexture() { return this.guiTexture; }
+    public getHelpWindow() { return this.helpWindow; }
 
     /**
      * Dispose of all resources
@@ -361,6 +369,7 @@ export class GameEngine {
         // Dispose UI systems
         this.uiManager?.dispose();
         this.adaptiveQueenIntegration?.dispose();
+        this.helpWindow?.dispose();
         this.guiTexture?.dispose();
         this.fpsCounter?.dispose();
         this.coordinateDisplay?.dispose();

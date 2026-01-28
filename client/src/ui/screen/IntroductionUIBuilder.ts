@@ -59,7 +59,7 @@ function createPageContainer(): HTMLElement {
     container.className = 'introduction-content';
     container.style.cssText = `
         background: rgba(0, 10, 20, 0.85);
-        border: 2px solid rgba(0, 255, 255, 0.6);
+        border: 1px solid rgba(0, 255, 255, 0.4);
         border-radius: 8px;
         padding: 0;
         max-width: 1200px;

@@ -1,7 +1,9 @@
 /**
  * UITheme - UI theming and color management
- * 
+ *
  * Provides consistent theming and color management for UI components.
+ * Central source of truth for styling constants used across both
+ * Babylon.js GUI and HTML-based UI components.
  */
 
 // ==================== Theme Interfaces ====================
@@ -22,6 +24,13 @@ export interface UITheme {
     /** Success/confirmation color */
     successColor: string;
 }
+
+// ==================== Shared Typography ====================
+
+/**
+ * Font family used across all UI components (both Babylon.js GUI and HTML)
+ */
+export const UI_FONT_FAMILY = "'Orbitron', 'Segoe UI', monospace";
 
 // ==================== Default Theme ====================
 
