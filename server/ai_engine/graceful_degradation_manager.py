@@ -177,12 +177,12 @@ class GracefulDegradationManager:
             memory_usage = memory.percent
             memory_available = memory.available / (1024 * 1024 * 1024)  # GB
             
-            # GPU memory (if available)
+            # GPU memory (if available) - check via PyTorch
             gpu_memory_usage = 0.0
             gpu_available = False
             try:
-                import tensorflow as tf
-                if tf.config.list_physical_devices('GPU'):
+                import torch
+                if torch.cuda.is_available():
                     gpu_available = True
                     # Get GPU memory info if available
                     gpu_memory_usage = 50.0  # Placeholder - would need nvidia-ml-py for real data

@@ -13,12 +13,9 @@ import threading
 import queue
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-try:
-    import tensorflow as tf
-    TENSORFLOW_AVAILABLE = True
-except ImportError:
-    TENSORFLOW_AVAILABLE = False
-    tf = None
+# TensorFlow removed - using PyTorch instead
+TENSORFLOW_AVAILABLE = False
+tf = None
 
 from .gpu_manager import GPUManager, GPUConfig
 

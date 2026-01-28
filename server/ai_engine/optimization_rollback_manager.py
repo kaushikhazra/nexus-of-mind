@@ -488,14 +488,14 @@ class OptimizationRollbackManager:
         try:
             # Restore original model if available
             if snapshot.model_path and os.path.exists(snapshot.model_path):
-                # Load the original model
-                import tensorflow as tf
-                original_model = tf.keras.models.load_model(snapshot.model_path)
-                
+                # Load the original model (PyTorch)
+                import torch
+                original_state = torch.load(snapshot.model_path)
+
                 # Save as current model
-                current_model_path = "models/queen_behavior_model.keras"
-                original_model.save(current_model_path)
-                
+                current_model_path = "models/queen_behavior_model.pt"
+                torch.save(original_state, current_model_path)
+
                 logger.info("Restored original model from quantization rollback")
                 return True
             else:
@@ -511,11 +511,12 @@ class OptimizationRollbackManager:
         try:
             # Force CPU-only mode
             os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-            
-            # Clear TensorFlow session
-            import tensorflow as tf
-            tf.keras.backend.clear_session()
-            
+
+            # Clear PyTorch GPU cache
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
             logger.info("Rolled back GPU acceleration to CPU-only mode")
             return True
             
@@ -541,13 +542,11 @@ class OptimizationRollbackManager:
     async def _rollback_mixed_precision(self, snapshot: OptimizationSnapshot) -> bool:
         """Rollback mixed precision optimization"""
         try:
-            # Disable mixed precision
-            import tensorflow as tf
-            tf.keras.mixed_precision.set_global_policy('float32')
-            
+            # Disable mixed precision (PyTorch uses autocast which is context-managed)
+            # No global state to reset, just log the rollback
             logger.info("Rolled back mixed precision to float32")
             return True
-            
+
         except Exception as e:
             logger.error(f"Error rolling back mixed precision: {e}")
             return False

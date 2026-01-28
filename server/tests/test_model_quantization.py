@@ -17,17 +17,14 @@ from ai_engine.model_quantizer import (
 )
 from ai_engine.neural_network import QueenBehaviorNetwork
 
-try:
-    import tensorflow as tf
-    from tensorflow import keras
-    TENSORFLOW_AVAILABLE = True
-except ImportError:
-    TENSORFLOW_AVAILABLE = False
-    tf = None
-    keras = None
+# TensorFlow removed - using PyTorch instead
+# These tests are deprecated and will be skipped
+TENSORFLOW_AVAILABLE = False
+tf = None
+keras = None
 
-# Skip all tests if TensorFlow is not available
-pytestmark = pytest.mark.skipif(not TENSORFLOW_AVAILABLE, reason="TensorFlow not available")
+# Skip all tests since TensorFlow is removed
+pytestmark = pytest.mark.skipif(not TENSORFLOW_AVAILABLE, reason="TensorFlow removed - using PyTorch")
 
 
 @pytest.fixture

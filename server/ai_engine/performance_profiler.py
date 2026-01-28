@@ -16,12 +16,9 @@ from datetime import datetime, timedelta
 import threading
 import psutil
 
-try:
-    import tensorflow as tf
-    TENSORFLOW_AVAILABLE = True
-except ImportError:
-    TENSORFLOW_AVAILABLE = False
-    tf = None
+# TensorFlow removed - using PyTorch instead
+TENSORFLOW_AVAILABLE = False
+tf = None
 
 logger = logging.getLogger(__name__)
 

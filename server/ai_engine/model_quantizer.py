@@ -12,24 +12,17 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 import numpy as np
 
-try:
-    import tensorflow as tf
-    from tensorflow import keras
-    TENSORFLOW_AVAILABLE = True
-except ImportError as e:
-    TENSORFLOW_AVAILABLE = False
-    tf = None
-    keras = None
+# TensorFlow removed - using PyTorch instead
+TENSORFLOW_AVAILABLE = False
+tf = None
+keras = None
 
-try:
-    import tensorflow_model_optimization as tfmot
-    OPTIMIZATION_AVAILABLE = True
-except ImportError as e:
-    OPTIMIZATION_AVAILABLE = False
-    tfmot = None
+# TensorFlow model optimization removed
+OPTIMIZATION_AVAILABLE = False
+tfmot = None
 
-if TYPE_CHECKING or TENSORFLOW_AVAILABLE:
-    from tensorflow import keras as KerasModule
+if TYPE_CHECKING:
+    KerasModule = Any
 else:
     KerasModule = Any
 

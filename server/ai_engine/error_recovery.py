@@ -357,10 +357,11 @@ class ErrorRecoveryManager:
         try:
             logger.info("Resetting neural network to clean state")
             
-            # Clear TensorFlow session
+            # Clear GPU cache (PyTorch)
             try:
-                import tensorflow as tf
-                tf.keras.backend.clear_session()
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
             except:
                 pass
             
@@ -369,10 +370,11 @@ class ErrorRecoveryManager:
             network = QueenBehaviorNetwork()
             
             # Load last known good model if available
-            backup_path = "models/queen_behavior_model_backup.keras"
+            backup_path = "models/queen_behavior_model_backup.pt"
             if os.path.exists(backup_path):
                 try:
-                    network.model = tf.keras.models.load_model(backup_path)
+                    import torch
+                    network.model.load_state_dict(torch.load(backup_path))
                     logger.info("Loaded backup model after reset")
                 except:
                     logger.warning("Failed to load backup model, using fresh model")
@@ -436,10 +438,11 @@ class ErrorRecoveryManager:
             except:
                 logger.error("Failed to save emergency state")
             
-            # Clear all neural network resources
+            # Clear all neural network resources (PyTorch)
             try:
-                import tensorflow as tf
-                tf.keras.backend.clear_session()
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
             except:
                 pass
             

@@ -26,7 +26,7 @@ def check_dependencies():
     try:
         import fastapi
         import uvicorn
-        import tensorflow as tf
+        import torch
         import numpy as np
     except ImportError:
         sys.exit(1)

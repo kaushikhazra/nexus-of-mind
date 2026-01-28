@@ -32,14 +32,10 @@ warnings.warn(
     stacklevel=2
 )
 
-try:
-    import tensorflow as tf
-    from tensorflow import keras
-    TENSORFLOW_AVAILABLE = True
-except ImportError:
-    TENSORFLOW_AVAILABLE = False
-    tf = None
-    keras = None
+# TensorFlow removed - using PyTorch instead (see nn_model.py)
+TENSORFLOW_AVAILABLE = False
+tf = None
+keras = None
 
 from .performance_monitor import PerformanceMonitor
 from .performance_profiler import PerformanceProfiler
@@ -54,43 +50,34 @@ from .optimization_rollback_manager import OptimizationRollbackManager, Optimiza
 logger = logging.getLogger(__name__)
 
 
-class ConvergenceMonitor(keras.callbacks.Callback):
-    """Custom callback to monitor training convergence"""
-    
-    def __init__(self, patience=3, min_delta=0.001, monitor='val_loss'):
-        super().__init__()
-        self.patience = patience
-        self.min_delta = min_delta
-        self.monitor = monitor
-        self.best_loss = float('inf')
-        self.wait = 0
-        self.converged = False
-    
-    def on_epoch_end(self, epoch, logs=None):
-        current_loss = logs.get(self.monitor, float('inf'))
-        
-        if current_loss < self.best_loss - self.min_delta:
-            self.best_loss = current_loss
+# Only define TensorFlow-dependent classes if TensorFlow is available
+if TENSORFLOW_AVAILABLE:
+    class ConvergenceMonitor(keras.callbacks.Callback):
+        """Custom callback to monitor training convergence"""
+
+        def __init__(self, patience=3, min_delta=0.001, monitor='val_loss'):
+            super().__init__()
+            self.patience = patience
+            self.min_delta = min_delta
+            self.monitor = monitor
+            self.best_loss = float('inf')
             self.wait = 0
-        else:
-            self.wait += 1
-            
-        if self.wait >= self.patience:
-            self.converged = True
-            logger.info(f"Convergence achieved at epoch {epoch + 1}")
-    
-    def on_epoch_end(self, epoch, logs=None):
-        current_loss = logs.get(self.monitor, float('inf'))
-        
-        if current_loss < self.best_loss - self.min_delta:
-            self.best_loss = current_loss
-            self.wait = 0
-        else:
-            self.wait += 1
-            
-        if self.wait >= self.patience:
-            self.converged = True
-            logger.info(f"Convergence achieved at epoch {epoch + 1}")
+            self.converged = False
+
+        def on_epoch_end(self, epoch, logs=None):
+            current_loss = logs.get(self.monitor, float('inf'))
+
+            if current_loss < self.best_loss - self.min_delta:
+                self.best_loss = current_loss
+                self.wait = 0
+            else:
+                self.wait += 1
+
+            if self.wait >= self.patience:
+                self.converged = True
+                logger.info(f"Convergence achieved at epoch {epoch + 1}")
+else:
+    ConvergenceMonitor = None
 
 
 class QueenBehaviorNetwork:

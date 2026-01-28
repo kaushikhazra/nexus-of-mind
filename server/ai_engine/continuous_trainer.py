@@ -45,14 +45,10 @@ from typing import Dict, Any, Optional, List, Tuple
 from dataclasses import dataclass, field, asdict
 import numpy as np
 
-try:
-    import tensorflow as tf
-    from tensorflow import keras
-    TENSORFLOW_AVAILABLE = True
-except ImportError:
-    TENSORFLOW_AVAILABLE = False
-    tf = None
-    keras = None
+# TensorFlow removed - using PyTorch instead
+TENSORFLOW_AVAILABLE = False
+tf = None
+keras = None
 
 from .nn_config import NNConfig, load_nn_config, DEFAULT_CONFIG_PATH
 from .feature_extractor import FeatureExtractor, FeatureConfig

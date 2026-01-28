@@ -13,12 +13,9 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from typing import Dict, Any, List, Optional, Union, Callable
 import numpy as np
 
-try:
-    import tensorflow as tf
-    TENSORFLOW_AVAILABLE = True
-except ImportError:
-    TENSORFLOW_AVAILABLE = False
-    tf = None
+# TensorFlow removed - using PyTorch instead
+TENSORFLOW_AVAILABLE = False
+tf = None
 
 from .batch_processor import BatchProcessor, QueueManager, InferenceRequest, RequestPriority
 from .neural_network import QueenBehaviorNetwork
