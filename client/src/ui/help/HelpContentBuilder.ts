@@ -50,6 +50,7 @@ export class HelpContentBuilder {
         const table = new StackPanel(`table_${Date.now()}`);
         table.isVertical = true;
         table.spacing = 2;
+        table.widthInPixels = 560;
 
         // Create rows
         for (let i = 0; i < rows.length; i++) {
@@ -57,11 +58,13 @@ export class HelpContentBuilder {
             const rowPanel = new StackPanel(`row_${i}`);
             rowPanel.isVertical = false;
             rowPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+            rowPanel.heightInPixels = 28;
+            rowPanel.widthInPixels = 550;
 
             // Key column (first cell)
             const keyContainer = new Rectangle(`key_${i}`);
             keyContainer.widthInPixels = 160;
-            keyContainer.heightInPixels = 24;
+            keyContainer.heightInPixels = 28;
             keyContainer.thickness = 0;
             keyContainer.background = i % 2 === 0 ? HELP_COLORS.tableRowAlt : 'transparent';
             keyContainer.paddingLeftInPixels = 8;
@@ -69,6 +72,7 @@ export class HelpContentBuilder {
             const keyText = new TextBlock(`keyText_${i}`, row[0] || '');
             keyText.color = HELP_COLORS.primary;
             keyText.fontSize = HELP_TYPOGRAPHY.tableSize;
+            keyText.fontFamily = HELP_TYPOGRAPHY.fontFamily;
             keyText.fontWeight = 'bold';
             keyText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
             keyText.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
@@ -79,7 +83,7 @@ export class HelpContentBuilder {
             // Value column (second cell)
             const valueContainer = new Rectangle(`value_${i}`);
             valueContainer.widthInPixels = 380;
-            valueContainer.heightInPixels = 24;
+            valueContainer.heightInPixels = 28;
             valueContainer.thickness = 0;
             valueContainer.background = i % 2 === 0 ? HELP_COLORS.tableRowAlt : 'transparent';
             valueContainer.paddingLeftInPixels = 8;
@@ -87,6 +91,7 @@ export class HelpContentBuilder {
             const valueText = new TextBlock(`valueText_${i}`, row[1] || '');
             valueText.color = HELP_COLORS.text;
             valueText.fontSize = HELP_TYPOGRAPHY.tableSize;
+            valueText.fontFamily = HELP_TYPOGRAPHY.fontFamily;
             valueText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
             valueText.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
             valueContainer.addControl(valueText);
@@ -262,9 +267,10 @@ export class HelpContentBuilder {
         const title = new TextBlock(`section_${text}`, text);
         title.color = HELP_COLORS.sectionHeader;
         title.fontSize = HELP_TYPOGRAPHY.headerSize;
+        title.fontFamily = HELP_TYPOGRAPHY.fontFamily;
         title.fontWeight = 'bold';
         title.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        title.heightInPixels = 25;
+        title.heightInPixels = 28;
         return title;
     }
 
@@ -272,9 +278,10 @@ export class HelpContentBuilder {
         const header = new TextBlock(`subheader_${text}`, text);
         header.color = HELP_COLORS.primary;
         header.fontSize = HELP_TYPOGRAPHY.subHeaderSize;
+        header.fontFamily = HELP_TYPOGRAPHY.fontFamily;
         header.fontWeight = 'bold';
         header.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        header.heightInPixels = 22;
+        header.heightInPixels = 24;
         return header;
     }
 
@@ -287,8 +294,9 @@ export class HelpContentBuilder {
             const text = new TextBlock(`line_${Date.now()}_${Math.random()}`, line);
             text.color = line.startsWith('  -') ? HELP_COLORS.secondaryText : HELP_COLORS.text;
             text.fontSize = HELP_TYPOGRAPHY.bodySize;
+            text.fontFamily = HELP_TYPOGRAPHY.fontFamily;
             text.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-            text.heightInPixels = line === '' ? 8 : 18;
+            text.heightInPixels = line === '' ? 8 : 20;
             panel.addControl(text);
         }
 

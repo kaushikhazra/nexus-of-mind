@@ -160,10 +160,11 @@ export class HelpWindow {
         titleBar.thickness = 0;
         titleBar.background = 'transparent';
 
-        // Title text
-        const title = new TextBlock('help_title', 'IN-GAME HELP');
+        // Title text with diamond icons
+        const title = new TextBlock('help_title', '◊ IN-GAME HELP ◊');
         title.color = HELP_COLORS.primary;
         title.fontSize = HELP_TYPOGRAPHY.titleSize;
+        title.fontFamily = HELP_TYPOGRAPHY.fontFamily;
         title.fontWeight = 'bold';
         title.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
         title.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
@@ -190,6 +191,7 @@ export class HelpWindow {
         closeButton.color = HELP_COLORS.closeButton;
         closeButton.background = 'transparent';
         closeButton.fontSize = HELP_TYPOGRAPHY.headerSize;
+        closeButton.fontFamily = HELP_TYPOGRAPHY.fontFamily;
         closeButton.fontWeight = 'bold';
 
         if (closeButton.textBlock) {

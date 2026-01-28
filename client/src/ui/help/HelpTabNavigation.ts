@@ -108,6 +108,7 @@ export class HelpTabNavigation {
         tab.cornerRadius = 5;
         tab.thickness = 1;
         tab.fontSize = HELP_TYPOGRAPHY.bodySize;
+        tab.fontFamily = HELP_TYPOGRAPHY.fontFamily;
         tab.fontWeight = 'bold';
 
         // Default to inactive style

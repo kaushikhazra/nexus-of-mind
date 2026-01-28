@@ -5,37 +5,40 @@
  * while maintaining visual distinction from PlayerStatsUI.
  */
 
-import { DEFAULT_THEME } from '../base/UITheme';
+import { DEFAULT_THEME, UI_FONT_FAMILY } from '../base/UITheme';
 
 // ==================== Color Constants ====================
 
+// Using cyan/blue theme to match Construction panel
+const CYAN_PRIMARY = '#00ffff';
+
 export const HELP_COLORS = {
-    primary: DEFAULT_THEME.primaryColor,           // #00ff88
+    primary: CYAN_PRIMARY,                         // Cyan blue
     background: 'rgba(0, 20, 40, 0.9)',            // Matches LearningProgressUI and other windows
     text: DEFAULT_THEME.textColor,                 // #ffffff
     secondaryText: DEFAULT_THEME.secondaryTextColor, // #cccccc
-    closeButton: DEFAULT_THEME.errorColor,         // #ff4444
-    closeButtonHover: 'rgba(255, 68, 68, 0.3)',
-    tabActive: DEFAULT_THEME.primaryColor,
+    closeButton: CYAN_PRIMARY,                     // Blue close button
+    closeButtonHover: 'rgba(0, 255, 255, 0.3)',
+    tabActive: CYAN_PRIMARY,
     tabActiveText: '#000000',
     tabInactive: 'transparent',
-    tabInactiveText: DEFAULT_THEME.primaryColor,
-    tabHover: 'rgba(0, 255, 136, 0.2)',
-    sectionHeader: DEFAULT_THEME.primaryColor,
-    tableBorder: 'rgba(0, 255, 136, 0.3)',
-    tableRowAlt: 'rgba(0, 255, 136, 0.05)'
+    tabInactiveText: CYAN_PRIMARY,
+    tabHover: 'rgba(0, 255, 255, 0.2)',
+    sectionHeader: CYAN_PRIMARY,
+    tableBorder: 'rgba(0, 255, 255, 0.3)',
+    tableRowAlt: 'rgba(0, 255, 255, 0.05)'
 };
 
 // ==================== Typography Constants ====================
 
 export const HELP_TYPOGRAPHY = {
-    fontFamily: "'Orbitron', 'Segoe UI', monospace",
-    titleSize: 16,
-    headerSize: 14,
-    subHeaderSize: 13,
-    bodySize: 12,
-    tableSize: 11,
-    smallSize: 10
+    fontFamily: UI_FONT_FAMILY,
+    titleSize: 18,
+    headerSize: 15,
+    subHeaderSize: 14,
+    bodySize: 13,
+    tableSize: 12,
+    smallSize: 11
 };
 
 // ==================== Dimension Constants ====================
