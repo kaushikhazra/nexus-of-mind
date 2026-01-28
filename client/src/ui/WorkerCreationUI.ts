@@ -86,7 +86,7 @@ export class WorkerCreationUI {
             <div class="creation-content">
                 <button id="create-worker-btn" class="create-worker-button">
                     <span class="button-text">CREATE WORKER</span>
-                    <span class="button-cost" style="margin-left: 8px;">${this.WORKER_ENERGY_COST}E</span>
+                    <span class="button-cost" style="margin-left: 8px;">${this.WORKER_ENERGY_COST}J</span>
                 </button>
             </div>
         `;
@@ -267,10 +267,10 @@ export class WorkerCreationUI {
             if (buttonText && buttonCost) {
                 if (canAfford) {
                     buttonText.textContent = 'CREATE WORKER';
-                    buttonCost.textContent = `${this.WORKER_ENERGY_COST}E`;
+                    buttonCost.textContent = `${this.WORKER_ENERGY_COST}J`;
                 } else {
                     buttonText.textContent = 'INSUFFICIENT ENERGY';
-                    buttonCost.textContent = `${this.WORKER_ENERGY_COST}E`;
+                    buttonCost.textContent = `${this.WORKER_ENERGY_COST}J`;
                 }
             }
         }
