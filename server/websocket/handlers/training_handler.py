@@ -14,8 +14,7 @@ from websocket.handlers.base import create_error_response
 from ai_engine.exceptions import TrainingError, ModelNotInitializedError
 
 if TYPE_CHECKING:
-    from ai_engine.continuous_trainer import AsyncContinuousTrainer
-    from ai_engine.training.continuous_trainer import ContinuousTrainer as BackgroundTrainer
+    from ai_engine.training.trainer import ContinuousTrainer as BackgroundTrainer
 
 logger = logging.getLogger(__name__)
 
@@ -32,17 +31,14 @@ class TrainingHandler:
 
     def __init__(
         self,
-        continuous_trainer: Optional["AsyncContinuousTrainer"],
         background_trainer: Optional["BackgroundTrainer"]
     ) -> None:
         """
         Initialize the training handler.
 
         Args:
-            continuous_trainer: AsyncContinuousTrainer instance
-            background_trainer: BackgroundTrainer instance
+            background_trainer: BackgroundTrainer instance (PyTorch-based)
         """
-        self.continuous_trainer: Optional["AsyncContinuousTrainer"] = continuous_trainer
         self.background_trainer: Optional["BackgroundTrainer"] = background_trainer
 
     async def handle_training_status(
@@ -61,30 +57,28 @@ class TrainingHandler:
             Training status response
         """
         try:
-            if not self.continuous_trainer:
+            if not self.background_trainer:
                 return {
                     "type": "training_status",
                     "timestamp": asyncio.get_event_loop().time(),
                     "data": {
                         "status": "not_available",
-                        "message": "Continuous learning not initialized"
+                        "message": "Background trainer not initialized"
                     }
                 }
 
-            stats = self.continuous_trainer.get_stats()
+            metrics = self.background_trainer.get_metrics()
 
             return {
                 "type": "training_status",
                 "timestamp": asyncio.get_event_loop().time(),
                 "data": {
-                    "status": "active",
-                    "trainingCount": stats["training_count"],
-                    "totalSamplesProcessed": stats["total_samples_processed"],
-                    "strategyVersion": stats["strategy_version"],
-                    "bufferSize": stats["buffer_size"],
-                    "lastTrainingLoss": stats["last_training_loss"],
-                    "modelParameters": stats["model_parameters"],
-                    "config": stats["config"]
+                    "status": "active" if self.background_trainer.is_running else "stopped",
+                    "modelVersion": self.background_trainer.model_version,
+                    "trainingIterations": metrics.get("training_iterations", 0),
+                    "averageLoss": metrics.get("average_loss"),
+                    "bufferSize": metrics.get("buffer_size", 0),
+                    "isRunning": self.background_trainer.is_running
                 }
             }
 
@@ -128,13 +122,21 @@ class TrainingHandler:
                     }
                 }
 
-            if not self.continuous_trainer:
-                raise ModelNotInitializedError("ContinuousTrainer")
+            # Reset is handled via HTTP endpoint /reset-nn
+            # WebSocket reset not supported - use HTTP API instead
+            logger.info(f"[ResetNN] Reset requested via WebSocket by client {client_id}")
 
-            # Perform full reset
-            logger.info(f"[ResetNN] Full neural network reset requested by client {client_id}")
-            result = self.continuous_trainer.full_reset()
-            logger.info(f"[ResetNN] Reset complete: {result}")
+            return {
+                "type": "reset_nn_response",
+                "timestamp": asyncio.get_event_loop().time(),
+                "data": {
+                    "status": "use_http_api",
+                    "message": "Use HTTP endpoint /reset-nn for neural network reset"
+                }
+            }
+
+            # Note: The following code is bypassed - full reset available via HTTP only
+            result = {"status": "skipped"}
 
             return {
                 "type": "reset_nn_response",

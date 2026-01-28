@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from ai_engine.decision_gate import SimulationGate, PreprocessGate
     from ai_engine.decision_gate.gate import GateDecision
     from ai_engine.training import ExperienceReplayBuffer
-    from ai_engine.training.continuous_trainer import ContinuousTrainer as BackgroundTrainer
+    from ai_engine.training.trainer import ContinuousTrainer as BackgroundTrainer
     from ai_engine.decision_gate.dashboard_metrics import DashboardMetrics
 
 import numpy as np

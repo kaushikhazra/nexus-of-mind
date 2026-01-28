@@ -9,7 +9,7 @@ from .nn_config import NNConfig, NNConfigPresets, load_nn_config
 from .feature_extractor import FeatureExtractor, FeatureConfig
 from .reward_calculator import RewardCalculator, RewardConfig
 from .nn_model import NNModel
-from .continuous_trainer import ContinuousTrainer, AsyncContinuousTrainer, StrategyUpdate
+from .training import ContinuousTrainer
 
 __all__ = [
     "AIEngine",
@@ -23,6 +23,4 @@ __all__ = [
     "RewardConfig",
     "NNModel",
     "ContinuousTrainer",
-    "AsyncContinuousTrainer",
-    "StrategyUpdate"
 ]

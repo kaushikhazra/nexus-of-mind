@@ -25,7 +25,6 @@ from websocket.handlers.gate_handler import GateHandler
 from websocket.handlers.game_state_handler import GameStateHandler
 from websocket.handlers.system_handler import SystemHandler
 
-from ai_engine.continuous_trainer import AsyncContinuousTrainer
 from ai_engine.feature_extractor import FeatureExtractor
 from ai_engine.nn_model import NNModel
 from ai_engine.reward_calculator import RewardCalculator
@@ -79,13 +78,9 @@ class MessageHandler:
 
     def _init_components(self) -> None:
         """Initialize NN components and trainers."""
-        # Initialize continuous trainer
+        # Legacy continuous_trainer removed (was TensorFlow-based)
+        # Training now handled by BackgroundTrainer (PyTorch-based)
         self.continuous_trainer = None
-        try:
-            self.continuous_trainer = AsyncContinuousTrainer()
-            logger.info("AsyncContinuousTrainer initialized for real-time learning")
-        except Exception as e:
-            logger.warning(f"Failed to initialize AsyncContinuousTrainer: {e}")
 
         # Initialize feature extractor
         self.feature_extractor = None
@@ -195,7 +190,6 @@ class MessageHandler:
 
         # Create training handler
         self.training_handler = TrainingHandler(
-            continuous_trainer=self.continuous_trainer,
             background_trainer=self.background_trainer
         )
 
