@@ -1,11 +1,10 @@
-# Nexus of Mind - Game Client Dockerfile (Development)
+# Nexus of Mind - Game Client Dockerfile
 FROM node:18-alpine
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apk add --no-cache curl
+# Install serve globally for static file serving
+RUN npm install -g serve
 
 # Copy package files
 COPY package*.json ./
@@ -16,15 +15,15 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Create client directory structure
-RUN mkdir -p /app/client /app/shared
+# Build the application
+RUN npm run build
 
 # Expose port
-EXPOSE 3000
+EXPOSE 3010
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:3000 || exit 1
+    CMD wget -q --spider http://localhost:3010 || exit 1
 
-# Run development server
-CMD ["npm", "run", "dev"]
+# Serve static files
+CMD ["serve", "-s", "dist", "-l", "3010"]

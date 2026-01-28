@@ -8,9 +8,11 @@ import os
 import sys
 from pathlib import Path
 
-# Configure root logger to INFO level so application logs show
+# Configure root logger based on LOG_LEVEL env var
+log_level_name = os.getenv("LOG_LEVEL", "info").upper()
+log_level = getattr(logging, log_level_name, logging.INFO)
 logging.basicConfig(
-    level=logging.INFO,
+    level=log_level,
     format='%(levelname)s: %(message)s'
 )
 
@@ -64,6 +66,10 @@ def main():
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", 8010))
     log_level = os.getenv("LOG_LEVEL", "info")
+    environment = os.getenv("ENVIRONMENT", "development")
+
+    # Disable reload in production for stability
+    use_reload = environment != "production"
 
     try:
         import uvicorn
@@ -72,7 +78,7 @@ def main():
             host=host,
             port=port,
             log_level=log_level,
-            reload=True,
+            reload=use_reload,
             access_log=False
         )
     except KeyboardInterrupt:

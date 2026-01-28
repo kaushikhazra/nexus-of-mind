@@ -1,7 +1,6 @@
-# Nexus of Mind - AI Backend Dockerfile (Development)
+# Nexus of Mind - AI Backend Dockerfile
 FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
 # Install system dependencies
@@ -15,22 +14,22 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy application code (includes server/models with pretrained weights)
 COPY server/ .
 
-# Create directories for data and models
-RUN mkdir -p /app/data /app/models /app/logs
+# Create required directories (models/ already copied from server/models/)
+RUN mkdir -p /app/data/queen_memory /app/logs
 
-# Set environment variables
+# Python environment (deployment config in docker-compose.yml)
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
 # Expose port
-EXPOSE 8000
+EXPOSE 8010
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8010/health || exit 1
 
-# Run the application
-CMD ["python", "main.py"]
+# Run via start_server.py for consistent logging setup
+CMD ["python", "start_server.py"]
