@@ -86,7 +86,7 @@ export class WorkerCreationUI {
             <div class="creation-content">
                 <button id="create-worker-btn" class="create-worker-button">
                     <span class="button-text">CREATE WORKER</span>
-                    <span class="button-cost">${this.WORKER_ENERGY_COST}E</span>
+                    <span class="button-cost" style="margin-left: 8px;">${this.WORKER_ENERGY_COST}E</span>
                 </button>
             </div>
         `;

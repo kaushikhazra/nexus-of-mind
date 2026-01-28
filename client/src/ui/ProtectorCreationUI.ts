@@ -85,7 +85,7 @@ export class ProtectorCreationUI {
             <div class="creation-content">
                 <button id="create-protector-btn" class="create-protector-button">
                     <span class="button-text">CREATE PROTECTOR</span>
-                    <span class="button-cost">${this.PROTECTOR_ENERGY_COST}E</span>
+                    <span class="button-cost" style="margin-left: 8px;">${this.PROTECTOR_ENERGY_COST}E</span>
                 </button>
             </div>
         `;

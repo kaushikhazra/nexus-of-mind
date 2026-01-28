@@ -141,7 +141,7 @@ export class BuildingPlacementUI {
         labelSpan.textContent = label;
 
         const costSpan = document.createElement('span');
-        costSpan.style.cssText = `font-weight: ${UI_TYPOGRAPHY.weights.semibold};`;
+        costSpan.style.cssText = `font-weight: ${UI_TYPOGRAPHY.weights.semibold}; margin-left: 8px;`;
         costSpan.textContent = cost;
 
         button.appendChild(labelSpan);
