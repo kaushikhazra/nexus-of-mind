@@ -147,6 +147,8 @@ export class IntroductionModelRenderer {
     private isInTextOnlyMode: boolean = false;
     private retryCount: number = 0;
     private loadingStateElement: HTMLElement | null = null;
+    private isPreloading: boolean = false;
+    private preloadComplete: boolean = false;
 
     // Error handling
     private errorState: ErrorState = {
@@ -266,6 +268,9 @@ export class IntroductionModelRenderer {
         requestAnimationFrame(() => {
             this.engine?.resize();
         });
+
+        // Start preloading all models in background
+        this.preloadAllModels();
     }
 
     /**
@@ -290,6 +295,48 @@ export class IntroductionModelRenderer {
             console.warn('Failed to initialize some model renderers:', error);
             // Continue without renderers - fallback models will be used
         }
+    }
+
+    /**
+     * Pre-load all unique models to eliminate transition delays
+     * Models are created once and cached, then shown/hidden as needed
+     */
+    private async preloadAllModels(): Promise<void> {
+        if (this.isPreloading || this.preloadComplete || !this.scene) return;
+
+        this.isPreloading = true;
+        console.log('Pre-loading introduction models...');
+
+        // Get unique model types from the page mapping
+        const uniqueModelTypes: ModelType[] = [];
+        const seenTypes = new Set<ModelType>();
+        for (const pageConfig of Object.values(MODEL_PAGE_MAPPING)) {
+            if (!seenTypes.has(pageConfig.modelType)) {
+                seenTypes.add(pageConfig.modelType);
+                uniqueModelTypes.push(pageConfig.modelType);
+            }
+        }
+
+        const context = this.createModelContext();
+
+        // Create each unique model and cache it
+        for (const modelType of uniqueModelTypes) {
+            try {
+                const model = await createModelByType(modelType, context, 0);
+                if (model) {
+                    // Hide the model initially
+                    model.setEnabled(false);
+                    this.modelCache.set(modelType, model);
+                    console.log(`Pre-loaded model: ${modelType}`);
+                }
+            } catch (error) {
+                console.warn(`Failed to pre-load model ${modelType}:`, error);
+            }
+        }
+
+        this.isPreloading = false;
+        this.preloadComplete = true;
+        console.log(`Pre-loading complete. Cached ${this.modelCache.size} models.`);
     }
 
     private initializePerformanceSystems(): void {
@@ -338,19 +385,49 @@ export class IntroductionModelRenderer {
 
         if (pageIndex === this.currentPageIndex) return;
 
+        const { modelType, animation } = modelConfig;
+
+        // Check if we have a cached model
+        const cachedModel = this.modelCache.get(modelType);
+
+        if (cachedModel) {
+            // Use cached model - just show/hide, no loading needed
+            this.switchToCachedModel(cachedModel, modelType, animation, pageIndex);
+            return;
+        }
+
+        // If preloading is in progress, wait for it
+        if (this.isPreloading) {
+            this.showLoadingState();
+            // Wait for preloading to complete
+            while (this.isPreloading) {
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+            // Check cache again after preloading
+            const newCachedModel = this.modelCache.get(modelType);
+            if (newCachedModel) {
+                this.hideLoadingState();
+                this.switchToCachedModel(newCachedModel, modelType, animation, pageIndex);
+                return;
+            }
+        }
+
+        // Fallback: create model on demand if not cached
         this.showLoadingState();
 
         try {
-            this.clearCurrentModel();
+            this.hideCurrentModel();
             const context = this.createModelContext();
-            const model = await createModelByType(modelConfig.modelType, context, pageIndex);
+            const model = await createModelByType(modelType, context, pageIndex);
 
             if (model && !this.isDisposed) {
+                // Cache the newly created model
+                this.modelCache.set(modelType, model);
                 this.currentModel = model;
                 this.currentPageIndex = pageIndex;
                 this.currentAnimationGroup = setupModelAnimation(
                     model,
-                    modelConfig.animation,
+                    animation,
                     this.scene!
                 );
                 startAnimation(this.currentAnimationGroup);
@@ -361,6 +438,46 @@ export class IntroductionModelRenderer {
         } finally {
             this.hideLoadingState();
         }
+    }
+
+    /**
+     * Switch to a cached model (fast path - no creation needed)
+     */
+    private switchToCachedModel(
+        model: AbstractMesh,
+        modelType: string,
+        animation: ModelAnimation,
+        pageIndex: number
+    ): void {
+        // Hide current model (don't dispose)
+        this.hideCurrentModel();
+
+        // Show the cached model
+        model.setEnabled(true);
+        this.currentModel = model;
+        this.currentPageIndex = pageIndex;
+
+        // Setup and start animation
+        this.currentAnimationGroup = setupModelAnimation(
+            model,
+            animation,
+            this.scene!
+        );
+        startAnimation(this.currentAnimationGroup);
+    }
+
+    /**
+     * Hide current model without disposing it
+     */
+    private hideCurrentModel(): void {
+        stopAnimation(this.currentAnimationGroup);
+        disposeAnimationGroup(this.currentAnimationGroup);
+        this.currentAnimationGroup = null;
+
+        if (this.currentModel) {
+            this.currentModel.setEnabled(false);
+        }
+        this.currentPageIndex = -1;
     }
 
     private createModelContext(): ModelCreationContext {
@@ -511,7 +628,14 @@ export class IntroductionModelRenderer {
 
     private disposeCaches(): void {
         this.modelCache.forEach((model) => {
-            if (model && !model.isDisposed()) model.dispose();
+            if (model && !model.isDisposed()) {
+                // Dispose child meshes first
+                const descendants = model.getChildMeshes(false);
+                for (const child of descendants) {
+                    if (child && !child.isDisposed()) child.dispose(false, true);
+                }
+                model.dispose(false, true);
+            }
         });
         this.modelCache.clear();
 
