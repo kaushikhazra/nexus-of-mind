@@ -11,7 +11,7 @@ import { DEFAULT_THEME } from '../base/UITheme';
 
 export const HELP_COLORS = {
     primary: DEFAULT_THEME.primaryColor,           // #00ff88
-    background: 'rgba(0, 20, 40, 0.95)',           // Slightly more opaque for readability
+    background: 'rgba(0, 20, 40, 0.9)',            // Matches LearningProgressUI and other windows
     text: DEFAULT_THEME.textColor,                 // #ffffff
     secondaryText: DEFAULT_THEME.secondaryTextColor, // #cccccc
     closeButton: DEFAULT_THEME.errorColor,         // #ff4444
@@ -30,7 +30,7 @@ export const HELP_COLORS = {
 
 export const HELP_TYPOGRAPHY = {
     fontFamily: "'Orbitron', 'Segoe UI', monospace",
-    titleSize: 18,
+    titleSize: 16,
     headerSize: 14,
     subHeaderSize: 13,
     bodySize: 12,
