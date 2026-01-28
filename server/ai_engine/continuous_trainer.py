@@ -1,8 +1,37 @@
 """
-Continuous Trainer for Queen AI Real-Time Learning
+Continuous Training System for Queen Neural Network.
 
-Implements continuous learning from observation batches without requiring
-Queen death as a trigger. Trains incrementally and generates strategy updates.
+This module implements the continuous training loop that allows the
+neural network to learn from ongoing gameplay. Key features:
+
+- Incremental learning from streaming observations
+- Experience replay buffer management
+- Automatic model checkpointing
+- Training metrics tracking
+
+The continuous trainer is designed to run alongside the game,
+updating the model without interrupting gameplay.
+
+Example:
+    trainer = AsyncContinuousTrainer()
+    trainer.add_experience(features, reward)
+    await trainer.train_step()  # Non-blocking
+
+Architecture:
+    +--------------+     +--------------+     +--------------+
+    | Observations |---->|    Buffer    |---->|   Trainer    |
+    +--------------+     +--------------+     +--------------+
+                                                     |
+                                                     v
+                                              +--------------+
+                                              |    Model     |
+                                              +--------------+
+
+Classes:
+    - Experience: Single experience tuple for training
+    - ModelMetadata: Persistent metadata for model versioning
+    - TrainerConfig: Configuration for training parameters
+    - AsyncContinuousTrainer: Main trainer class for async training
 """
 
 import asyncio

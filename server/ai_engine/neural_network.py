@@ -1,13 +1,36 @@
 """
-Neural Network implementation for Queen behavior learning using TensorFlow
+DEPRECATED: TensorFlow implementation of Queen Behavior Network.
+
+This module is preserved for reference only. The active implementation
+is in nn_model.py (PyTorch).
+
+Reason for deprecation:
+- PyTorch provides better debugging and development experience
+- PyTorch model is actively maintained and tested
+- Reduces maintenance burden of dual implementations
+
+To use the active implementation:
+    from ai_engine.nn_model import NNModel
+
+WARNING: This module may be removed in future versions.
+         Migrate to nn_model.py for continued support.
 """
 
 import asyncio
 import logging
 import os
 import time
+import warnings
 from typing import Dict, Any, List, Optional, Tuple
 import numpy as np
+
+# Emit deprecation warning when module is imported
+warnings.warn(
+    "ai_engine.neural_network is deprecated and will be removed in a future version. "
+    "Use ai_engine.nn_model.NNModel instead for the actively maintained PyTorch implementation.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 try:
     import tensorflow as tf

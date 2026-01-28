@@ -1,0 +1,69 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Enhanced import validation settings for refactoring
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    
+    // Import/Export validation
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": false,
+    
+    // Enhanced error reporting for refactoring
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": false,
+    
+    // Module resolution for refactored structure
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "allowJs": false,
+    "checkJs": false,
+    
+    // Output settings for validation
+    "noEmit": true,
+    "skipLibCheck": false,
+    "declaration": true,
+    "declarationMap": true,
+    
+    // Path mapping for new module structure
+    "baseUrl": "./client/src",
+    "paths": {
+      "@/*": ["./*"],
+      "@game/*": ["./game/*"],
+      "@game/engine/*": ["./game/engine/*"],
+      "@game/systems/*": ["./game/systems/*"],
+      "@game/entities/*": ["./game/entities/*"],
+      "@ui/*": ["./ui/*"],
+      "@ui/base/*": ["./ui/base/*"],
+      "@ui/introduction/*": ["./ui/introduction/*"],
+      "@ui/building/*": ["./ui/building/*"],
+      "@ui/combat/*": ["./ui/combat/*"],
+      "@ui/territory/*": ["./ui/territory/*"],
+      "@utils/*": ["./utils/*"],
+      "@rendering/*": ["./rendering/*"],
+      "@networking/*": ["./networking/*"]
+    }
+  },
+  "include": [
+    "client/src/**/*",
+    "scripts/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "client/tests/**/*",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
+}

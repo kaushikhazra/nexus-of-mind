@@ -18,7 +18,13 @@
     "test:e2e:ui": "cd client && playwright test --ui",
     "test:e2e:headed": "cd client && playwright test --headed",
     "test:e2e:debug": "cd client && playwright test --debug",
-    "test:e2e:report": "cd client && playwright show-report"
+    "test:e2e:report": "cd client && playwright show-report",
+    "refactor:validate-files": "node scripts/validate-file-sizes.js",
+    "refactor:validate-imports": "node scripts/validate-imports.js",
+    "refactor:validate-performance": "node scripts/performance-monitor.js",
+    "refactor:create-backup": "powershell -ExecutionPolicy Bypass -File scripts/create-backup-branches.ps1",
+    "refactor:validate-all": "npm run refactor:validate-files && npm run refactor:validate-imports && npm run refactor:validate-performance",
+    "refactor:setup": "npm run refactor:create-backup && npm run refactor:validate-all"
   },
   "keywords": [
     "game",

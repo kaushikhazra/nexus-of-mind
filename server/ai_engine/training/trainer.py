@@ -1,8 +1,30 @@
 """
-Continuous Trainer for background model training.
+Background Training Thread Manager.
 
-Uses gate_signal directly as training feedback.
-NO re-evaluation during training - gate_signal at inference is ground truth.
+Manages neural network training in a separate thread to prevent
+blocking the WebSocket event loop. Features:
+
+- Non-blocking training execution
+- Thread-safe model updates
+- Graceful shutdown handling
+- Training state persistence
+
+The background trainer wraps the NN model and executes
+training steps in a dedicated daemon thread.
+
+Thread Safety:
+    - Model weights are updated atomically with _model_lock
+    - Training state is protected by the lock
+    - Shutdown is coordinated with pending operations
+
+Training Approach:
+    - Uses gate_signal directly as training feedback
+    - NO re-evaluation during training - gate_signal at inference is ground truth
+    - Samples batches from experience replay buffer
+    - Updates model every configurable interval
+
+Classes:
+    - ContinuousTrainer: Background training thread for continuous model improvement
 """
 
 import os
@@ -16,7 +38,7 @@ from .buffer import ExperienceReplayBuffer
 from .config import ContinuousTrainingConfig
 from .experience import Experience
 from .metrics import TrainingMetrics
-from ..simulation.dashboard_metrics import get_dashboard_metrics
+from ..decision_gate.dashboard_metrics import get_dashboard_metrics
 
 if TYPE_CHECKING:
     from ..nn_model import NNModel
