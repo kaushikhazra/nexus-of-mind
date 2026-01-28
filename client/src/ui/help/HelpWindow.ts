@@ -73,6 +73,13 @@ const TABS: TabContent[] = [
                 </div>
             </div>
             <div class="help-section">
+                <div class="help-section-title">ENERGY PRODUCTION</div>
+                <div class="help-text">
+                    <div>Minerals hold immense energy potential. Only <strong>Power Plants</strong> can convert harvested minerals into usable energy.</div>
+                    <div style="margin-top: 6px;">Keep your workforce mining continuously, and deploy Power Plants strategically to maintain a steady energy flow.</div>
+                </div>
+            </div>
+            <div class="help-section">
                 <div class="help-section-title">UNITS</div>
                 <table class="help-table">
                     <tr><td class="help-key">Workforce</td><td>Created from Base, mine minerals</td></tr>
@@ -87,6 +94,12 @@ const TABS: TabContent[] = [
                     <tr><td class="help-key">Left-click terrain</td><td>Move protector (protector auto-attacks)</td></tr>
                     <tr><td class="help-key">Right-click</td><td>View information tooltip</td></tr>
                 </table>
+            </div>
+            <div class="help-section">
+                <div class="help-section-title" style="color: #ffcc00;">⚠ CAUTION</div>
+                <div class="help-text" style="color: #ffcc00;">
+                    Nearly all operations consume energy. Monitor the energy bar at the top of your display to avoid critical shortages.
+                </div>
             </div>
         `
     },
