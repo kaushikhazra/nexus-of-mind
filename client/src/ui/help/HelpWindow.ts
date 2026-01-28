@@ -23,7 +23,7 @@ interface TabContent {
 const HELP_COLORS = {
     primary: '#00ffff',
     primaryGlow: 'rgba(0, 255, 255, 0.3)',
-    background: 'rgba(0, 20, 40, 0.85)',
+    background: 'rgba(0, 10, 20, 0.3)',
     text: '#ffffff',
     secondaryText: '#cccccc',
     tabActive: '#00ffff',
@@ -61,24 +61,21 @@ const TABS: TabContent[] = [
     },
     {
         id: 'controls',
-        label: 'Controls',
+        label: 'Operations',
         content: `
             <div class="help-section">
-                <div class="help-section-title">BUILDINGS</div>
+                <div class="help-section-title">CONSTRUCTION</div>
                 <div class="help-text">
-                    <div><strong>Placing Buildings:</strong></div>
+                    <div><strong>Placing Base/Power Plant:</strong></div>
                     <div class="help-indent">1. Click a building button in the panel</div>
                     <div class="help-indent">2. Move mouse to preview placement location</div>
                     <div class="help-indent">3. Left-click to place (requires energy)</div>
-                    <div class="help-indent">4. Press ESC to cancel placement</div>
-                    <div style="margin-top: 8px;"><strong>Packing Power Plants:</strong></div>
-                    <div class="help-indent">Select a power plant, then click "Pack" button</div>
                 </div>
             </div>
             <div class="help-section">
                 <div class="help-section-title">UNITS</div>
                 <table class="help-table">
-                    <tr><td class="help-key">Workers</td><td>Created from Base, mine minerals</td></tr>
+                    <tr><td class="help-key">Workforce</td><td>Created from Base, mine minerals</td></tr>
                     <tr><td class="help-key">Protectors</td><td>Created from Base, combat units</td></tr>
                 </table>
             </div>
@@ -87,7 +84,7 @@ const TABS: TabContent[] = [
                 <table class="help-table">
                     <tr><td class="help-key">Left-click unit</td><td>Select the unit</td></tr>
                     <tr><td class="help-key">Left-click mineral</td><td>Move worker to mine</td></tr>
-                    <tr><td class="help-key">Left-click terrain</td><td>Move protector (auto-attacks)</td></tr>
+                    <tr><td class="help-key">Left-click terrain</td><td>Move protector (protector auto-attacks)</td></tr>
                     <tr><td class="help-key">Right-click</td><td>View information tooltip</td></tr>
                 </table>
             </div>
@@ -100,7 +97,7 @@ const TABS: TabContent[] = [
             <div class="help-section">
                 <div class="help-section-title">ENERGY PARASITES</div>
                 <div class="help-text">
-                    The planet is home to hostile Energy Parasites that protect the Adaptive Queen. They hunt your units for energy.
+                    The planet is home to hostile Energy Parasites that protect the Adaptive Queen. They hunt your units.
                 </div>
             </div>
             <div class="help-section">
@@ -119,10 +116,11 @@ const TABS: TabContent[] = [
             <div class="help-section">
                 <div class="help-section-title">STRATEGY TIPS</div>
                 <div class="help-text help-indent">
-                    <div>- Keep Protectors near your Workers</div>
-                    <div>- Parasites patrol around their hive territory</div>
-                    <div>- Destroying parasites rewards energy</div>
-                    <div>- The Queen adapts to your tactics over time</div>
+                    <div>- Keep protectors near your Workers</div>
+                    <div>- Parasites will spawn near mining</div>
+                    <div>- Parasites will chase the workers</div>
+                    <div>- Combat Parasites (red one) will destroy protectors</div>
+                    <div>- Remember the queen adapts to your tactics over time</div>
                 </div>
             </div>
         `
@@ -212,13 +210,14 @@ export class HelpWindow {
 
             .help-window {
                 background: ${HELP_COLORS.background};
-                border: 2px solid ${HELP_COLORS.primary};
-                border-radius: 10px;
+                border: 1px solid rgba(0, 255, 255, 0.4);
+                border-radius: 8px;
                 width: 620px;
                 max-height: 520px;
                 font-family: ${UI_FONT_FAMILY};
                 color: ${HELP_COLORS.text};
                 box-shadow: 0 0 30px ${HELP_COLORS.primaryGlow};
+                backdrop-filter: blur(8px);
                 pointer-events: auto;
                 display: flex;
                 flex-direction: column;
@@ -238,7 +237,7 @@ export class HelpWindow {
                 font-weight: bold;
                 color: ${HELP_COLORS.primary};
                 text-shadow: 0 0 10px ${HELP_COLORS.primaryGlow};
-                letter-spacing: 2px;
+                letter-spacing: 3px;
             }
 
             .help-close-btn {
@@ -281,7 +280,7 @@ export class HelpWindow {
                 font-family: ${UI_FONT_FAMILY};
                 font-size: 12px;
                 font-weight: bold;
-                letter-spacing: 1px;
+                letter-spacing: 1.5px;
                 cursor: pointer;
                 transition: all 0.2s ease;
             }
@@ -328,7 +327,7 @@ export class HelpWindow {
                 font-weight: bold;
                 color: ${HELP_COLORS.primary};
                 margin-bottom: 10px;
-                letter-spacing: 1px;
+                letter-spacing: 1.5px;
             }
 
             .help-subheader {
@@ -351,19 +350,21 @@ export class HelpWindow {
                 padding: 8px 12px;
                 font-size: 12px;
                 vertical-align: middle;
+                letter-spacing: 0.5px;
             }
 
             .help-table .help-key {
                 color: ${HELP_COLORS.primary};
                 font-weight: bold;
                 width: 160px;
-                letter-spacing: 0.5px;
+                letter-spacing: 0.75px;
             }
 
             .help-text {
                 font-size: 12px;
                 line-height: 1.6;
                 color: ${HELP_COLORS.text};
+                letter-spacing: 0.5px;
             }
 
             .help-text strong {
@@ -388,7 +389,7 @@ export class HelpWindow {
         this.container.innerHTML = `
             <div class="help-window">
                 <div class="help-header">
-                    <div class="help-title">◊ IN-GAME HELP ◊</div>
+                    <div class="help-title">◊ IMPORTANT INFORMATION ◊</div>
                     <button class="help-close-btn">X</button>
                 </div>
                 <div class="help-tabs">

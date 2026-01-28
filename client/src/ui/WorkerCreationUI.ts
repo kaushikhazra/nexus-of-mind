@@ -1,6 +1,6 @@
 /**
  * WorkerCreationUI - User interface for creating worker units
- * 
+ *
  * Provides a button interface for spawning workers with energy cost validation.
  * Integrates with the existing UI system and follows SciFi design theme.
  */
@@ -10,6 +10,16 @@ import { UnitManager } from '../game/UnitManager';
 import { BuildingManager } from '../game/BuildingManager';
 import { TerrainGenerator } from '../rendering/TerrainGenerator';
 import { WorkerSpawner } from '../game/WorkerSpawner';
+import {
+    UI_COLORS,
+    getPanelStyles,
+    getHeaderStyles,
+    getButtonStyles,
+    getButtonHoverStyles,
+    getButtonBaseStyles,
+    getFeedbackStyles,
+    injectSharedStyles
+} from './styles';
 
 export interface WorkerCreationUIConfig {
     containerId: string;
@@ -90,102 +100,43 @@ export class WorkerCreationUI {
     }
 
     /**
-     * Apply SciFi styling to UI elements - MATCHES CONSTRUCTION PANEL
+     * Apply SciFi styling to UI elements - uses centralized GameUIStyles
      */
     private applyStyles(): void {
-        const style = document.createElement('style');
-        style.textContent = `
-            .worker-creation-panel {
-                background: rgba(0, 10, 20, 0.3);
-                border: 1px solid rgba(0, 255, 255, 0.4);
-                border-radius: 8px;
-                padding: 12px;
-                font-family: 'Orbitron', monospace;
-                color: #00ffff;
-                backdrop-filter: blur(8px);
-                box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
-                min-width: 200px;
-                font-size: 12px;
-            }
+        // Inject shared animations (feedbackFade, etc.)
+        injectSharedStyles();
 
-            .creation-header {
-                font-size: 14px;
-                font-weight: 700;
-                text-align: center;
-                margin-bottom: 12px;
-                color: #00ffff;
-                text-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
-                letter-spacing: 1px;
-            }
+        // Apply panel styles
+        if (this.creationPanel) {
+            this.creationPanel.style.cssText = getPanelStyles('cyan');
+            this.creationPanel.classList.add('game-ui-panel');
+        }
 
-            .creation-title {
-                font-size: 14px;
-                font-weight: bold;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-                text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
-            }
+        // Apply header styles
+        const header = this.creationPanel?.querySelector('.creation-header') as HTMLElement;
+        if (header) {
+            header.style.cssText = getHeaderStyles('cyan');
+        }
 
-            .creation-content {
-                display: flex;
-                flex-direction: column;
-                gap: 8px;
-            }
+        // Apply button styles
+        if (this.createButton) {
+            this.createButton.style.cssText = getButtonStyles(UI_COLORS.secondary);
 
-            .create-worker-button {
-                background: rgba(0, 20, 40, 0.4);
-                border: 1px solid #00ff88;
-                border-radius: 4px;
-                color: #00ff88;
-                padding: 10px 12px;
-                font-family: 'Orbitron', monospace;
-                font-size: 11px;
-                font-weight: bold;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-                cursor: pointer;
-                transition: all 0.3s ease;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-            }
+            // Add hover handlers
+            this.createButton.addEventListener('mouseenter', () => {
+                if (!(this.createButton as HTMLButtonElement).disabled) {
+                    const hover = getButtonHoverStyles(UI_COLORS.secondary);
+                    (this.createButton as HTMLElement).style.background = hover.background;
+                    (this.createButton as HTMLElement).style.boxShadow = hover.boxShadow;
+                }
+            });
 
-            .create-worker-button:hover:not(:disabled) {
-                background: rgba(0, 40, 80, 0.6);
-                box-shadow: 0 0 10px #00ff8840;
-            }
-
-            .create-worker-button:active:not(:disabled) {
-                transform: translateY(0);
-                box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
-            }
-
-            .create-worker-button:disabled {
-                background: rgba(100, 0, 0, 0.3);
-                border-color: #ff4444;
-                color: #ff4444;
-                cursor: not-allowed;
-                opacity: 0.6;
-                box-shadow: 0 0 10px rgba(255, 68, 68, 0.2);
-            }
-
-            .button-text {
-                font-size: 11px;
-                line-height: 1;
-            }
-
-            .button-cost {
-                font-size: 10px;
-                opacity: 0.8;
-                line-height: 1;
-                font-weight: 600;
-            }
-
-            .create-worker-button:disabled .button-cost {
-                color: #ff6666;
-            }
-        `;
-        document.head.appendChild(style);
+            this.createButton.addEventListener('mouseleave', () => {
+                const base = getButtonBaseStyles();
+                (this.createButton as HTMLElement).style.background = base.background;
+                (this.createButton as HTMLElement).style.boxShadow = base.boxShadow;
+            });
+        }
     }
 
     /**
@@ -271,46 +222,14 @@ export class WorkerCreationUI {
     }
 
     /**
-     * Show user feedback message
+     * Show user feedback message - uses centralized GameUIStyles
      */
     private showFeedback(message: string, type: 'success' | 'error'): void {
         // Create temporary feedback element
         const feedback = document.createElement('div');
         feedback.className = `creation-feedback ${type}`;
         feedback.textContent = message;
-        feedback.style.cssText = `
-            position: absolute;
-            top: -30px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 5px 10px;
-            border-radius: 4px;
-            font-size: 10px;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            z-index: 1001;
-            animation: feedbackFade 2s ease-out forwards;
-            ${type === 'success' 
-                ? 'background: rgba(0, 255, 0, 0.8); color: #000; border: 1px solid #00ff00;'
-                : 'background: rgba(255, 0, 0, 0.8); color: #fff; border: 1px solid #ff0000;'
-            }
-        `;
-
-        // Add animation keyframes if not already added
-        if (!document.querySelector('#feedback-animation')) {
-            const animationStyle = document.createElement('style');
-            animationStyle.id = 'feedback-animation';
-            animationStyle.textContent = `
-                @keyframes feedbackFade {
-                    0% { opacity: 0; transform: translateX(-50%) translateY(10px); }
-                    20% { opacity: 1; transform: translateX(-50%) translateY(0); }
-                    80% { opacity: 1; transform: translateX(-50%) translateY(0); }
-                    100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
-                }
-            `;
-            document.head.appendChild(animationStyle);
-        }
+        feedback.style.cssText = getFeedbackStyles(type);
 
         // Add to panel and remove after animation
         if (this.creationPanel) {
@@ -325,20 +244,26 @@ export class WorkerCreationUI {
     }
 
     /**
-     * Update UI state based on current game state
+     * Update UI state based on current game state - uses centralized GameUIStyles
      */
     private updateUI(): void {
         // Update button state based on energy availability
         if (this.createButton) {
             const currentEnergy = this.config.energyManager.getTotalEnergy();
             const canAfford = currentEnergy >= this.WORKER_ENERGY_COST;
-            
+
             (this.createButton as HTMLButtonElement).disabled = !canAfford;
-            
+
+            // Apply appropriate button style based on state
+            this.createButton.style.cssText = getButtonStyles(
+                canAfford ? UI_COLORS.secondary : UI_COLORS.danger,
+                !canAfford
+            );
+
             // Update button text based on affordability
             const buttonText = this.createButton.querySelector('.button-text');
             const buttonCost = this.createButton.querySelector('.button-cost');
-            
+
             if (buttonText && buttonCost) {
                 if (canAfford) {
                     buttonText.textContent = 'CREATE WORKER';

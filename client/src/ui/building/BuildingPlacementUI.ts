@@ -18,6 +18,17 @@ import { BuildingPreviewManager } from './BuildingPreviewManager';
 import { MiningRangeVisualizer } from './MiningRangeVisualizer';
 import { BuildingPlacementValidator } from './BuildingPlacementValidator';
 import { BuildingSpawner } from './BuildingSpawner';
+import {
+    UI_COLORS,
+    UI_TYPOGRAPHY,
+    UI_DIMENSIONS,
+    getPanelStyles,
+    getHeaderStyles,
+    getButtonStyles,
+    getButtonHoverStyles,
+    getButtonBaseStyles,
+    injectSharedStyles
+} from '../styles';
 
 export class BuildingPlacementUI {
     private scene: Scene;
@@ -67,62 +78,38 @@ export class BuildingPlacementUI {
     private createUI(): void {
         if (!this.container) return;
 
+        // Inject shared animations
+        injectSharedStyles();
+
         this.container.innerHTML = '';
 
         const buildingPanel = document.createElement('div');
-        buildingPanel.className = 'building-panel';
-        buildingPanel.style.cssText = `
-            background: rgba(0, 10, 20, 0.3);
-            border: 1px solid rgba(0, 255, 255, 0.4);
-            border-radius: 8px;
-            padding: 12px;
-            font-family: 'Orbitron', monospace;
-            color: #00ffff;
-            backdrop-filter: blur(8px);
-            box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
-            min-width: 200px;
-            font-size: 12px;
-        `;
+        buildingPanel.className = 'building-panel game-ui-panel';
+        buildingPanel.style.cssText = getPanelStyles('cyan');
 
         const title = document.createElement('div');
-        title.style.cssText = `
-            font-size: 14px;
-            font-weight: 700;
-            text-align: center;
-            margin-bottom: 12px;
-            color: #00ffff;
-            text-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
-            letter-spacing: 1px;
-        `;
+        title.style.cssText = getHeaderStyles('cyan');
         title.textContent = '◊ CONSTRUCTION ◊';
 
         const buttonsContainer = document.createElement('div');
         buttonsContainer.style.cssText = `
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: ${UI_DIMENSIONS.panel.gap};
             margin-bottom: 12px;
         `;
 
-        const baseButton = this.createBuildingButton('base', 'BUILD BASE', '50J', '#ffff00');
+        const baseButton = this.createBuildingButton('base', 'BUILD BASE', '50J', UI_COLORS.warning);
         this.buildingButtons.set('base', baseButton);
         buttonsContainer.appendChild(baseButton);
 
-        const powerPlantButton = this.createBuildingButton('powerPlant', 'BUILD POWER PLANT', '30J', '#ff8800');
+        const powerPlantButton = this.createBuildingButton('powerPlant', 'BUILD POWER PLANT', '30J', UI_COLORS.warningAlt);
         this.buildingButtons.set('powerPlant', powerPlantButton);
         buttonsContainer.appendChild(powerPlantButton);
 
         this.cancelButton = document.createElement('button');
         this.cancelButton.style.cssText = `
-            background: rgba(255, 0, 0, 0.2);
-            border: 1px solid #ff4444;
-            border-radius: 4px;
-            color: #ff4444;
-            padding: 8px 12px;
-            font-family: 'Orbitron', monospace;
-            font-size: 11px;
-            cursor: pointer;
-            transition: all 0.3s ease;
+            ${getButtonStyles(UI_COLORS.danger)}
             display: none;
         `;
         this.cancelButton.textContent = 'CANCEL PLACEMENT';
@@ -130,8 +117,8 @@ export class BuildingPlacementUI {
 
         this.statusText = document.createElement('div');
         this.statusText.style.cssText = `
-            font-size: 10px;
-            color: #00ccff;
+            font-size: ${UI_TYPOGRAPHY.sizes.xs};
+            color: ${UI_COLORS.primary};
             text-align: center;
             margin-top: 8px;
             min-height: 20px;
@@ -148,39 +135,28 @@ export class BuildingPlacementUI {
 
     private createBuildingButton(type: BuildingType, label: string, cost: string, color: string): HTMLElement {
         const button = document.createElement('button');
-        button.style.cssText = `
-            background: rgba(0, 20, 40, 0.4);
-            border: 1px solid ${color};
-            border-radius: 4px;
-            color: ${color};
-            padding: 10px 12px;
-            font-family: 'Orbitron', monospace;
-            font-size: 11px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        `;
+        button.style.cssText = getButtonStyles(color);
 
         const labelSpan = document.createElement('span');
         labelSpan.textContent = label;
 
         const costSpan = document.createElement('span');
-        costSpan.style.cssText = 'font-weight: 600;';
+        costSpan.style.cssText = `font-weight: ${UI_TYPOGRAPHY.weights.semibold};`;
         costSpan.textContent = cost;
 
         button.appendChild(labelSpan);
         button.appendChild(costSpan);
 
         button.addEventListener('mouseenter', () => {
-            button.style.background = `rgba(0, 40, 80, 0.6)`;
-            button.style.boxShadow = `0 0 10px ${color}40`;
+            const hover = getButtonHoverStyles(color);
+            button.style.background = hover.background;
+            button.style.boxShadow = hover.boxShadow;
         });
 
         button.addEventListener('mouseleave', () => {
-            button.style.background = 'rgba(0, 20, 40, 0.4)';
-            button.style.boxShadow = 'none';
+            const base = getButtonBaseStyles();
+            button.style.background = base.background;
+            button.style.boxShadow = base.boxShadow;
         });
 
         button.addEventListener('click', () => this.startBuildingPlacement(type));
