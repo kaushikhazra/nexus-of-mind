@@ -9,10 +9,6 @@ websockets==12.0
 # PyTorch with CUDA 12.x support (install via: pip install torch --index-url https://download.pytorch.org/whl/cu121)
 torch>=2.0.0
 numpy==1.24.3
-pandas==2.1.4
-
-# Legacy TensorFlow (will be removed after PyTorch migration)
-tensorflow>=2.16.0
 
 # Data Processing and Utilities
 pydantic==2.5.0
