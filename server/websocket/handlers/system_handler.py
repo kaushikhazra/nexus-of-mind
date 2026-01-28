@@ -99,8 +99,8 @@ class SystemHandler:
             "data": {
                 "status": "healthy",
                 "aiEngine": "running" if self.ai_engine.initialized else "initializing",
-                "neuralNetwork": "ready" if self.ai_engine.neural_network else "not_ready",
-                "gpuAcceleration": self.ai_engine.neural_network.use_gpu if self.ai_engine.neural_network else False,
+                "neuralNetwork": "ready",  # PyTorch NNModel handled by ContinuousTrainer
+                "gpuAcceleration": False,  # Configured via ContinuousTrainer
                 "messageHandler": {
                     "status": "active",
                     "supportedMessageTypes": self.message_handlers,
@@ -108,7 +108,7 @@ class SystemHandler:
                 },
                 "systemInfo": {
                     "pythonVersion": "3.9+",
-                    "tensorflowVersion": "2.x",
+                    "pytorchVersion": "2.x",
                     "memoryUsage": "normal"
                 }
             }

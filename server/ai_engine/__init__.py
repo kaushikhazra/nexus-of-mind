@@ -3,7 +3,6 @@ AI Engine package for Adaptive Queen Intelligence
 """
 
 from .ai_engine import AIEngine
-from .neural_network import QueenBehaviorNetwork
 
 # Continuous learning modules
 from .nn_config import NNConfig, NNConfigPresets, load_nn_config
@@ -14,7 +13,6 @@ from .continuous_trainer import ContinuousTrainer, AsyncContinuousTrainer, Strat
 
 __all__ = [
     "AIEngine",
-    "QueenBehaviorNetwork",
     # Continuous learning
     "NNConfig",
     "NNConfigPresets",

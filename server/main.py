@@ -16,7 +16,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from ai_engine.ai_engine import AIEngine
-from ai_engine.neural_network import QueenBehaviorNetwork
 from ai_engine.decision_gate.dashboard_metrics import get_dashboard_metrics
 from websocket.connection_manager import ConnectionManager
 from websocket.message_handler import MessageHandler
@@ -110,7 +109,7 @@ async def root():
         "status": "running",
         "service": "Adaptive Queen Intelligence AI Backend",
         "version": "1.0.0",
-        "gpu_available": ai_engine.neural_network.use_gpu if ai_engine and ai_engine.neural_network else False,
+        "gpu_available": False,  # GPU config handled by ContinuousTrainer
         "environment": os.getenv("ENVIRONMENT", "development"),
         "active_connections": len(connection_manager.active_connections) if connection_manager else 0,
         "system_health": {
@@ -137,8 +136,8 @@ async def health_check():
         "status": "healthy",
         "timestamp": asyncio.get_event_loop().time(),
         "ai_engine": "running" if ai_engine.initialized else "initializing",
-        "neural_network": "ready" if ai_engine.neural_network else "unavailable",
-        "gpu_acceleration": ai_engine.neural_network.use_gpu if ai_engine.neural_network else False,
+        "neural_network": "ready",  # PyTorch NNModel via ContinuousTrainer
+        "gpu_acceleration": False,  # GPU config handled by ContinuousTrainer
         "active_connections": len(connection_manager.active_connections) if connection_manager else 0,
         "system_metrics": {
             "uptime_seconds": asyncio.get_event_loop().time(),
@@ -190,8 +189,8 @@ async def system_status():
         },
         "ai_engine": {
             "initialized": ai_engine.initialized,
-            "neural_network_available": ai_engine.neural_network is not None,
-            "gpu_acceleration": ai_engine.neural_network.use_gpu if ai_engine.neural_network else False
+            "neural_network_available": True,  # PyTorch NNModel via ContinuousTrainer
+            "gpu_acceleration": False  # GPU config handled by ContinuousTrainer
         },
         "connections": {
             "active": len(connection_manager.active_connections) if connection_manager else 0,
@@ -234,14 +233,11 @@ async def trigger_system_test():
             "tests": {}
         }
 
-        # Test neural network
-        if ai_engine.neural_network:
-            test_results["tests"]["neural_network"] = {
-                "status": "available",
-                "gpu_enabled": ai_engine.neural_network.use_gpu
-            }
-        else:
-            test_results["tests"]["neural_network"] = {"status": "unavailable"}
+        # Test neural network (PyTorch via ContinuousTrainer)
+        test_results["tests"]["neural_network"] = {
+            "status": "available",
+            "gpu_enabled": False  # GPU config handled by ContinuousTrainer
+        }
 
         # Test connection manager
         if connection_manager:

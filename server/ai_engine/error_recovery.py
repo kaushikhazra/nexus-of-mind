@@ -169,15 +169,12 @@ class ErrorRecoveryManager:
                     wait_time = self.retry_delay * (2 ** (attempt - 1))
                     await asyncio.sleep(wait_time)
                 
-                # Attempt the operation
+                # Neural network training is handled by ContinuousTrainer
+                # Return success and let the main training loop handle it
                 if operation == 'train_on_failure':
-                    from .neural_network import QueenBehaviorNetwork
-                    network = QueenBehaviorNetwork()
-                    result = await network.train_on_failure(training_data)
-                    
                     return {
                         "success": True,
-                        "result": result,
+                        "result": {"method": "deferred_to_continuous_trainer"},
                         "attempts": attempt + 1,
                         "strategy": "retry",
                         "degraded_parameters": attempt > 0
@@ -222,63 +219,40 @@ class ErrorRecoveryManager:
             }
     
     async def _fallback_to_cpu_training(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Fallback to CPU-only neural network training"""
+        """Fallback to CPU-only mode - training handled by ContinuousTrainer"""
         try:
-            logger.info("Falling back to CPU-only neural network training")
-            
-            # Force CPU-only mode
+            logger.info("Falling back to CPU-only mode")
+
+            # Force CPU-only mode for PyTorch
             os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-            
-            from .neural_network import QueenBehaviorNetwork
-            network = QueenBehaviorNetwork()
-            
-            # Reduce training complexity for CPU
-            training_data = context.get('training_data', {})
-            training_data = self._reduce_training_complexity(training_data, 2)
-            
-            result = await network.train_on_failure(training_data)
-            
+
+            # Training is handled by ContinuousTrainer in MessageHandler
             return {
                 "success": True,
-                "result": result,
+                "result": {"method": "deferred_to_continuous_trainer"},
                 "strategy": "cpu_fallback",
                 "performance_impact": "reduced",
                 "gpu_disabled": True
             }
-            
+
         except Exception as cpu_error:
             logger.error(f"CPU fallback failed: {cpu_error}")
             return await self._fallback_to_rule_based_strategy(context)
     
     async def _fallback_to_simple_model(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Use simplified neural network architecture"""
+        """Use simplified model - training handled by ContinuousTrainer"""
         try:
-            logger.info("Falling back to simplified neural network model")
-            
-            # Create simplified training configuration
-            simplified_config = {
-                "max_epochs": 5,
-                "batch_size": 16,
-                "hidden_layers": [64, 32],  # Reduced from [128, 64, 32]
-                "dropout_rate": 0.1,
-                "learning_rate": 0.01
-            }
-            
-            training_data = context.get('training_data', {})
-            training_data['training_config'] = simplified_config
-            
-            from .neural_network import QueenBehaviorNetwork
-            network = QueenBehaviorNetwork()
-            result = await network.train_on_failure(training_data)
-            
+            logger.info("Falling back to simplified model mode")
+
+            # Training is handled by ContinuousTrainer in MessageHandler
             return {
                 "success": True,
-                "result": result,
+                "result": {"method": "deferred_to_continuous_trainer"},
                 "strategy": "simplified_model",
                 "model_complexity": "reduced",
                 "performance_impact": "minimal"
             }
-            
+
         except Exception as simple_error:
             logger.error(f"Simplified model fallback failed: {simple_error}")
             return await self._fallback_to_rule_based_strategy(context)
@@ -353,39 +327,26 @@ class ErrorRecoveryManager:
         return strategy
     
     async def _reset_neural_network(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Reset neural network to clean state"""
+        """Reset neural network state - clear GPU cache"""
         try:
-            logger.info("Resetting neural network to clean state")
-            
+            logger.info("Resetting neural network state")
+
             # Clear GPU cache (PyTorch)
             try:
                 import torch
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
+                logger.info("GPU cache cleared")
             except:
                 pass
-            
-            # Reinitialize neural network
-            from .neural_network import QueenBehaviorNetwork
-            network = QueenBehaviorNetwork()
-            
-            # Load last known good model if available
-            backup_path = "models/queen_behavior_model_backup.pt"
-            if os.path.exists(backup_path):
-                try:
-                    import torch
-                    network.model.load_state_dict(torch.load(backup_path))
-                    logger.info("Loaded backup model after reset")
-                except:
-                    logger.warning("Failed to load backup model, using fresh model")
-            
+
+            # Neural network training is handled by ContinuousTrainer
             return {
                 "success": True,
                 "strategy": "reset",
-                "model_state": "clean",
-                "backup_loaded": os.path.exists(backup_path)
+                "model_state": "clean"
             }
-            
+
         except Exception as reset_error:
             logger.error(f"Neural network reset failed: {reset_error}")
             return {

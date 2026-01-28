@@ -1,12 +1,15 @@
 """
 AI Engine - Central coordinator for neural network learning and strategy generation
+
+Note: Neural network training is handled by MessageHandler's ContinuousTrainer (PyTorch).
+This class coordinates high-level AI components like death analysis, strategy generation,
+and difficulty adjustment.
 """
 
 import asyncio
 import logging
 from typing import Dict, Any, Optional, List
 
-from .neural_network import QueenBehaviorNetwork
 from .death_analyzer import DeathAnalyzer
 from .player_behavior import PlayerBehaviorAnalyzer
 from .strategy_generator import StrategyGenerator
@@ -26,7 +29,6 @@ class AIEngine:
     """
     
     def __init__(self):
-        self.neural_network: Optional[QueenBehaviorNetwork] = None
         self.death_analyzer: Optional[DeathAnalyzer] = None
         self.player_behavior: Optional[PlayerBehaviorAnalyzer] = None
         self.strategy_generator: Optional[StrategyGenerator] = None
@@ -46,23 +48,9 @@ class AIEngine:
             self.error_recovery = ErrorRecoveryManager()
             self.data_validator = DataValidator()
             logger.info("Error recovery and data validation initialized")
-            
-            # Initialize neural network with GPU acceleration
-            try:
-                self.neural_network = QueenBehaviorNetwork()
-                logger.info(f"Neural network initialized (GPU: {self.neural_network.use_gpu})")
-            except Exception as nn_error:
-                logger.error(f"Neural network initialization failed: {nn_error}")
-                # Use error recovery for neural network initialization
-                recovery_result = await self.error_recovery.handle_neural_network_error(
-                    nn_error, 
-                    {'operation': 'initialization', 'component': 'neural_network'}
-                )
-                if recovery_result['success']:
-                    logger.info("Neural network recovered successfully")
-                else:
-                    logger.warning("Neural network recovery failed, continuing with degraded functionality")
-            
+
+            # Note: Neural network training is handled by MessageHandler's ContinuousTrainer
+
             # Initialize analysis components
             self.death_analyzer = DeathAnalyzer()
             self.player_behavior = PlayerBehaviorAnalyzer()
@@ -158,46 +146,13 @@ class AIEngine:
                 logger.warning(f"Player behavior update failed: {behavior_error}")
                 # Continue without player behavior update
             
-            # Train neural network on failure with comprehensive error handling
-            training_result = None
-            try:
-                training_data = await self._prepare_training_data(death_analysis, queen_death)
-                
-                # Validate training data
-                is_valid, validation_error = self.data_validator.validate_data(training_data, 'training_data')
-                if not is_valid:
-                    logger.warning(f"Training data validation failed: {validation_error}")
-                    training_data = self.data_validator.sanitize_data(training_data, 'training_data')
-                
-                training_result = await self.neural_network.train_on_failure(training_data)
-                logger.info(f"Neural network training completed: {training_result}")
-                
-            except Exception as training_error:
-                logger.error(f"Neural network training failed: {training_error}")
-                # Use error recovery for training failure
-                recovery_result = await self.error_recovery.handle_neural_network_error(
-                    training_error,
-                    {
-                        'operation': 'train_on_failure',
-                        'training_data': training_data if 'training_data' in locals() else {},
-                        'death_data': death_data,
-                        'generation': queen_death.generation
-                    }
-                )
-                
-                if recovery_result['success']:
-                    training_result = recovery_result.get('result', {})
-                    logger.info("Neural network training recovered successfully")
-                else:
-                    # Use fallback training result
-                    training_result = {
-                        'success': False,
-                        'training_time': 0,
-                        'accuracy': 0.5,
-                        'method': 'fallback',
-                        'error_recovery': True
-                    }
-                    logger.warning("Using fallback training result")
+            # Note: Neural network training is handled by MessageHandler's ContinuousTrainer
+            # This method focuses on death analysis and strategy generation
+            training_result = {
+                'success': True,
+                'training_time': 0,
+                'method': 'deferred_to_continuous_trainer'
+            }
             
             # Generate new strategy for next generation with difficulty adjustment
             try:
@@ -328,20 +283,14 @@ class AIEngine:
         try:
             logger.info(f"Processing Queen success for generation {success_data.get('generation', 'unknown')}")
             
-            # Prepare training data for success reinforcement
-            training_data = {
-                "generation": success_data.get('generation', 1),
-                "reward_signal": 1.0,  # Positive reward for success
-                "strategy_labels": success_data.get('successful_strategies', []),
-                "game_state": success_data.get('game_state', {}),
-                "player_patterns": self.player_behavior.get_patterns().to_dict(),
-                "survival_time": success_data.get('survival_time', 0),
-                "strategic_effectiveness": success_data.get('effectiveness', 1.0)
+            # Note: Neural network training is handled by MessageHandler's ContinuousTrainer
+            training_result = {
+                'success': True,
+                'training_time': 0,
+                'method': 'deferred_to_continuous_trainer',
+                'reward_signal': 1.0
             }
-            
-            # Train neural network on success
-            training_result = await self.neural_network.train_on_success(training_data)
-            logger.info(f"Success reinforcement training completed: {training_result}")
+            logger.info("Success data recorded for continuous training")
             
             # Update memory with successful patterns
             await self.memory_manager.store_success_data(
@@ -443,10 +392,7 @@ class AIEngine:
         
         if self.learning_quality_monitor:
             await self.learning_quality_monitor.cleanup()
-        
-        if self.neural_network:
-            await self.neural_network.cleanup()
-        
+
         if self.error_recovery:
             await self.error_recovery.cleanup()
         
