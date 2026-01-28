@@ -9,14 +9,14 @@ Automated game simulation for training the Queen Neural Network. The simulator c
 cd server
 python main.py
 
-# In another terminal, run the simulator
-python -m server.game_simulator.main --turbo --ticks 1000
+# In another terminal, run the simulator (from project root)
+python -m tools.game_simulator.main --turbo --ticks 1000
 ```
 
 ## CLI Reference
 
 ```bash
-python -m server.game_simulator.main [options]
+python -m tools.game_simulator.main [options]
 ```
 
 ### Options
@@ -36,28 +36,28 @@ python -m server.game_simulator.main [options]
 
 ```bash
 # Default run (1000 ticks, real-time speed)
-python -m server.game_simulator.main
+python -m tools.game_simulator.main
 
 # Fast training run
-python -m server.game_simulator.main --turbo --ticks 10000
+python -m tools.game_simulator.main --turbo --ticks 10000
 
 # Continuous training (runs until Ctrl+C)
-python -m server.game_simulator.main --continuous --turbo
+python -m tools.game_simulator.main --continuous --turbo
 
 # Curriculum learning
-python -m server.game_simulator.main --curriculum --turbo --ticks 5000
+python -m tools.game_simulator.main --curriculum --turbo --ticks 5000
 
 # Custom configuration
-python -m server.game_simulator.main --config my_config.yaml
+python -m tools.game_simulator.main --config my_config.yaml
 
 # Remote backend
-python -m server.game_simulator.main --url ws://remote-server:8000/ws
+python -m tools.game_simulator.main --url ws://remote-server:8000/ws
 
 # Debug mode
-python -m server.game_simulator.main --verbose --ticks 100
+python -m tools.game_simulator.main --verbose --ticks 100
 
 # Quiet training run
-python -m server.game_simulator.main --quiet --turbo --continuous
+python -m tools.game_simulator.main --quiet --turbo --continuous
 ```
 
 ## Configuration
@@ -131,7 +131,7 @@ Curriculum learning progressively increases simulation complexity to help the NN
 ### Enable Curriculum Learning
 
 ```bash
-python -m server.game_simulator.main --curriculum --turbo --continuous
+python -m tools.game_simulator.main --curriculum --turbo --continuous
 ```
 
 The simulator automatically transitions between phases and logs progress:

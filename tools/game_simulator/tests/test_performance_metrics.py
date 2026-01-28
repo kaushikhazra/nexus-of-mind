@@ -7,7 +7,7 @@ This test verifies that performance metrics are correctly tracked and calculated
 
 import time
 import unittest
-from server.game_simulator.runner import PerformanceMetrics
+from game_simulator.runner import PerformanceMetrics
 
 
 class TestPerformanceMetrics(unittest.TestCase):

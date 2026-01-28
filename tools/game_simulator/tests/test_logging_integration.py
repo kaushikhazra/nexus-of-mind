@@ -8,8 +8,8 @@ This test verifies that the enhanced logging works correctly.
 import logging
 import unittest
 from unittest.mock import patch, MagicMock
-from server.game_simulator.config import SimulationConfig
-from server.game_simulator.simulator import Simulator
+from game_simulator.config import SimulationConfig
+from game_simulator.simulator import Simulator
 
 
 class TestLoggingIntegration(unittest.TestCase):
@@ -20,7 +20,7 @@ class TestLoggingIntegration(unittest.TestCase):
         self.config = SimulationConfig()
         self.simulator = Simulator(self.config)
     
-    @patch('server.game_simulator.simulator.logger')
+    @patch('game_simulator.simulator.logger')
     def test_tick_logging(self, mock_logger):
         """Test that tick logging works correctly."""
         # Run a few ticks
@@ -30,7 +30,7 @@ class TestLoggingIntegration(unittest.TestCase):
         # Verify that logging was called
         self.assertTrue(mock_logger.debug.called or mock_logger.info.called)
     
-    @patch('server.game_simulator.simulator.logger')
+    @patch('game_simulator.simulator.logger')
     def test_spawn_logging(self, mock_logger):
         """Test that spawn event logging works correctly."""
         # Test successful spawn
@@ -54,7 +54,7 @@ class TestLoggingIntegration(unittest.TestCase):
     
     def test_performance_metrics_integration(self):
         """Test that performance metrics integrate with simulation."""
-        from server.game_simulator.runner import SimulationRunner
+        from game_simulator.runner import SimulationRunner
         
         runner = SimulationRunner(self.config)
         
@@ -62,7 +62,7 @@ class TestLoggingIntegration(unittest.TestCase):
         self.assertIsNone(runner.get_performance_metrics())  # None before run
         
         # Initialize performance metrics manually (normally done in run())
-        from server.game_simulator.runner import PerformanceMetrics
+        from game_simulator.runner import PerformanceMetrics
         import time
         runner.performance_metrics = PerformanceMetrics(start_time=time.time())
         runner.performance_metrics.add_tick_time(0.001)

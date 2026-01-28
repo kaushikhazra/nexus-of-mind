@@ -7,20 +7,20 @@ with configurable parameters. It supports loading configuration from YAML files,
 setting simulation parameters, and running in different modes.
 
 Usage:
-    python -m server.game_simulator.main [options]
+    python -m tools.game_simulator.main [options]
 
 Examples:
     # Run with default config, real-time speed
-    python -m server.game_simulator.main
+    python -m tools.game_simulator.main
 
     # Run in turbo mode for 10k ticks
-    python -m server.game_simulator.main --turbo --ticks 10000
+    python -m tools.game_simulator.main --turbo --ticks 10000
 
     # Use custom config
-    python -m server.game_simulator.main --config my_config.yaml
+    python -m tools.game_simulator.main --config my_config.yaml
 
     # Connect to different WebSocket URL
-    python -m server.game_simulator.main --url ws://remote-server:8000/ws
+    python -m tools.game_simulator.main --url ws://remote-server:8000/ws
 """
 
 import argparse
@@ -31,10 +31,10 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-# Add the server directory to the path so we can import modules
-server_dir = Path(__file__).parent.parent
-if str(server_dir) not in sys.path:
-    sys.path.insert(0, str(server_dir))
+# Add the tools directory to the path so we can import modules
+tools_dir = Path(__file__).parent.parent
+if str(tools_dir) not in sys.path:
+    sys.path.insert(0, str(tools_dir))
 
 from game_simulator.config import SimulationConfig
 from game_simulator.runner import SimulationRunner
@@ -42,7 +42,7 @@ from game_simulator.curriculum import CurriculumManager, create_default_curricul
 
 # Default config path
 DEFAULT_CONFIG_PATH = os.path.join(
-    os.path.dirname(__file__), '..', 'ai_engine', 'configs', 'game_simulator.yaml'
+    os.path.dirname(__file__), '..', '..', 'server', 'ai_engine', 'configs', 'game_simulator.yaml'
 )
 
 

@@ -7,8 +7,7 @@ import unittest
 import os
 import sys
 
-# Add server directory to path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Path setup handled by conftest.py
 
 from game_simulator.config import SimulationConfig
 from game_simulator.entities import Worker, Protector, Parasite, WorkerState, ProtectorState
