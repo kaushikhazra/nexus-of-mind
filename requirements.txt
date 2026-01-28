@@ -8,7 +8,7 @@ websockets==12.0
 # Neural Network and Machine Learning
 # PyTorch with CUDA 12.x support (install via: pip install torch --index-url https://download.pytorch.org/whl/cu121)
 torch>=2.0.0
-numpy==1.24.3
+numpy>=1.26.0
 
 # Data Processing and Utilities
 pydantic==2.5.0

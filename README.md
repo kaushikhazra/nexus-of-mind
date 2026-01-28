@@ -38,34 +38,45 @@ Everything costs energy:
 ## 🚀 Quick Start
 
 ### Prerequisites
-- **Node.js 18+** for development and build tools
+- **Python 3.11+** for AI backend
+- **Node.js 18+** for game client
 - **Modern Web Browser** with WebGL 2.0 support
 - **Git** for version control
 
-### Installation & Setup
+### Installation & Setup (Windows)
 
 ```bash
 # Clone the repository
 git clone https://github.com/kaushikhazra/nexus-of-mind.git
 cd nexus-of-mind
 
-# Install dependencies
-npm install
+# Option 1: Use batch files (recommended)
+install.bat    # Install all dependencies
+start.bat      # Start both servers
 
-# Start development server
-npm run dev
+# Option 2: Manual setup
+# Install Python dependencies
+pip install -r requirements.txt
 
-# Open in browser
-# Navigate to http://localhost:3000
+# Install Node.js dependencies
+cd client && npm install && cd ..
+
+# Start AI backend (terminal 1)
+cd server && python start_server.py
+
+# Start game client (terminal 2)
+cd client && npm run dev
+
+# Open in browser: http://localhost:3000
 ```
 
-### Production Build
+### Docker Deployment
 ```bash
-# Build for production
-npm run build
+# Build and run with Docker
+docker-compose up -d
 
-# Serve production build
-npm run serve
+# Access the game at http://localhost:3010
+# AI Backend API at http://localhost:8010
 ```
 
 ## 🎮 How to Play
@@ -104,11 +115,12 @@ npm run serve
 - **Webpack**: Optimized asset bundling
 - **WebGL**: Hardware-accelerated 3D rendering
 
-### Backend (Planned)
-- **Python**: AI/ML processing and game server
-- **TensorFlow/PyTorch**: Neural network implementation
-- **FastAPI**: Game server API
+### Backend (AI Server)
+- **Python 3.11+**: AI/ML processing and game server
+- **PyTorch**: Neural network for adaptive AI behavior
+- **FastAPI**: High-performance REST API
 - **WebSocket**: Real-time game communication
+- **Continuous Learning**: Background training with experience replay
 
 ### Key Components
 - **GameEngine**: Core game loop and system coordination
@@ -131,18 +143,23 @@ npm run serve
 - Atmospheric lighting for immersion
 - Scalable design for infinite worlds
 
-## 🤖 AI Architecture (Planned)
+## 🤖 AI Architecture
 
-### Multi-Layer Learning System
-1. **Player Behavior Classification**: Identify play styles (aggressive, defensive, economic)
-2. **Strategic DQN**: High-level decision making and resource allocation
-3. **Tactical Actor-Critic**: Unit-level control and micro-management
-4. **Pattern Recognition LSTM**: Learn and predict player strategies
+### Neural Network System
+- **PyTorch Sequential Model**: Lightweight neural network for spawn decisions
+- **Feature Extraction**: 18-dimensional game state encoding
+- **Simulation Gate**: Cost-benefit analysis for decision validation
+- **Background Training**: Continuous learning from gameplay experience
+
+### Adaptive Difficulty
+- **Player Behavior Analysis**: Tracks aggression, economy focus, and tactics
+- **Dynamic Difficulty Adjustment**: Scales challenge based on player skill
+- **Learning Persistence**: Model weights saved and restored across sessions
 
 ### Real-Time Adaptation
 - **Strategy Switching**: AI changes approach based on player actions
-- **Difficulty Scaling**: Maintains challenging but fair gameplay
-- **Learning Persistence**: AI remembers lessons across game sessions
+- **Experience Replay**: Learns from recent gameplay decisions
+- **Reward-Based Training**: Optimizes for survival and resource efficiency
 
 ## 📊 Development Progress
 
@@ -249,6 +266,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**🎮 Ready to challenge the AI?** Clone the repo, run `npm run dev`, and experience the future of strategy gaming!
+**🎮 Ready to challenge the AI?** Clone the repo, run `install.bat` then `start.bat`, and experience the future of strategy gaming!
 
 **🏆 Hackathon Entry**: This project showcases the potential of AI in gaming, combining cutting-edge machine learning with engaging gameplay in a web-accessible format.
