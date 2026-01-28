@@ -14,7 +14,7 @@ const CYAN_PRIMARY = '#00ffff';
 
 export const HELP_COLORS = {
     primary: CYAN_PRIMARY,                         // Cyan blue
-    background: 'rgba(0, 20, 40, 0.9)',            // Matches LearningProgressUI and other windows
+    background: 'rgba(0, 20, 40, 0.75)',           // Semi-transparent for better game visibility
     text: DEFAULT_THEME.textColor,                 // #ffffff
     secondaryText: DEFAULT_THEME.secondaryTextColor, // #cccccc
     closeButton: CYAN_PRIMARY,                     // Blue close button
