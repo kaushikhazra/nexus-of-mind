@@ -2,6 +2,7 @@
  * IntroductionModels - 3D model creation for introduction screens
  *
  * Creates optimized 3D models for each introduction page type.
+ * Uses specialized component renderers for high-quality visuals.
  * Extracted from IntroductionModelRenderer.ts for SOLID compliance.
  *
  * Requirements: 9.3-9.5 - Model creation for introduction pages
@@ -18,6 +19,12 @@ import {
     Material
 } from '@babylonjs/core';
 import { MaterialManager } from '../../rendering/MaterialManager';
+
+// Import specialized renderers
+import { EmblemGeometry } from '../components/EmblemGeometry';
+import { PlanetRenderer } from '../components/PlanetRenderer';
+import { ParasiteRenderer } from '../components/ParasiteRenderer';
+import { TerrainRenderer } from '../components/TerrainRenderer';
 
 // ==================== Types ====================
 
@@ -41,6 +48,11 @@ export interface ModelCreationContext {
     materialManager: MaterialManager | null;
     isLowPerformanceMode: boolean;
     materialCache: Map<string, Material>;
+    // Specialized renderers
+    emblemGeometry?: EmblemGeometry;
+    planetRenderer?: PlanetRenderer;
+    parasiteRenderer?: ParasiteRenderer;
+    terrainRenderer?: TerrainRenderer;
 }
 
 // ==================== Material Helpers ====================
@@ -119,10 +131,27 @@ export async function createModelByType(
 }
 
 /**
- * Create Empire emblem model
+ * Create Empire emblem model using EmblemGeometry renderer
  * Requirements: 9.3 - Empire faction emblem
  */
 export function createEmpireEmblem(context: ModelCreationContext): AbstractMesh {
+    // Use specialized renderer if available
+    if (context.emblemGeometry) {
+        try {
+            return context.emblemGeometry.createEmpireEmblem();
+        } catch (error) {
+            console.warn('Failed to create Empire emblem with renderer, using fallback:', error);
+        }
+    }
+
+    // Fallback to simplified version
+    return createSimplifiedEmpireEmblem(context);
+}
+
+/**
+ * Simplified Empire emblem fallback
+ */
+function createSimplifiedEmpireEmblem(context: ModelCreationContext): AbstractMesh {
     const { scene, isLowPerformanceMode } = context;
 
     // Create parent mesh
@@ -161,10 +190,33 @@ export function createEmpireEmblem(context: ModelCreationContext): AbstractMesh 
 }
 
 /**
- * Create desert planet model
+ * Create desert planet model using PlanetRenderer
  * Requirements: 9.4 - Desert planet visualization
  */
 export function createDesertPlanet(context: ModelCreationContext): AbstractMesh {
+    // Use specialized renderer if available
+    if (context.planetRenderer) {
+        try {
+            return context.planetRenderer.createDesertPlanet({
+                radius: 1.8,
+                textureType: 'desert',
+                atmosphereGlow: !context.isLowPerformanceMode,
+                cloudLayer: !context.isLowPerformanceMode,
+                rotationSpeed: 0.5
+            });
+        } catch (error) {
+            console.warn('Failed to create desert planet with renderer, using fallback:', error);
+        }
+    }
+
+    // Fallback to simplified version
+    return createSimplifiedDesertPlanet(context);
+}
+
+/**
+ * Simplified desert planet fallback
+ */
+function createSimplifiedDesertPlanet(context: ModelCreationContext): AbstractMesh {
     const { scene, isLowPerformanceMode } = context;
 
     const planet = new Mesh('desertPlanet', scene);
@@ -202,10 +254,33 @@ export function createDesertPlanet(context: ModelCreationContext): AbstractMesh 
 }
 
 /**
- * Create terrain closeup model
+ * Create terrain closeup model using TerrainRenderer
  * Requirements: 9.4 - Terrain surface visualization
  */
 export function createTerrainCloseup(context: ModelCreationContext): AbstractMesh {
+    // Use specialized renderer if available
+    if (context.terrainRenderer) {
+        try {
+            return context.terrainRenderer.createTerrainCloseup({
+                chunkSize: 12,
+                heightScale: 1.5,
+                mineralDeposits: true,
+                atmosphericEffects: !context.isLowPerformanceMode,
+                toxicGlow: true
+            });
+        } catch (error) {
+            console.warn('Failed to create terrain with renderer, using fallback:', error);
+        }
+    }
+
+    // Fallback to simplified version
+    return createSimplifiedTerrainCloseup(context);
+}
+
+/**
+ * Simplified terrain closeup fallback
+ */
+function createSimplifiedTerrainCloseup(context: ModelCreationContext): AbstractMesh {
     const { scene, isLowPerformanceMode } = context;
 
     const terrain = new Mesh('terrainCloseup', scene);
@@ -289,10 +364,27 @@ export function createRadiationSign(context: ModelCreationContext): AbstractMesh
 }
 
 /**
- * Create Energy Lords emblem model
+ * Create Energy Lords emblem model using EmblemGeometry renderer
  * Requirements: 9.3 - Energy Lords faction emblem
  */
 export function createEnergyLordsEmblem(context: ModelCreationContext): AbstractMesh {
+    // Use specialized renderer if available
+    if (context.emblemGeometry) {
+        try {
+            return context.emblemGeometry.createEnergyLordsEmblem();
+        } catch (error) {
+            console.warn('Failed to create Energy Lords emblem with renderer, using fallback:', error);
+        }
+    }
+
+    // Fallback to simplified version
+    return createSimplifiedEnergyLordsEmblem(context);
+}
+
+/**
+ * Simplified Energy Lords emblem fallback
+ */
+function createSimplifiedEnergyLordsEmblem(context: ModelCreationContext): AbstractMesh {
     const { scene, isLowPerformanceMode } = context;
 
     const emblem = new Mesh('energyLordsEmblem', scene);
@@ -337,10 +429,29 @@ export function createEnergyLordsEmblem(context: ModelCreationContext): Abstract
 }
 
 /**
- * Create parasites model
+ * Create parasites model using ParasiteRenderer
  * Requirements: 9.5 - Parasite visualization
  */
 export function createParasites(context: ModelCreationContext): AbstractMesh {
+    // Use specialized renderer if available
+    if (context.parasiteRenderer) {
+        try {
+            // Use the ring worm group which creates detailed parasite models
+            const count = context.isLowPerformanceMode ? 1 : 1;
+            return context.parasiteRenderer.createRingWormGroup(count);
+        } catch (error) {
+            console.warn('Failed to create parasites with renderer, using fallback:', error);
+        }
+    }
+
+    // Fallback to simplified version
+    return createSimplifiedParasites(context);
+}
+
+/**
+ * Simplified parasites fallback
+ */
+function createSimplifiedParasites(context: ModelCreationContext): AbstractMesh {
     const { scene, isLowPerformanceMode } = context;
 
     const parasites = new Mesh('parasites', scene);
@@ -381,7 +492,7 @@ export function createParasites(context: ModelCreationContext): AbstractMesh {
 }
 
 /**
- * Create orbital system model
+ * Create orbital system model using PlanetRenderer for planet
  * Requirements: 9.4 - Orbital mining system visualization
  */
 export function createOrbitalSystem(context: ModelCreationContext): AbstractMesh {
@@ -389,16 +500,25 @@ export function createOrbitalSystem(context: ModelCreationContext): AbstractMesh
 
     const system = new Mesh('orbitalSystem', scene);
 
-    // Central planet
-    const planet = MeshBuilder.CreateSphere('centralPlanet', {
-        diameter: 2,
-        segments: isLowPerformanceMode ? 16 : 24
-    }, scene);
-
-    const planetMaterial = createOptimizedMaterial(context, 'orbitalPlanet',
-        new Color3(0.5, 0.4, 0.6));
-    planet.material = planetMaterial;
-    planet.parent = system;
+    // Central planet - use PlanetRenderer if available
+    let planet: AbstractMesh;
+    if (context.planetRenderer) {
+        try {
+            planet = context.planetRenderer.createDesertPlanet({
+                radius: 1.0,
+                textureType: 'desert',
+                atmosphereGlow: !isLowPerformanceMode,
+                cloudLayer: false,
+                rotationSpeed: 0.3
+            });
+            planet.parent = system;
+        } catch (error) {
+            console.warn('Failed to create orbital planet with renderer, using fallback:', error);
+            planet = createSimplifiedOrbitalPlanet(context, system);
+        }
+    } else {
+        planet = createSimplifiedOrbitalPlanet(context, system);
+    }
 
     // Orbital rings
     const ringCount = isLowPerformanceMode ? 2 : 3;
@@ -435,6 +555,25 @@ export function createOrbitalSystem(context: ModelCreationContext): AbstractMesh
     ship.parent = system;
 
     return system;
+}
+
+/**
+ * Create simplified orbital planet fallback
+ */
+function createSimplifiedOrbitalPlanet(context: ModelCreationContext, parent: Mesh): AbstractMesh {
+    const { scene, isLowPerformanceMode } = context;
+
+    const planet = MeshBuilder.CreateSphere('centralPlanet', {
+        diameter: 2,
+        segments: isLowPerformanceMode ? 16 : 24
+    }, scene);
+
+    const planetMaterial = createOptimizedMaterial(context, 'orbitalPlanet',
+        new Color3(0.5, 0.4, 0.6));
+    planet.material = planetMaterial;
+    planet.parent = parent;
+
+    return planet;
 }
 
 /**

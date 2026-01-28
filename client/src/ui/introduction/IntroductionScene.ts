@@ -71,11 +71,11 @@ const DEFAULT_SCENE_CONFIG: SceneConfig = {
 };
 
 const DEFAULT_CAMERA_CONFIG: CameraConfig = {
-    alpha: Math.PI / 2,
-    beta: Math.PI / 2.5,
-    radius: 8,
-    target: Vector3.Zero(),
-    lowerRadiusLimit: 5,
+    alpha: -Math.PI / 2,  // Face the front of the model
+    beta: Math.PI / 2,    // Horizontal view (straight on)
+    radius: 14,           // Distance from model (zoomed out for smaller appearance)
+    target: new Vector3(0, 0, 0),  // Center of scene
+    lowerRadiusLimit: 3,
     upperRadiusLimit: 15,
     wheelPrecision: 100,
     minZ: 0.1,
@@ -83,11 +83,11 @@ const DEFAULT_CAMERA_CONFIG: CameraConfig = {
 };
 
 const DEFAULT_LIGHTING_CONFIG: LightingConfig = {
-    hemisphericIntensity: 0.7,
-    hemisphericDirection: new Vector3(0, 1, 0),
-    directionalIntensity: 0.5,
-    directionalDirection: new Vector3(-1, -2, -1),
-    specularColor: new Color3(0.2, 0.2, 0.3)
+    hemisphericIntensity: 1.0,
+    hemisphericDirection: new Vector3(0, 0, -1),  // From front (camera direction)
+    directionalIntensity: 1.5,
+    directionalDirection: new Vector3(0, -0.2, 1),  // Light traveling from camera toward model
+    specularColor: new Color3(0.4, 0.4, 0.5)
 };
 
 const DEFAULT_POST_PROCESSING_CONFIG: PostProcessingConfig = {

@@ -112,14 +112,11 @@ export function updatePageContainerLayout(
 
         if (modelArea) {
             modelArea.style.cssText = `
-                width: 250px;
-                min-width: 250px;
-                height: 100%;
+                flex: 0 0 250px;
+                align-self: stretch;
                 background: rgba(0, 10, 20, 0.85);
                 position: relative;
-                display: flex;
-                align-items: center;
-                justify-content: center;
+                overflow: hidden;
             `;
         }
         if (storyArea) {
@@ -152,14 +149,11 @@ export function updatePageContainerLayout(
 
         if (modelArea) {
             modelArea.style.cssText = `
-                width: 300px;
-                min-width: 300px;
-                height: 100%;
+                flex: 0 0 300px;
+                align-self: stretch;
                 background: rgba(0, 10, 20, 0.85);
                 position: relative;
-                display: flex;
-                align-items: center;
-                justify-content: center;
+                overflow: hidden;
             `;
         }
         if (storyArea) {

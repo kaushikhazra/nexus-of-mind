@@ -51,6 +51,12 @@ import {
     PerformanceMetrics
 } from './introduction/IntroductionEffects';
 
+// Import specialized renderers for model creation
+import { EmblemGeometry } from './components/EmblemGeometry';
+import { PlanetRenderer } from './components/PlanetRenderer';
+import { ParasiteRenderer } from './components/ParasiteRenderer';
+import { TerrainRenderer } from './components/TerrainRenderer';
+
 export interface ModelConfig {
     pageIndex: number;
     modelType: ModelType;
@@ -124,6 +130,12 @@ export class IntroductionModelRenderer {
     // Caches
     private modelCache: Map<string, AbstractMesh> = new Map();
     private materialCache: Map<string, Material> = new Map();
+
+    // Specialized renderers for model creation
+    private emblemGeometry: EmblemGeometry | null = null;
+    private planetRenderer: PlanetRenderer | null = null;
+    private parasiteRenderer: ParasiteRenderer | null = null;
+    private terrainRenderer: TerrainRenderer | null = null;
 
     // Performance systems
     private lodSystem: LODSystem | null = null;
@@ -203,10 +215,18 @@ export class IntroductionModelRenderer {
     }
 
     private createCanvas(): void {
+        // Clear any existing content (like placeholder)
+        this.container.innerHTML = '';
+
         this.canvas = document.createElement('canvas');
-        this.canvas.style.width = '100%';
-        this.canvas.style.height = '100%';
-        this.canvas.style.outline = 'none';
+        this.canvas.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            outline: none;
+        `;
         this.container.appendChild(this.canvas);
     }
 
@@ -237,7 +257,39 @@ export class IntroductionModelRenderer {
             this.isLowPerformanceMode
         );
 
+        // Initialize specialized renderers for high-quality models
+        this.initializeModelRenderers();
+
         startRenderLoop(this.engine, this.scene);
+
+        // Ensure engine resizes to match container after layout settles
+        requestAnimationFrame(() => {
+            this.engine?.resize();
+        });
+    }
+
+    /**
+     * Initialize specialized model renderers
+     * These provide high-quality 3D models for the introduction screen
+     */
+    private initializeModelRenderers(): void {
+        if (!this.scene) return;
+
+        // Create MaterialManager if not provided
+        if (!this.materialManager) {
+            this.materialManager = new MaterialManager(this.scene);
+        }
+
+        try {
+            this.emblemGeometry = new EmblemGeometry(this.scene, this.materialManager);
+            this.planetRenderer = new PlanetRenderer(this.scene, this.materialManager);
+            this.parasiteRenderer = new ParasiteRenderer(this.scene, this.materialManager);
+            this.terrainRenderer = new TerrainRenderer(this.scene, this.materialManager);
+            console.log('Specialized model renderers initialized');
+        } catch (error) {
+            console.warn('Failed to initialize some model renderers:', error);
+            // Continue without renderers - fallback models will be used
+        }
     }
 
     private initializePerformanceSystems(): void {
@@ -316,7 +368,12 @@ export class IntroductionModelRenderer {
             scene: this.scene!,
             materialManager: this.materialManager,
             isLowPerformanceMode: this.isLowPerformanceMode,
-            materialCache: this.materialCache
+            materialCache: this.materialCache,
+            // Specialized renderers for high-quality models
+            emblemGeometry: this.emblemGeometry ?? undefined,
+            planetRenderer: this.planetRenderer ?? undefined,
+            parasiteRenderer: this.parasiteRenderer ?? undefined,
+            terrainRenderer: this.terrainRenderer ?? undefined
         };
     }
 
@@ -410,6 +467,19 @@ export class IntroductionModelRenderer {
             this.lodSystem = null;
 
             this.disposeCaches();
+
+            // Dispose specialized model renderers
+            this.emblemGeometry?.dispose();
+            this.emblemGeometry = null;
+
+            this.planetRenderer?.dispose();
+            this.planetRenderer = null;
+
+            this.parasiteRenderer?.dispose();
+            this.parasiteRenderer = null;
+
+            // TerrainRenderer doesn't have a dispose method
+            this.terrainRenderer = null;
 
             this.renderingPipeline?.dispose();
             this.renderingPipeline = null;

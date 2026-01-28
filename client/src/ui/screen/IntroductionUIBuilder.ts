@@ -64,6 +64,7 @@ function createPageContainer(): HTMLElement {
         padding: 0;
         max-width: 1200px;
         width: 95%;
+        min-height: 400px;
         max-height: 85vh;
         overflow: hidden;
         backdrop-filter: blur(10px);
@@ -71,6 +72,7 @@ function createPageContainer(): HTMLElement {
         position: relative;
         display: flex;
         flex-direction: row;
+        align-items: stretch;
     `;
     return container;
 }
@@ -83,14 +85,10 @@ function createModelArea(): HTMLElement {
     area.className = 'introduction-model-area';
     area.id = 'introduction-model-container';
     area.style.cssText = `
-        width: 300px;
-        min-width: 300px;
+        flex: 0 0 300px;
         align-self: stretch;
         background: rgba(0, 10, 20, 0.85);
         position: relative;
-        display: flex;
-        align-items: center;
-        justify-content: center;
         overflow: hidden;
     `;
 
