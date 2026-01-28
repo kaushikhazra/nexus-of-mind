@@ -21,6 +21,10 @@ import {
 } from '@babylonjs/core';
 import { MaterialManager } from '../../rendering/MaterialManager';
 
+// Import unit rendering for Protector model
+import { ProtectorMeshFactory } from '../../rendering/unit/UnitMeshFactories';
+import { UnitMaterialManager } from '../../rendering/unit/UnitMaterials';
+
 // Import specialized renderers
 import { EmblemGeometry } from '../components/EmblemGeometry';
 import { PlanetRenderer } from '../components/PlanetRenderer';
@@ -36,7 +40,8 @@ export type ModelType =
     | 'radiation-sign'
     | 'energy-lords-emblem'
     | 'parasites'
-    | 'orbital-system';
+    | 'orbital-system'
+    | 'protector';
 
 export interface ModelConfig {
     modelType: ModelType;
@@ -125,6 +130,8 @@ export async function createModelByType(
             return createParasites(context);
         case 'orbital-system':
             return createOrbitalSystem(context);
+        case 'protector':
+            return createProtector(context);
         default:
             console.warn(`Unknown model type: ${modelType}`);
             return null;
@@ -201,8 +208,8 @@ export function createDesertPlanet(context: ModelCreationContext): AbstractMesh 
             return context.planetRenderer.createDesertPlanet({
                 radius: 1.8,
                 textureType: 'desert',
-                atmosphereGlow: !context.isLowPerformanceMode,
-                cloudLayer: !context.isLowPerformanceMode,
+                atmosphereGlow: false,
+                cloudLayer: false,
                 rotationSpeed: 0.5
             });
         } catch (error) {
@@ -234,22 +241,6 @@ function createSimplifiedDesertPlanet(context: ModelCreationContext): AbstractMe
     });
     sphere.material = planetMaterial;
     sphere.parent = planet;
-
-    // Atmosphere glow (simplified)
-    if (!isLowPerformanceMode) {
-        const atmosphere = MeshBuilder.CreateSphere('atmosphere', {
-            diameter: 4.2,
-            segments: 16
-        }, scene);
-
-        const atmosphereMaterial = createOptimizedMaterial(context, 'atmosphereGlow',
-            new Color3(0.9, 0.7, 0.5), {
-                emissive: new Color3(0.1, 0.05, 0.02),
-                alpha: 0.2
-            });
-        atmosphere.material = atmosphereMaterial;
-        atmosphere.parent = planet;
-    }
 
     return planet;
 }
@@ -800,6 +791,44 @@ function createSimplifiedOrbitalPlanet(context: ModelCreationContext, parent: Me
     planet.parent = parent;
 
     return planet;
+}
+
+/**
+ * Create Protector unit model - uses the exact same model from the game
+ * Uses ProtectorMeshFactory from UnitMeshFactories.ts
+ */
+export function createProtector(context: ModelCreationContext): AbstractMesh {
+    const { scene } = context;
+
+    // Create the materials manager and mesh factory (same as in-game)
+    const unitMaterials = new UnitMaterialManager(scene);
+    const protectorFactory = new ProtectorMeshFactory(scene, unitMaterials);
+
+    // Create a root node for animation (this will be animated, rotation starts at 0)
+    const animationRoot = new Mesh('protectorRoot', scene);
+
+    // Create an offset node for initial rotation (child of animation root)
+    // This keeps the initial facing direction while animation rotates the parent
+    const offsetNode = new Mesh('protectorOffset', scene);
+    offsetNode.parent = animationRoot;
+    offsetNode.rotation.y = Math.PI; // Face forward (toward camera)
+
+    // Get the protector config (same as in-game)
+    const config = {
+        radius: 1.5, // Slightly larger for introduction display
+        segments: 16
+    };
+
+    // Create the exact same protector mesh as in-game, parented to offset node
+    protectorFactory.createProtectorMesh('intro', config, offsetNode);
+
+    // Scale for introduction display (smaller than before)
+    animationRoot.scaling = new Vector3(1.25, 1.25, 1.25);
+
+    // Center the model (in-game it's raised for ground placement)
+    animationRoot.position.y = -config.radius * 1.25;
+
+    return animationRoot;
 }
 
 /**

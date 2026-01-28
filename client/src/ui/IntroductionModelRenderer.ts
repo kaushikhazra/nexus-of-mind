@@ -98,10 +98,10 @@ const MODEL_PAGE_MAPPING: { [pageIndex: number]: { modelType: ModelType; animati
     7: { modelType: 'energy-lords-emblem', animation: { rotationSpeed: 0.5 } },
     8: { modelType: 'parasites', animation: { rotationSpeed: 0.4 } },
     9: { modelType: 'parasites', animation: { rotationSpeed: 0.4 } },
-    10: { modelType: 'orbital-system', animation: { rotationSpeed: 0.3 } },
-    11: { modelType: 'orbital-system', animation: { rotationSpeed: 0.3 } },
-    12: { modelType: 'orbital-system', animation: { rotationSpeed: 0.3 } },
-    13: { modelType: 'orbital-system', animation: { rotationSpeed: 0.3 } }
+    10: { modelType: 'protector', animation: { rotationSpeed: 0.4 } },
+    11: { modelType: 'protector', animation: { rotationSpeed: 0.4 } },
+    12: { modelType: 'protector', animation: { rotationSpeed: 0.4 } },
+    13: { modelType: 'protector', animation: { rotationSpeed: 0.4 } }
 };
 
 // ==================== Main Class ====================
