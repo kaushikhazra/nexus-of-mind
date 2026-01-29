@@ -311,6 +311,15 @@ export class IntroductionScreen {
     }
 
     private handleComplete(): void {
+        // Auto-save skip preference so intro doesn't show again after completion
+        if (!this.state.skipIntroduction) {
+            this.state.skipIntroduction = true;
+            try {
+                this.preferenceManager.setSkipIntroduction(true);
+            } catch (error) {
+                console.error('Error saving skip preference on completion:', error);
+            }
+        }
         this.hide();
         this.config.onComplete();
     }
