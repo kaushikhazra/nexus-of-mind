@@ -16,8 +16,10 @@ services:
       - PORT=8010
       - LOG_LEVEL=info
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3010}
+      - ENERGY_LORDS_DB_PATH=/app/data/energy_lords.db
     volumes:
       - ./logs:/app/logs
+      - ./data:/app/data
     networks:
       - nom-network
     restart: unless-stopped
