@@ -110,3 +110,6 @@ tmpclaude-*-cwd
 
 # Temporary planning documents
 docs/plans/*-temp.md
+
+# Demo videos (large files - upload to YouTube instead)
+demo/
