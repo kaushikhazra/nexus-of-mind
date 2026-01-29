@@ -8,6 +8,37 @@ A real-time strategy game where you mine resources and defend against AI-control
 
 ---
 
+## Innovation Highlights
+
+| Feature | Description |
+|---------|-------------|
+| **Adaptive AI** | Five-NN Sequential Architecture (~830 params) that learns from every player interaction |
+| **Simulation-Gated Inference** | AI evaluates decisions before execution using predictive cost functions |
+| **Generational Evolution** | Each game session trains the next generation - the AI genuinely improves |
+| **Real-time Learning** | Dual feedback loop (simulation + real game) enables continuous adaptation |
+| **Lightweight Design** | Full neural network runs smoothly on CPU - no GPU required for gameplay |
+
+---
+
+## Quick Demo
+
+### Resource Mining
+Workers harvest minerals and deliver them to Power Plants for energy conversion.
+
+![Mining Operations](docs/game-mining.png)
+
+### Combat System
+Protectors auto-engage parasites. The Queen AI adapts spawn patterns based on your defenses.
+
+![Combat in Action](docs/game-combat.png)
+
+### Base Building
+Construct Power Plants to convert minerals into energy. All operations consume energy.
+
+![Base Construction](docs/game-base.png)
+
+---
+
 ## Prerequisites
 
 ### Tech Stack
@@ -342,7 +373,9 @@ The Queen AI uses a **Five-NN Sequential Architecture** (~830 parameters) - five
 Key features:
 - **Simulation-gated inference**: Decisions evaluated before execution
 - **Dual feedback**: Simulation (immediate) + real game (delayed)
-- **Generational evolution**: Each Queen death trains the next generation
+- **Generational evolution**: Each game session trains the next generation
+
+![Neural Network Dashboard](docs/nn-dashboard.png)
 
 For full technical details, see [Neural Network Architecture](docs/NEURAL_NETWORK.md).
 
