@@ -1,462 +1,608 @@
 # Nexus of Mind
 
-🧠🦠 **Player vs Evolving Parasite Ecosystem** - Defend against adaptive parasite swarms powered by neural network learning. Experience a genuinely novel gaming sub-genre where the AI-controlled ecosystem evolves and adapts to your strategies, creating endless tactical challenges that never become stale.
-
-> **🎮 Live Demo**: [Development Server](http://localhost:3010) (when running locally)  
-> **🏆 Hackathon Entry**: Dynamous Kiro Hackathon 2026 - Showcasing parasite ecosystem innovation
-
-## 🌟 What Makes This Special
-
-**Nexus of Mind** isn't just another RTS game - it's a showcase of cutting-edge parasite ecosystem innovation:
-
-- **🦠 Neural Network Parasite Spawning**: AI-controlled parasites that learn from your strategies and adapt their behavior
-- **⚔️ Dual Parasite Types**: Face 75% Energy Parasites that drain resources and 25% Combat Parasites that attack directly
-- **🎨 Low Poly Aesthetic**: Beautiful SciFi world with optimized flat-shading graphics
-- **⚡ Parasite-Focused Energy Economy**: Manage energy while defending against parasites that evolve their tactics
-- **🌍 Infinite Procedural World**: Explore an endless SciFi landscape with varied terrain and parasite territories
-- **🎯 Strategic Depth**: Balance resource management, territorial control, and evolving parasite combat
-- **🚀 Web-Based**: Runs in any modern browser with 60fps performance
-
-## 🎯 Game Concept
-
-### Core Gameplay
-Players control **Workers** (green spheres) and **Protectors** (red spheres) in a survival battle against an evolving parasite ecosystem. Mine radioactive minerals, build **Bases** (yellow pyramids) and **Power Plants** (orange semi-cylinders) while defending against adaptive parasite swarms controlled by a learning neural network.
-
-The challenge isn't a traditional AI opponent - it's an entire ecosystem that learns from your strategies and evolves its behavior patterns through neural network learning.
-
-### The Neural Network Challenge
-The parasite ecosystem doesn't follow scripted behaviors - it genuinely learns:
-- **Analyzes your gameplay data**: Mining patterns, defensive strategies, movement behaviors
-- **Adapts spawning patterns**: Queens adjust parasite types and timing based on your tactics
-- **Evolves generationally**: Each Queen death feeds learning data to improve future spawning strategies
-- **Creates endless variety**: No two encounters feel the same as the ecosystem continuously adapts
-
-### Parasite Ecosystem Mechanics
-Experience a living, breathing ecosystem that challenges you in multiple ways:
-
-**Dual Parasite Types**:
-- **Energy Parasites (75%)**: Drain your energy reserves and disrupt mining operations
-- **Combat Parasites (25%)**: Directly attack your units with aggressive territorial behavior
-- **Dynamic Distribution**: The 75/25 split creates tactical depth - manage energy while defending against direct threats
-
-**The Queen (Neural Network Brain)**:
-- **Visual Representation**: The Queen represents the neural network "brain" controlling all parasite behavior
-- **Adaptive Spawning**: The NN learns from your strategies and evolves parasite deployment patterns
-- **Non-Interactive**: You don't fight the Queen directly - she orchestrates the parasite swarms from behind the scenes
-
-**Energy Lords Progression**:
-- **60-Level System**: Advance through increasingly challenging encounters as the ecosystem evolves
-- **Adaptive Difficulty**: Each level brings smarter Queens with more sophisticated spawning strategies
-- **Continuous Learning**: The neural network ensures no level feels repetitive or predictable
-
-### Energy Economy
-Everything costs energy:
-- **Mining**: Extract energy from radioactive minerals (light blue crystals)
-- **Building**: Construct bases and power plants
-- **Combat**: Protector attacks consume energy
-- **Unit Creation**: Spawn workers and protectors from bases
-
-## 🚀 Quick Start
-
-### Prerequisites
-- **Python 3.12+** for AI backend and neural network parasite spawning
-- **Node.js 18+** for game client and 3D rendering
-- **Modern Web Browser** with WebGL 2.0 support for parasite ecosystem visualization
-- **Git** for version control and development workflow
-
-### Installation & Setup (Windows)
-
-```bash
-# Clone the repository
-git clone https://github.com/kaushikhazra/nexus-of-mind.git
-cd nexus-of-mind
-
-# Option 1: Use batch files (recommended)
-install.bat    # Install all dependencies
-start.bat      # Start both servers
-
-# Option 2: Manual setup
-# Install Python dependencies
-pip install -r requirements.txt
-
-# Install Node.js dependencies
-cd client && npm install && cd ..
-
-# Start AI backend (terminal 1)
-cd server && python start_server.py
-
-# Start game client (terminal 2)
-cd client && npm run dev
-
-# Open in browser: http://localhost:3010
-```
-
-### Docker Deployment
-```bash
-# Build and run with Docker
-docker-compose up -d
-
-# Access the game at http://localhost:3010
-# AI Backend API at http://localhost:8010
-```
-
-## 🎮 How to Play
-
-### Controls
-- **Left Click**: Select and move Protectors to defend against parasites
-- **Mouse**: Rotate camera around the parasite ecosystem
-- **Mouse Wheel**: Zoom in and out to observe territorial battles
-- **Right Click**: Additional camera controls for strategic overview
-
-### Parasite Combat Mechanics
-- **Protector Movement**: Click to move red Protectors - they automatically engage parasites in range
-- **Auto-Attack System**: Protectors automatically target and attack nearby parasites when in combat range
-- **Energy Management**: Monitor energy levels as parasites drain resources during encounters
-- **Territorial Defense**: Defend against evolving parasite swarms that adapt to your strategies
-
-### Current Parasite Ecosystem Features
-- ✅ **Dual Parasite Types**: Face 75% Energy Parasites and 25% Combat Parasites with different behaviors
-- ✅ **Queen AI**: Neural network "brain" that controls and adapts parasite spawning patterns
-- ✅ **Neural Network Learning**: Experience parasites that learn from your defensive strategies
-- ✅ **Movement-Based Combat**: Intuitive protector control with automatic engagement system
-- ✅ **Energy Economy**: Mine resources while defending against energy-draining parasite attacks
-- ✅ **60-Level Progression**: Advance through Energy Lords system with increasingly intelligent Queens
-
-### Developer Notes
-> **Reset Introduction Screen**: If you clicked "Don't show again" and want to see the introduction again, open browser console (F12) and run:
-> ```javascript
-> localStorage.removeItem('skipIntroduction');
-> ```
-> Then refresh the page.
-
-## 🏗️ Technical Architecture
-
-### Frontend (Game Client)
-- **Babylon.js**: High-performance 3D web engine
-- **TypeScript**: Type-safe game logic and UI
-- **Webpack**: Optimized asset bundling
-- **WebGL**: Hardware-accelerated 3D rendering
-
-### Backend (AI Server)
-- **Python 3.12+ with PyTorch**: Neural network system for adaptive parasite spawning
-- **PyTorch**: Sequential neural network learning from gameplay data to optimize parasite behavior
-- **FastAPI**: High-performance REST API for game state management
-- **WebSocket**: Real-time parasite behavior updates and Queen adaptation communication
-- **Continuous Learning**: Background training from Queen death data and player strategy analysis
-
-### Key Components
-- **GameEngine**: Core game loop and parasite ecosystem coordination
-- **SceneManager**: 3D scene setup and Queen territory visualization
-- **CameraController**: RTS-style camera with smooth controls
-- **MaterialManager**: Low poly material system with parasite and Queen visual representation
-- **ParasiteManager**: Dual parasite type spawning and territorial behavior coordination
-- **QueenSystem**: Visual Queen representation and neural network integration for parasite spawning
-- **PerformanceMonitor**: FPS tracking and optimization alerts
-
-## 🎨 Visual Design
-
-### Low Poly Aesthetic
-- **Flat Shading**: Authentic low poly look with geometric surfaces
-- **Color Coding**: Instant unit recognition (green=workers, red=protectors)
-- **SciFi Atmosphere**: Dark space background with atmospheric lighting
-- **Performance Focus**: Optimized geometry for smooth 60fps gameplay
-
-### Art Style Goals
-- Clean geometric shapes for clarity
-- Vibrant colors for gameplay readability
-- Atmospheric lighting for immersion
-- Scalable design for infinite worlds
-
-## 🤖 AI Architecture
-
-### Neural Network System
-- **PyTorch Sequential Model**: Lightweight neural network for spawn decisions
-- **Feature Extraction**: 29-dimensional game state encoding
-- **Simulation Gate**: Cost-benefit analysis for decision validation
-- **Background Training**: Continuous learning from gameplay experience
-
-### Adaptive Difficulty
-- **Player Behavior Analysis**: Tracks aggression, economy focus, and tactics
-- **Dynamic Difficulty Adjustment**: Scales challenge based on player skill
-- **Learning Persistence**: Model weights saved and restored across sessions
-
-### Real-Time Adaptation
-- **Strategy Switching**: AI changes approach based on player actions
-- **Experience Replay**: Learns from recent gameplay decisions
-- **Reward-Based Training**: Optimizes for survival and resource efficiency
-
-## 📊 Development Progress
-
-### ✅ Completed Specifications
-- **Enhanced Parasite System**: Dual parasite types (75% Energy, 25% Combat) with tactical depth and territorial behavior
-- **Queen AI System**: Neural network "brain" representing the Queen, controlling adaptive parasite spawning patterns
-- **Neural Network Learning**: Generational AI learning with Python backend integration and adaptive spawning patterns
-- **Protector Combat System**: Movement-based auto-attack system optimized for parasite ecosystem encounters
-- **3D Foundation System**: Complete Babylon.js implementation with low poly aesthetic and 60fps performance
-- **Energy Economy System**: Universal energy currency powering mining, building, combat, and movement
-- **Procedural Terrain System**: Infinite world generation with varied biomes and mineral deposits
-
-### 🎯 Strategic Evolution: Traditional RTS → Parasite Ecosystem
-This project demonstrates superior development methodology through strategic pivoting. Rather than rigidly following an initial plan for traditional RTS AI, we recognized that the parasite system generated the most player engagement and doubled down on that innovation.
-
-**The Evolution Process**:
-- **Week 1**: Established solid foundation with traditional RTS mechanics
-- **Week 2**: Discovered parasite system created more engaging gameplay than planned AI opponent
-- **Week 3**: Pivoted to evolving parasite ecosystem with neural network learning
-- **Result**: Created genuinely novel gaming sub-genre instead of incremental AI improvement
-
-### 🏗️ Specification-Based Development Methodology
-Transitioned from traditional user stories to comprehensive specifications for complex, interconnected features:
-
-**Traditional User Stories** (Week 1): Effective for foundational systems
-- Linear completion of discrete features
-- Clear acceptance criteria and testing
-- Rapid establishment of core mechanics
-
-**Specification-Driven Development** (Week 2-3): Superior for innovation
-- Comprehensive design documents with property-based testing
-- Iterative refinement of complex systems
-- Focus on correctness properties and formal verification
-- Adaptive planning based on what actually creates value
-
-### 🚀 Innovation Achievement: Novel Gaming Sub-Genre
-**Created "Player vs Evolving Parasite Ecosystem"** - a genuinely new gaming genre:
-- **Not Traditional RTS**: No base-vs-base warfare or resource competition
-- **Not Tower Defense**: Active unit control with strategic territorial decisions
-- **Not Survival Game**: Focused on ecosystem adaptation rather than resource scarcity
-- **Unique Innovation**: Neural network learning creates continuously evolving challenge
-
-This represents the kind of breakthrough thinking that creates new market categories rather than incremental improvements to existing genres.
-
-## 🛠️ Development Workflow
-
-This project uses **Kiro CLI** for AI-powered development assistance:
-
-### Core Development Commands
-```bash
-# Load project context
-@prime
-
-# Plan new features
-@plan-feature
-
-# Execute implementation plans
-@execute
-
-# Review code quality
-@code-review
-```
-
-### Git Flow
-- **main**: Production releases
-- **develop**: Integration branch
-- **feature/***: Individual user stories
-- **hotfix/***: Critical fixes
-
-## 📈 Performance Metrics
-
-### Current Performance
-- **Bundle Size**: 5.13 MiB (optimized for Babylon.js)
-- **Load Time**: ~2 seconds on modern browsers
-- **Frame Rate**: 60fps target achieved
-- **Memory Usage**: Stable with test objects
-
-### Optimization Strategies
-- Low poly geometry for reduced GPU load
-- Efficient material system with minimal textures
-- Frustum culling and scene optimization
-- Performance monitoring with real-time alerts
-
-## 🎯 Hackathon Submission
-
-### Innovation Highlights
-- **AI-Powered Gaming**: Self-learning opponent that evolves with player behavior
-- **Web-Based RTS**: High-performance 3D strategy game in the browser
-- **Energy Economy**: Unique resource system where energy powers everything
-- **Low Poly Aesthetic**: Beautiful and performant visual design
-
-### Technical Excellence
-- **Modern Stack**: Babylon.js + TypeScript + Python AI backend
-- **Clean Architecture**: Modular, maintainable, and extensible codebase
-- **Performance Focus**: 60fps target with optimization monitoring
-- **Development Workflow**: AI-assisted development with Kiro CLI
-
-### Real-World Value
-- **Educational**: Demonstrates AI learning in interactive environments
-- **Entertainment**: Engaging gameplay with adaptive difficulty
-- **Technical Showcase**: Advanced web-based 3D gaming capabilities
-- **Open Source**: Extensible platform for AI gaming experiments
-
-## 🛠️ Troubleshooting
-
-### Common Setup Issues
-
-#### Python/Node.js Version Problems
-**Problem**: Installation fails with version errors
-**Solution**: 
-```bash
-# Check versions
-python --version  # Should be 3.12+
-node --version    # Should be 18+
-
-# Update if needed (Windows)
-# Download from python.org and nodejs.org
-```
-
-#### Port Already in Use
-**Problem**: `Error: listen EADDRINUSE :::3000` or `:::8010`
-**Solution**:
-```bash
-# Find and kill processes using ports
-netstat -ano | findstr :3000
-netstat -ano | findstr :8010
-taskkill /PID <process_id> /F
-
-# Or use different ports in config files
-```
-
-#### WebGL Not Supported
-**Problem**: "WebGL not supported" error in browser
-**Solution**:
-- Update graphics drivers
-- Enable hardware acceleration in browser settings
-- Try different browser (Chrome, Firefox, Edge)
-- Check `chrome://gpu/` for WebGL status
-
-### Parasite Ecosystem Game Issues
-
-#### Parasites Not Spawning
-**Problem**: No parasites appear in the game world
-**Solution**:
-- Verify AI backend is running (`http://localhost:8010/health`)
-- Check browser console for WebSocket connection errors
-- Restart both client and server
-- Ensure neural network model files are present in `server/models/`
-
-#### Protectors Not Attacking
-**Problem**: Protectors don't engage parasites automatically
-**Solution**:
-- Move protectors closer to parasites (auto-attack has limited range)
-- Check energy levels - low energy disables combat
-- Verify combat system is initialized (check browser console)
-- Try clicking directly on parasites to force engagement
-
-#### Performance Issues / Low FPS
-**Problem**: Game runs slowly or stutters
-**Solution**:
-```bash
-# Check performance in browser console
-# Look for FPS counter and performance warnings
-
-# Reduce graphics quality:
-# - Lower browser zoom level
-# - Close other browser tabs
-# - Disable browser extensions
-# - Update graphics drivers
-```
-
-#### Neural Network Not Learning
-**Problem**: Queens don't seem to adapt strategies
-**Solution**:
-- Play multiple rounds to generate training data
-- Check `server/logs/` for training activity
-- Verify PyTorch installation: `pip show torch`
-- Restart AI backend to reload model weights
-
-### Development Issues
-
-#### Build Failures
-**Problem**: `npm run dev` or build commands fail
-**Solution**:
-```bash
-# Clear caches and reinstall
-cd client
-rm -rf node_modules package-lock.json
-npm install
-
-# Check for TypeScript errors
-npm run type-check
-```
-
-#### Docker Issues
-**Problem**: Docker containers won't start
-**Solution**:
-```bash
-# Check Docker is running
-docker --version
-
-# View container logs
-docker-compose logs
-
-# Rebuild containers
-docker-compose down
-docker-compose up --build -d
-```
-
-#### WebSocket Connection Failures
-**Problem**: Client can't connect to AI backend
-**Solution**:
-- Verify backend is running: `curl http://localhost:8010/health`
-- Check firewall settings
-- Try different port in configuration
-- Disable antivirus temporarily for testing
-
-### Getting Help
-
-#### Debug Information to Collect
-When reporting issues, please include:
-- Operating system and version
-- Browser type and version
-- Python and Node.js versions
-- Error messages from browser console (F12)
-- Server logs from `server/logs/`
-- Steps to reproduce the problem
-
-#### Support Channels
-- **GitHub Issues**: [Report bugs and feature requests](https://github.com/kaushikhazra/nexus-of-mind/issues)
-- **Development Logs**: Check `DEVLOG.md` for recent changes
-- **Code Review**: Use `@code-review` prompt for development questions
-
-#### Performance Monitoring
-```bash
-# Enable detailed logging
-# Set LOG_LEVEL=debug in environment
-
-# Monitor resource usage
-# Check Task Manager (Windows) or Activity Monitor (Mac)
-# Look for high CPU/memory usage
-
-# Browser performance tools
-# F12 → Performance tab → Record gameplay session
-```
-
-## 🤝 Contributing
-
-### Development Setup
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Make your changes and test thoroughly
-4. Commit with descriptive messages
-5. Push to your fork and create a Pull Request
-
-### Code Standards
-- **TypeScript**: Strict mode with comprehensive type safety
-- **Testing**: Unit tests for core game logic
-- **Documentation**: Clear comments and README updates
-- **Performance**: Maintain 60fps target
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- **Babylon.js Team**: For the incredible 3D web engine
-- **Dynamous & Kiro**: For the hackathon opportunity and AI development tools
-- **Open Source Community**: For the libraries and tools that make this possible
+A real-time strategy game where you mine resources and defend against AI-controlled creatures that learn and adapt to your strategies through neural network training.
 
 ---
 
-**🎮 Ready to challenge the AI?** Clone the repo, run `install.bat` then `start.bat`, and experience the future of strategy gaming!
+## Prerequisites
 
-**🏆 Hackathon Entry**: This project showcases the potential of AI in gaming, combining cutting-edge machine learning with engaging gameplay in a web-accessible format.
+### Tech Stack
+- **Frontend**: Babylon.js 6.x (3D WebGL), TypeScript 5.x, Webpack 5.x
+- **Backend**: Python 3.12+, PyTorch, FastAPI, WebSocket
+- **GPU**: Optional - NVIDIA CUDA 12.x for accelerated training (CPU works fine for gameplay)
+- **Browser**: WebGL 2.0 compatible (Chrome, Firefox, Edge, Safari)
+
+### Core Dependencies
+- **Babylon.js**: 3D engine, scene management, WebGL abstraction
+- **PyTorch**: Neural network training and inference
+- **Node.js 18+**: Build toolchain and development server
+
+### Environment Requirements
+- 60fps target performance
+- Memory footprint: ~100-200MB (client + server)
+- WebSocket connectivity for AI backend
+- GPU optional (model is only ~830 parameters)
+
+---
+
+## Quick Start
+
+### Windows (Recommended)
+```bash
+# Install dependencies
+install.bat
+
+# Start servers
+start.bat
+```
+
+### Manual Setup
+```bash
+# Backend
+pip install -r requirements.txt
+cd server && python start_server.py
+
+# Frontend (separate terminal)
+npm install && npm run dev
+```
+
+### Docker
+```bash
+docker-compose up --build
+```
+
+### URLs
+| Service | URL |
+|---------|-----|
+| Game Client | http://localhost:3010 |
+| AI Backend | http://localhost:8010 |
+
+---
+
+## How to Play
+
+> Press **H** in-game to open the help window.
+
+### Navigation
+
+**Camera Movement:**
+| Key | Action |
+|-----|--------|
+| W / Arrow Up | Move camera forward |
+| S / Arrow Down | Move camera backward |
+| A / Arrow Left | Rotate camera left |
+| D / Arrow Right | Rotate camera right |
+
+**Zoom & View:**
+| Control | Action |
+|---------|--------|
+| Mouse Wheel | Zoom in/out |
+| Mouse Drag | Rotate camera view |
+| H | Open help window |
+| Escape | Close help / Cancel action |
+
+### Operations
+
+**Construction:**
+1. Click a building button in the panel
+2. Move mouse to preview placement location
+3. Left-click to place (requires energy)
+
+**Energy Production:**
+Minerals hold immense energy potential. Only **Power Plants** can convert harvested minerals into usable energy. Keep your workforce mining continuously, and deploy Power Plants strategically to maintain a steady energy flow.
+
+**Units:**
+| Unit | Description |
+|------|-------------|
+| Workforce (Worker) | Created from Base, mine minerals |
+| Protector | Created from Base, combat units |
+
+**Unit Movement:**
+| Action | Result |
+|--------|--------|
+| Left-click unit | Select the unit |
+| Left-click mineral | Move worker to mine |
+| Left-click terrain | Move protector (auto-attacks enemies) |
+| Right-click | View information tooltip |
+
+**Caution:** Nearly all operations consume energy. Monitor the energy bar at the top of your display.
+
+### Enemies
+
+**Parasite Types (creatures):**
+
+| Type | Spawn Rate | Behavior | Health | Speed | Kill Reward |
+|------|------------|----------|--------|-------|-------------|
+| Energy Parasite | 75% | Targets workers, steals energy | 60 HP | 4.0 | +2 energy |
+| Combat Parasite | 25% | Aggressive, targets protectors | 100 HP | 5.0 | +4 energy |
+
+**Parasite States:** SPAWNING → PATROLLING → HUNTING → FEEDING → RETURNING
+
+**Strategy Tips:**
+- Keep Protectors near your Workers
+- Parasites spawn near mining activity
+- Parasites will chase workers
+- Combat Parasites (larger, red) destroy protectors
+- The Queen AI adapts to your tactics over time
+
+### Game Objective
+
+No traditional "victory" - perpetual strategic challenge against evolving AI:
+- Survive against increasingly adaptive parasite swarms
+- Maximize energy extraction efficiency
+- Advance through 60 levels of the Energy Lords progression
+- Adapt strategies as the Queen AI learns yours
+
+---
+
+## Progression System (Energy Lords)
+
+Players advance through **60 levels** organized into **12 tiers** by sustaining energy production above thresholds.
+
+| Tier | Levels | Title | Sustain Time | Energy Range |
+|------|--------|-------|--------------|--------------|
+| Spark | 1-5 | Spark I-V | 1 min | 1,000 - 1,360 J |
+| Ember | 6-10 | Ember I-V | 2 min | 1,469 - 1,999 J |
+| Flame | 11-15 | Flame I-V | 3 min | 2,159 - 2,937 J |
+| Blaze | 16-20 | Blaze I-V | 4 min | 3,172 - 4,316 J |
+| Inferno | 21-25 | Inferno I-V | 5 min | 4,661 - 6,341 J |
+| Nova | 26-30 | Nova I-V | 7 min | 6,848 - 9,317 J |
+| Pulsar | 31-35 | Pulsar I-V | 9 min | 10,063 - 13,690 J |
+| Quasar | 36-40 | Quasar I-V | 11 min | 14,785 - 20,115 J |
+| Nebula | 41-45 | Nebula I-V | 13 min | 21,725 - 29,560 J |
+| Star | 46-50 | Star I-V | 14 min | 31,924 - 43,427 J |
+| Supernova | 51-55 | Supernova I-V | 15 min | 46,901 - 63,800 J |
+| Nexus | 56-60 | Nexus I-V | 15 min | 68,904 - 93,749 J |
+
+**How it works:**
+- Energy threshold formula: `1000 × 1.08^(level-1)` Joules
+- Energy checked every 500ms
+- If energy drops below threshold, timer resets to zero
+- Victory triggers when sustained time reaches required duration
+
+**Upgrade Bonuses:**
+- Regular level completion: +1% power generator bonus
+- Tier completion (every 5th level): +3.5% bonus
+- Maximum total bonus at level 60: 90%
+
+**Persistence:** Progress saved to SQLite database via backend API. Survives browser sessions.
+
+---
+
+## Architecture
+
+### High-Level Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     GAME CLIENT (Babylon.js)                    │
+│  GameEngine → SceneManager, CameraController, TerrainSystem,    │
+│  UnitManager, ParasiteManager, EnergyManager, BuildingSystem,   │
+│  CombatSystem, TerritoryManager, EnergyLordsProgression, UI     │
+└─────────────────────────┬───────────────────────────────────────┘
+                          │ WebSocket (ws://localhost:8010)
+                          ↓
+┌─────────────────────────────────────────────────────────────────┐
+│              AI BACKEND (Python + PyTorch)                      │
+│  WebSocket Server → Feature Extractor → SequentialQueenNN       │
+│  (5 networks) → Simulation Gate → Strategy Generator → Trainer  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Client Folder Structure
+```
+client/src/
+├── game/          # GameEngine.ts, game-state.ts, types.ts
+├── engine/        # SceneManager, CameraController, MaterialManager
+├── world/         # TerrainSystem, TreeRenderer, MineralDeposit
+├── units/         # Unit, Worker, Protector, UnitManager
+├── parasites/     # Parasite, EnergyParasite, CombatParasite, ParasiteManager
+├── buildings/     # Building, Base, PowerPlant, BuildingSystem
+├── territories/   # TerritoryManager, Queen, Hive
+├── combat/        # CombatSystem, CombatUI, effects/
+├── economy/       # EnergyManager, energy-ui
+├── ui/            # All UI components (HUD, Help, Intro, Debug)
+└── main.ts        # Entry point
+```
+
+### Backend Folder Structure
+```
+server/
+├── ai_engine/
+│   ├── nn_model.py              # PyTorch SequentialQueenNN (Five-NN)
+│   ├── feature_extractor.py     # Observation → NN features
+│   ├── reward_calculator.py     # Outcome evaluation
+│   ├── decision_gate/           # Simulation-gated inference
+│   │   ├── gate.py              # Gate logic
+│   │   ├── cost_function.py     # Expected reward calculation
+│   │   ├── config.py            # Gate configuration
+│   │   └── components/          # Survival, disruption, location
+│   └── training/                # Continuous learning
+├── websocket/
+│   ├── message_handler.py       # WebSocket message processing
+│   └── connection_manager.py    # Client connections
+├── routes/                      # REST endpoints
+├── database/                    # SQLite for progress
+├── models/
+│   ├── queen_sequential.pt      # 5-network checkpoint
+│   └── queen_sequential_metadata.json
+└── main.py                      # FastAPI application
+```
+
+### Key Components
+
+| Component | Purpose |
+|-----------|---------|
+| GameEngine | Central coordinator, 60fps render loop, system orchestration |
+| TerrainSystem | Procedural infinite terrain via Perlin noise, chunk-based loading |
+| TerritoryManager | 16x16 chunk territories, Queen lifecycle, parasite spawning |
+| CombatSystem | Auto-attack mechanics, damage resolution, energy cost validation |
+| EnergyManager | Global energy pool, mining conversion, action validation |
+| ParasiteManager | NN-driven spawn types, behavior state machine |
+| SequentialQueenNN | 5 specialized neural networks for spawn decisions |
+
+---
+
+## Game Engine Deep Dive
+
+### 3D Rendering (Babylon.js)
+- WebGL 2.0 rendering
+- Low poly SciFi aesthetic with flat shading
+- Dynamic lighting: Directional (sun) + ambient
+- Performance targets: 60fps, <50 draw calls, <100MB memory
+
+### Procedural Terrain
+- Infinite generation using Perlin noise (deterministic seed)
+- Chunk-based loading: 64x64 unit chunks, 7×7 grid around camera
+- 3 biomes by height: Green (0-3), Yellow (3-6), Brown (6+)
+- LOD system, frustum culling, efficient disposal
+- Trees: ~400+ with GPU-accelerated glow pulsing
+
+### Unit System
+
+**Workers:**
+| Stat | Value |
+|------|-------|
+| Health | 60 HP |
+| Energy Capacity | 50 |
+| Movement Speed | 4.0 |
+| Mining Range | 3 units |
+| Mining Energy Cost | 0.4 per action |
+| Flee Distance | 25 units (when attacked) |
+
+**Protectors:**
+| Stat | Value |
+|------|-------|
+| Health | 80 HP |
+| Energy Capacity | 60 |
+| Movement Speed | 7.0 |
+| Detection Range | 12 units |
+| Attack Range | 12 units |
+| Attack Damage | 35 |
+| Attack Energy Cost | 1 per attack |
+| Attack Cooldown | 1.5 seconds |
+
+### Parasite System
+
+**Spawn Distribution:**
+- **NN-controlled**: Neural network (NN3) decides spawn type
+- **Default fallback**: 75% Energy / 25% Combat
+
+**Parasite Stats:**
+| Type | Health | Target | Speed | Scale | Reward |
+|------|--------|--------|-------|-------|--------|
+| Energy | 60 HP | Workers | 4.0 | 1.0x | 2 energy |
+| Combat | 100 HP | Protectors → Workers | 5.0 | 1.2x | 4 energy |
+
+### The Queen
+
+The Queen is the visual representation of the neural network - she's **non-interactive**. You don't fight her directly; she orchestrates parasite spawning behavior behind the scenes. Code exists for lifecycle phases (UNDERGROUND_GROWTH, HIVE_CONSTRUCTION, ACTIVE_CONTROL) but these are for NN training context, not active gameplay.
+
+### Combat System
+
+**Flow:** Detection (12 units) → Prioritization → Movement → Attack (12 units) → Resolution
+
+**Energy Economics:**
+| Action/Event | Energy |
+|--------------|--------|
+| Protector attack | -1 |
+| Energy Parasite kill | +2 |
+| Combat Parasite kill | +4 |
+| Worker killed by enemy | +15 (to enemy) |
+| Protector killed by enemy | +20 (to enemy) |
+
+### Performance Optimizations
+- Combat material disposal
+- Eliminated duplicate UI textures
+- Synchronous render loop (no async stalls)
+- Round-robin system throttling (EnergyManager 10Hz, TerritoryManager 10Hz)
+- Per-frame allocation elimination (90%+ reduction)
+- Singleton lookup caching
+- Mouse move throttling
+- Interval cleanup on dispose
+
+---
+
+## Neural Network Deep Dive
+
+### Architecture Evolution
+
+| Version | Architecture | Problem |
+|---------|--------------|---------|
+| v1 | Single NN: 29 inputs → 257 outputs | Mode collapse to chunk 179 (~67%) |
+| v2 | + Entropy penalty, label smoothing | Better diversity, still mismatched |
+| v3 | Five-NN Sequential (~830 params) | Current - specialized pipeline |
+
+### Five-NN Sequential Architecture
+
+```
+NN1: Energy Suitability
+├─ Input: 10 (protector_density + e_parasite_rate × 5 chunks)
+├─ Output: 5 sigmoid (suitability per chunk)
+└─ Purpose: Is chunk good for energy parasites?
+
+NN2: Combat Suitability (parallel with NN1)
+├─ Input: 10 (protector_density + c_parasite_rate × 5 chunks)
+├─ Output: 5 sigmoid (suitability per chunk)
+└─ Purpose: Is chunk good for combat parasites?
+
+NN3: Type Decision
+├─ Input: 10 (5 energy_suit + 5 combat_suit)
+├─ Output: 2 softmax (P(energy), P(combat))
+└─ Purpose: Energy or combat parasite?
+
+NN4: Chunk Decision
+├─ Input: 15 (5 worker_densities + 5 suitabilities + 5 saturations)
+├─ Output: 6 softmax (P(chunk0-4) + P(NO_SPAWN))
+└─ Purpose: Which chunk to target?
+
+NN5: Quantity Decision
+├─ Input: 7 (saturation, suitability, capacity, rates, type, chunk)
+├─ Output: 5 softmax (P(0-4 parasites))
+└─ Purpose: How many to spawn?
+```
+
+### Feature Extraction
+
+**29 Base Features:**
+- Per-chunk (×5): worker_density, protector_density, e_parasite_rate, c_parasite_rate
+- Global: e/c_parasite_spawn_capacity, player_energy_rate, player_mineral_rate
+
+### Simulation-Gated Inference
+
+Before spawning, decisions are evaluated with a predictive cost function.
+
+**Expected Reward Formula:**
+```
+R_expected = w₁·Survival + w₂·Disruption + w₃·Location + Exploration
+```
+
+**Weights:**
+- w₁ (survival_weight) = 0.3
+- w₂ (disruption_weight) = 0.5
+- w₃ (location_weight) = 0.2
+
+**Survival Probability:**
+```
+threat(d) =
+  1.0                           if d < 2 chunks (kill zone)
+  exp(-0.5·(d - 2))             if 2 ≤ d < 8 chunks (threat zone)
+  0.0                           if d ≥ 8 chunks (safe zone)
+
+P_survival = ∏ᵢ (1 - threat_factorᵢ)
+```
+One protector in kill zone = 0% survival.
+
+**Worker Disruption:**
+- Energy parasites: pursuit range = 6 chunks
+- Combat parasites: pursuit range = 7.5 chunks
+
+**Location Penalty:**
+- α (hive_proximity_weight) = 0.3
+- β (worker_proximity_weight) = 0.4
+
+**Exploration Bonus (Deadlock Prevention):**
+```
+bonus = 0.35 · min(time_since_spawn, 300) / 300
+```
+Chunks not spawned at recently get increasing bonus.
+
+**Gate Decision:**
+```
+if R_expected > θ: SEND spawn to game
+else: WAIT, train on simulation feedback
+```
+- Default θ = -2000 (simulation mode, gate passes everything)
+- Production θ = 0.0 (in YAML config)
+
+### Learning Pipeline
+
+**Dual Feedback:**
+- Simulation feedback: Immediate (every observation)
+- Real feedback: Delayed (executed actions only)
+- Effective weight: simulation × 0.3 + real × 0.7
+
+**Loss Functions:**
+- NN1/NN2: MSE on suitability vs actual survival rate
+- NN3/NN4/NN5: Cross-entropy
+
+**On Queen Death:**
+1. Capture death data (location, cause, timing, player units)
+2. Analyze assault pattern (direct, flanking, coordinated, infiltration)
+3. Update player behavior model
+4. Train 5 NNs on failure signal (negative reward)
+5. Generate new strategy for next generation
+
+### PyTorch GPU Migration
+- **Why**: TensorFlow 2.x Windows has no native GPU support after v2.10
+- **Result**: PyTorch with auto GPU/CPU detection
+- GPU: 0.60ms inference, 3.71ms training
+- CPU: Still fast enough (model is only ~830 params)
+- GPU mainly benefits turbo-mode simulator (79.5 TPS)
+
+### Game Simulator
+- **Purpose**: Automated training data generation (no 3D rendering)
+- **Performance**: 1000+ ticks/sec in turbo mode (100x faster than gameplay)
+- **Interface**: Reuses WebSocket protocol - NN cannot distinguish simulated from real
+- **Curriculum**: Progressive difficulty phases
+
+### Generational Evolution
+- Gen 1: Random/baseline
+- Gen 2-3: Avoid death locations, adaptive timing
+- Gen 4+: Predictive placement, counter assault patterns
+- Gen 7+: Multi-step planning, deceptive behaviors
+
+---
+
+## API Endpoints
+
+### Core
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check (returns 503 if unhealthy) |
+| GET | `/system/status` | System status and metrics |
+| POST | `/system/test` | Trigger system test |
+| WebSocket | `/ws` | Real-time game ↔ NN communication |
+
+### Reset (Development)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/reset-db` | Reset player progress to initial state |
+| GET | `/reset-nn` | Reset neural networks to random state |
+
+### Player Progress
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/progress` | Load player progress |
+| POST | `/api/progress` | Save player progress |
+| DELETE | `/api/progress` | Reset player progress |
+| GET | `/api/progress/leaderboard` | Get all players ranked by level |
+
+### NN Dashboard
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/dashboard` | NN visualization dashboard HTML |
+| GET | `/api/nn-dashboard` | Dashboard metrics snapshot |
+| POST | `/api/nn-dashboard/reset` | Reset dashboard metrics |
+
+---
+
+## Game Lore
+
+### The Korenthi Empire
+An advanced civilization that mastered Artificial Consciousness, now facing energy starvation despite their technological prowess. AI technology is extremely power-hungry, and home planet resources are insufficient.
+
+### The Energy Lords Guild
+An elite organization addressing the energy crisis. You are a deployed member, handling mineral extraction with full autonomy on a remote planet rich in minerals. Quantum tunneling enables resource transmission across stars.
+
+### The Threat
+
+**Energy Parasites** - ecological threat targeting workers, draining energy. 75% of spawns.
+
+**Combat Parasites** - evolved threat targeting protectors with aggressive hunting. 25% of spawns.
+
+**The Queen** - adaptive intelligence. The neural network learns from failures; each generation grows smarter. Controls territories, commands swarms.
+
+### Narrative Arc
+1. Empire discovers energy-rich planet
+2. Energy Lords guild established
+3. Parasites emerge as native inhabitants
+4. Combat Parasites evolve
+5. Queens appear, organizing parasites
+6. AI evolution accelerates
+7. Arms race: player vs adaptive intelligence
+8. Perpetual strategic challenge (no "final victory")
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+**Parasites Not Spawning:**
+- Check backend: `curl http://localhost:8010/health`
+- Check browser console for WebSocket errors
+- Verify `server/models/` contains model files
+- Restart both client and server
+
+**Low FPS (Below 50fps):**
+- Check memory (<100MB target)
+- Close other browser tabs
+- Check for memory leaks (restart browser if >300MB)
+- Verify GPU acceleration: `chrome://gpu/`
+
+**Backend Won't Start:**
+- Python 3.12+ required (numpy compatibility)
+- Install dependencies: `pip install -r requirements.txt`
+- Check port 8010 is free
+
+**AI Backend Disconnection:**
+- Auto-retry with exponential backoff (max 30s)
+- Falls back to rule-based AI if unavailable
+- Check Python env and dependencies
+
+**NN Training Stuck:**
+- Verify simulator sending observations
+- Check for mode collapse in spawn decisions
+- Review loss values in training logs
+- Exploration bonus prevents deadlock
+
+### Browser Compatibility
+| Browser | Support |
+|---------|---------|
+| Chrome/Edge | Best - WebGL 2.0 + CUDA |
+| Firefox | Good WebGL, slower JS engine |
+| Safari | Adequate WebGL, no CUDA |
+| Mobile | Limited support |
+
+### Performance Tips
+- Per-frame allocations fixed
+- Max 49 terrain chunks loaded (7×7 grid)
+- Max 10 concurrent combat effects
+- GPU can process 100+ NN predictions/sec
+
+---
+
+## Development
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `client/src/game/GameEngine.ts` | Main game loop |
+| `server/ai_engine/nn_model.py` | Neural network |
+| `server/websocket/message_handler.py` | WebSocket handling |
+| `server/ai_engine/decision_gate/gate.py` | Simulation gate |
+
+### Development Timeline
+
+| Date | Phase | Key Work |
+|------|-------|----------|
+| Jan 9-11 | Foundation | Protector combat system |
+| Jan 12 | Ecosystem | Parasite system, Queen territory, adaptive intelligence |
+| Jan 13 | Core | Neural network, 3D foundation, energy economy, terrain |
+| Jan 14-15 | Refinement | Parasite refactor, spatial indexing, combat balance |
+| Jan 16 | Progression | Energy Lords, continuous learning |
+| Jan 17 | Performance | FPS optimization (20+ fixes) |
+| Jan 18 | NN v2 | Architecture improvements |
+| Jan 20-22 | Intelligence | Simulation gate, dashboard, training loop |
+| Jan 25 | Training | Game simulator, PyTorch migration, Five-NN |
+| Jan 26-28 | Polish | Curriculum, code quality, in-game help |
+
+### Key Pivots
+1. **Single NN → Five-NN Sequential**: Mode collapse forced redesign
+2. **TensorFlow → PyTorch**: Windows GPU support critical
+3. **Simulation-Gated Inference**: Immediate feedback for continuous learning
+4. **Game Simulator**: 100x training acceleration
+5. **FPS Optimization**: 25fps → 60fps stability
+
+---
+
+## Known Issues
+
+- **SimulationGate config not loading from YAML**: `message_handler.py:112` uses `SimulationGateConfig()` directly (Python defaults, threshold=-2000) instead of `load_simulation_config()` which loads from `simulation_gate.yaml` (threshold=0.0). Fix: use the config loader.
+
+---
+
+## License
+
+MIT License - see [LICENSE](LICENSE)
