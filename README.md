@@ -2,6 +2,10 @@
 
 A real-time strategy game where you mine resources and defend against AI-controlled creatures that learn and adapt to your strategies through neural network training.
 
+![Nexus of Mind Screenshot](thumbnail.png)
+
+[Watch Demo Video](https://youtu.be/OhX_kAqxR-4)
+
 ---
 
 ## Prerequisites
