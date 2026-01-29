@@ -428,6 +428,12 @@ For the full story, see [Game Lore](docs/GAME_LORE.md).
 
 ### Common Issues
 
+**Reset Introduction/Tutorial:**
+The introduction screen is skipped after first viewing. To see it again:
+- Open browser DevTools (F12) → Console tab
+- Run: `localStorage.removeItem('skipIntroduction')`
+- Refresh the page
+
 **Parasites Not Spawning:**
 - Check backend: `curl http://localhost:8010/health`
 - Check browser console for WebSocket errors
