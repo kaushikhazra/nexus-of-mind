@@ -18,5 +18,5 @@ echo ========================================
 echo Servers starting in separate windows.
 echo.
 echo AI Backend:   http://localhost:8010
-echo Game Client:  http://localhost:3000
+echo Game Client:  http://localhost:3010
 echo ========================================

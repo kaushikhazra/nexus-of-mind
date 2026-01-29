@@ -91,7 +91,7 @@ app = FastAPI(
 # Configure CORS for client communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8080"],  # Game client origins
+    allow_origins=["http://localhost:3010", "http://localhost:8080"],  # Game client origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -457,12 +457,12 @@ async def reset_neural_network():
     """
     Reset all neural networks to initial random state.
 
-    Resets both:
-    - NNModel (spawn decisions - 257 outputs)
-    - ContinuousTrainer (strategy model - 8 outputs)
+    Resets:
+    - NNModel (Five-NN Sequential architecture - ~830 parameters)
+    - ContinuousTrainer (strategy model)
 
     Deletes saved model files and clears all training history.
-    Access via: http://localhost:8000/reset-nn
+    Access via: http://localhost:8010/reset-nn
     """
     if not message_handler:
         return JSONResponse(
