@@ -236,7 +236,7 @@ function createSkipContainer(): {
         transition: all 0.15s ease;
         padding: 4px 8px;
     `;
-    label.textContent = "Don't show again";
+    label.textContent = "Skip";
 
     container.appendChild(checkbox);
     container.appendChild(label);

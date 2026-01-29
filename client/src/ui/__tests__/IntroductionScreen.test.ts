@@ -97,12 +97,12 @@ describe('IntroductionScreen Components', () => {
         
         const label = document.createElement('label') as HTMLLabelElement;
         label.htmlFor = 'test-checkbox';
-        label.textContent = "Don't show again";
+        label.textContent = "Skip";
         
         expect(checkbox.type).toBe('checkbox');
         expect(checkbox.checked).toBe(false);
         expect(label.htmlFor).toBe('test-checkbox');
-        expect(label.textContent).toBe("Don't show again");
+        expect(label.textContent).toBe("Skip");
         
         // Test checkbox interaction
         checkbox.checked = true;
