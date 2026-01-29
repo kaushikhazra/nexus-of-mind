@@ -2,7 +2,7 @@
 
 A real-time strategy game where you mine resources and defend against AI-controlled creatures that learn and adapt to your strategies through neural network training.
 
-![Nexus of Mind Screenshot](docs/thumbnail.png)
+![Nexus of Mind Screenshot](docs/assets/thumbnail.png)
 
 [Watch Demo Video](https://youtu.be/OhX_kAqxR-4)
 
@@ -25,17 +25,17 @@ A real-time strategy game where you mine resources and defend against AI-control
 ### Resource Mining
 Workers harvest minerals and deliver them to Power Plants for energy conversion.
 
-![Mining Operations](docs/game-mining.png)
+![Mining Operations](docs/assets/game-mining.png)
 
 ### Combat System
 Protectors auto-engage parasites. The Queen AI adapts spawn patterns based on your defenses.
 
-![Combat in Action](docs/game-combat.png)
+![Combat in Action](docs/assets/game-combat.png)
 
 ### Base Building
 Construct Power Plants to convert minerals into energy. All operations consume energy.
 
-![Base Construction](docs/game-base.png)
+![Base Construction](docs/assets/game-base.png)
 
 ---
 
@@ -375,7 +375,7 @@ Key features:
 - **Dual feedback**: Simulation (immediate) + real game (delayed)
 - **Generational evolution**: Each game session trains the next generation
 
-![Neural Network Dashboard](docs/nn-dashboard.png)
+![Neural Network Dashboard](docs/assets/nn-dashboard.png)
 
 For full technical details, see [Neural Network Architecture](docs/NEURAL_NETWORK.md).
 
