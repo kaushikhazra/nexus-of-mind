@@ -17,8 +17,10 @@ from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
-# Database file path
-DB_PATH = os.path.join(os.path.dirname(__file__), 'energy_lords.db')
+# Database file path - use environment variable or default to data directory
+# In Docker: /app/data/energy_lords.db (mounted volume for persistence)
+# In local dev: ./server/database/energy_lords.db (same directory as code)
+DB_PATH = os.environ.get('ENERGY_LORDS_DB_PATH', os.path.join(os.path.dirname(__file__), 'energy_lords.db'))
 
 
 class EnergyLordsDB:

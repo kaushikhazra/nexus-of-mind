@@ -75,7 +75,8 @@ models/
 !server/models/*_metadata.json
 
 # Data directories (generated/temporary data)
-data/
+data/*
+!data/.gitkeep
 data_backups/
 data/queen_memory/generation_*.json
 data/learning_quality/
